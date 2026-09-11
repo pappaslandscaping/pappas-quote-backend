@@ -195,6 +195,7 @@
 
         .contract-actions {
             display: flex;
+            flex-shrink: 0;
             gap: 8px;
         }
 
@@ -215,6 +216,21 @@
         .btn-icon:hover {
             background: #f8fafc;
             color: #1e293b;
+        }
+
+        .btn-download {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--ink);
+            flex-shrink: 0;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .btn-download:hover {
+            background: #bdd36c;
+            border-color: #bdd36c;
+            color: var(--ink);
         }
 
         .btn-icon svg {
@@ -1163,6 +1179,25 @@
                 padding-right: 22px;
             }
 
+            .contract-header {
+                gap: 12px;
+            }
+
+            .contract-actions {
+                min-width: 96px;
+            }
+
+            .btn-download {
+                font-size: 11px;
+                justify-content: center;
+                padding: 8px 10px;
+                width: 100%;
+            }
+
+            .btn-download svg {
+                display: none;
+            }
+
             .contract-content {
                 max-height: none;
             }
@@ -1266,9 +1301,9 @@
             <div class="contract-header">
                 <h3>Service Agreement</h3>
                 <div class="contract-actions">
-                    <button class="btn-icon" onclick="downloadContract()">
+                    <button class="btn-icon btn-download" onclick="downloadContract()">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                        Download
+                        Print / Save PDF
                     </button>
                 </div>
             </div>
@@ -1446,7 +1481,7 @@
                 }
 
                 // Populate UI
-                document.getElementById('quoteNumber').textContent = quoteData.quote_number || `Q-${quoteData.id}`;
+                document.getElementById('quoteNumber').textContent = `#${String(quoteData.quote_number || quoteData.id).replace(/^#/, '')}`;
                 document.getElementById('serviceAddress').innerHTML = formatAddr(quoteData.customer_address);
                 document.getElementById('quoteTotal').textContent = formatCurrency(quoteData.total);
 
@@ -1490,7 +1525,7 @@
                 }
 
                 // Populate UI
-                document.getElementById('quoteNumber').textContent = quoteData.quote_number || `Q-${quoteData.id}`;
+                document.getElementById('quoteNumber').textContent = `#${String(quoteData.quote_number || quoteData.id).replace(/^#/, '')}`;
                 document.getElementById('serviceAddress').innerHTML = formatAddr(quoteData.customer_address);
                 document.getElementById('quoteTotal').textContent = formatCurrency(quoteData.total);
 
@@ -2066,6 +2101,8 @@
                 </html>
             `);
             printWindow.document.close();
+            printWindow.focus();
+            window.setTimeout(() => printWindow.print(), 500);
         }
     </script>
 </body>

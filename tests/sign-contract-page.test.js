@@ -29,6 +29,11 @@ describe('customer service agreement page', () => {
     expect(page).toContain('.quote-detail + .quote-detail');
     expect(page).toContain('#serviceAddress');
     expect(page).toContain('white-space: nowrap');
+    expect(page).toContain('Print / Save PDF');
+    expect(page).toContain('btn-download');
+    expect(page).toContain('.btn-download svg');
+    expect(page).toContain("replace(/^#/, '')");
+    expect(page).toContain('printWindow.print()');
     expect(page).toContain('Associated Estimate');
     expect(page).not.toContain('Review Quote');
     expect(page).not.toContain('Accept Quote');

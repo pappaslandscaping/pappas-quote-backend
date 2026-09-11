@@ -14,6 +14,7 @@
 - `/private/tmp/agreement-email-summary-fixed.png`
 - `/private/tmp/yarddesk-estimate-reference-two-column-focused.png`
 - `/private/tmp/yarddesk-estimate-reference-comparison.png`
+- `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`
 
 **Viewport and normalization**
 
@@ -57,6 +58,8 @@
 - Fix: kept the two summary cells side by side at the mobile breakpoint. The agreement summary remains left of the lime divider, with Estimate and Total on the right. Evidence: `/private/tmp/agreement-email-summary-fixed.png`.
 - Agreement page P2: Service Address and Services stacked as separate rows on mobile, while the estimate email uses a compact side-by-side summary divided by one lime rule. The estimate reference number was also visually oversized.
 - Fix: retained a 48/52 two-column grid on mobile, placed the lime divider between the columns, reduced the detail copy to 12 px, kept the formatted street and city/state/ZIP on exactly two lines, and reduced the reference number to 18 px. Post-fix evidence: `/private/tmp/yarddesk-estimate-reference-two-column-focused.png` and `/private/tmp/yarddesk-estimate-reference-comparison.png`.
+- Agreement page P2: the outlined Download control looked disabled and did not accurately describe that the browser opens a printable copy rather than downloading immediately.
+- Fix: changed the control to a compact lime `Print / Save PDF` button, prevented mobile wrapping, added `#` to the displayed estimate reference, and opens the browser print/save dialog after creating the printable agreement. Evidence: `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`.
 
 **Findings**
 

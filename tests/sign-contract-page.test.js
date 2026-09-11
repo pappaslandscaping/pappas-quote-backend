@@ -64,6 +64,17 @@ describe('customer service agreement page', () => {
     expect(page).toContain("document.getElementById('printedName').value = typed;");
     expect(page).toContain("printedName.value = '';");
   });
+
+  test('includes the recurring route and customer-requested skip policy', () => {
+    expect(page).toContain('IX. Customer-Requested Skips and Recurring Route Service');
+    expect(page).toContain('up to two courtesy skips per growing season');
+    expect(page).toContain("at least 48 hours' notice");
+    expect(page).toContain('50% of the regular service price');
+    expect(page).toContain('Three consecutive Client-requested skips');
+    expect(page).toContain('X. Cancellation and Termination');
+    expect(page).toContain('XIII. Acceptance of Agreement');
+    expect(page).toContain('canceled as outlined in Section X');
+  });
 });
 
 describe('HomeWorks agreement resend control', () => {

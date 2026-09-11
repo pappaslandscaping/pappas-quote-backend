@@ -107,6 +107,38 @@
 
 final result: passed
 
+## Stored template body correction
+
+**User-reported mismatch**
+
+- The September 11 screenshots showed that the previous pass standardized the preview wrapper but did not standardize the HTML stored inside every editor.
+- `Contract Signed` opened as a partial pale-green content block, while `Contract Unsigned - Final Reminder` opened as a complete email with the charcoal logo header and footer.
+- This was a P1 consistency defect because the editing surface, preview, and sent output were not using one source of visual truth.
+
+**Correction**
+
+- Every seeded email template is now stored as a complete Estimate v4 document.
+- Existing non-SMS templates are normalized once after startup while preserving their subject, merge fields, message content, active/default state, and category.
+- Newly created templates, AI-created campaign templates, and templates edited later are normalized through the same Estimate v4 path.
+- Complete Estimate v4 documents are detected before wrapping so repeated saves or restarts cannot create nested headers and footers.
+- Contract reminders now share the same hero, two-column Summary block with lime divider, rectangular lime call-to-action, contact row, and footer as the rest of the system.
+- SMS templates remain text-only.
+
+**Implementation checks**
+
+- JavaScript syntax checks passed for `server.js` and `routes/templates.js`.
+- Representative generated bodies for Contract Signed, Final Agreement Reminder, Invoice Sent, Payment Confirmation, and Referral Announcement each contain the complete email shell, official logo, charcoal header, lime accent, and footer.
+- A render-preservation smoke test confirmed that a complete stored document passes through the no-wrapper send path unchanged.
+- Production deployment checks passed for `app.pappaslandscaping.com` and `admin.pappaslandscaping.com` at commit `1ffc293`.
+- No test email or customer communication was sent.
+
+**Remaining visual confirmation**
+
+- The selected in-app browser is currently signed out of YardDesk, so the authenticated editor could not be recaptured after deployment in this pass.
+- Final visual result remains pending one authenticated refresh of the template editor. Structural and deployment checks passed.
+
+final result: pending authenticated live-editor visual confirmation
+
 ## YardDesk template library Estimate v4 standardization
 
 **Source and implementation evidence**

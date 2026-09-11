@@ -37,6 +37,20 @@ describe('email renderer', () => {
     expect(html).not.toContain('Unsubscribe');
   });
 
+  test('shared email wrappers use the Estimate v4 visual system', () => {
+    for (const wrapper of ['full', 'minimal']) {
+      const html = emailTemplate('<p>Template body</p>', { wrapper });
+
+      expect(html).toContain('background:#1f2933');
+      expect(html).toContain('width="600"');
+      expect(html).toContain('background:#eef2eb');
+      expect(html).toContain('border-radius:22px 22px 0 0');
+      expect(html).toContain('background:#f7f9f5');
+      expect(html).toContain('font-family:Helvetica,Arial,sans-serif');
+      expect(html).not.toContain('fonts.googleapis.com');
+    }
+  });
+
   test('service agreement email matches the HomeWorks Estimate v4 structure', () => {
     const html = buildServiceAgreementEmailV4({
       customerFirstName: 'Theresa',

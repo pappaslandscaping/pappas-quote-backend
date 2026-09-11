@@ -50,6 +50,9 @@ describe('email renderer', () => {
     expect(html).toContain('Agreement Ready');
     expect(html).toContain('Your service agreement is ready');
     expect(html).toContain('Agreement Summary');
+    expect(html).toContain('.summary-column { display:table-cell !important; }');
+    expect(html).not.toContain('.summary-column { display:block !important;');
+    expect(html).toContain('border-left:3px solid #c9dd80');
     expect(html).toContain('<strong>Estimate:</strong> #1676');
     expect(html).toContain('<strong>Total:</strong> $1.08');
     expect(html).toContain('Review &amp; Sign Agreement');

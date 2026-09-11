@@ -9,6 +9,7 @@
 - `/private/tmp/yarddesk-contract-desktop.png`
 - `/private/tmp/yarddesk-contract-design-comparison.png`
 - `/private/tmp/yarddesk-signature-font-gistesy-style-mobile.png`
+- `/private/tmp/agreement-email-summary-fixed.png`
 
 **Viewport and normalization**
 
@@ -47,6 +48,8 @@
 - Post-fix evidence: `/private/tmp/yarddesk-contract-mobile-final.png` shows the full agreement, signature form, and signing action without overlap.
 - First pass P3: signature mode labels used emoji that did not belong to the Estimate v4 system.
 - Fix: changed them to clean text labels, Draw Signature and Type Signature.
+- Agreement email P2: its summary columns stacked on mobile, so the lime divider no longer separated the summary copy from the estimate details like it does in HomeWorks Estimate v4.
+- Fix: kept the two summary cells side by side at the mobile breakpoint. The agreement summary remains left of the lime divider, with Estimate and Total on the right. Evidence: `/private/tmp/agreement-email-summary-fixed.png`.
 
 **Findings**
 

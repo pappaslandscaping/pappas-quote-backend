@@ -1,4 +1,4 @@
-const { renderMJML, renderWithBaseLayout, emailTemplate, buildServiceAgreementEmailV4 } = require('../lib/email-renderer');
+const { renderMJML, renderWithBaseLayout, renderManagedEmail, emailTemplate, buildServiceAgreementEmailV4 } = require('../lib/email-renderer');
 
 describe('email renderer', () => {
   test('renderMJML compiles a simple MJML document', async () => {
@@ -91,5 +91,19 @@ describe('email renderer', () => {
     expect(reminder).toContain('One quick step left');
     expect(finalReminder).toContain('Final Reminder');
     expect(finalReminder).toContain('Your agreement still needs a signature');
+  });
+
+  test('service agreement totals display one dollar sign', () => {
+    const numeric = buildServiceAgreementEmailV4({ total: 97.2 });
+    const formatted = buildServiceAgreementEmailV4({ total: '$3,400.00' });
+
+    expect(numeric).toContain('<strong>Total:</strong> $97.20');
+    expect(formatted).toContain('<strong>Total:</strong> $3,400.00');
+    expect(formatted).not.toContain('$$3,400.00');
+  });
+
+  test('no-wrapper rendering keeps a complete email from receiving a second shell', async () => {
+    const complete = '<!DOCTYPE html><html><body><p>Complete email</p></body></html>';
+    await expect(renderManagedEmail(complete, { wrapper: 'none' })).resolves.toBe(complete);
   });
 });

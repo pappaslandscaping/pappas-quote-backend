@@ -411,7 +411,12 @@
             actionsHtml += `<button class="btn btn-outline" onclick="sendQuoteSMS()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Send by Text</button>`;
         }
         if (q.status !== 'draft' && q.status !== 'contracted') {
-            actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
+            const isHomeworksAgreement = /Auto-created from HomeWorks estimate/i.test(q.notes || '');
+            if (isHomeworksAgreement) {
+                actionsHtml += `<button class="btn btn-outline" onclick="resendAgreement()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend Agreement</button>`;
+            } else {
+                actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
+            }
             actionsHtml += `<button class="btn btn-outline" onclick="sendQuoteSMS()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Send by Text</button>`;
         }
         actionsHtml += `<button class="btn btn-outline" onclick="downloadQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>`;
@@ -620,6 +625,31 @@
             if (data.success) { alert('Quote resent!'); location.reload(); }
             else alert('Failed to resend: ' + (data.error || 'Unknown error'));
         } catch (e) { alert('Error resending quote'); }
+    }
+
+    async function resendAgreement() {
+        const recipient = quoteData.customer_email || 'the customer';
+        if (!confirm('Resend the service agreement for Estimate #' + (quoteData.quote_number || quoteData.id) + ' to ' + recipient + '?')) return;
+        try {
+            const res = await fetch('/api/copilotcrm/estimate-accepted', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    integration_source: 'homeworks_official',
+                    customer_name: quoteData.customer_name,
+                    email: quoteData.customer_email,
+                    phone: quoteData.customer_phone,
+                    address: quoteData.customer_address,
+                    estimate_number: quoteData.quote_number,
+                    estimate_amount: quoteData.total,
+                    services: quoteData.services,
+                    force_resend_contract: true
+                })
+            });
+            const data = await res.json();
+            if (data.success) { alert('Service agreement resent!'); location.reload(); }
+            else alert('Failed to resend agreement: ' + (data.error || 'Unknown error'));
+        } catch (e) { alert('Error resending agreement'); }
     }
 
     async function sendQuoteSMS() {

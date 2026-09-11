@@ -5,6 +5,10 @@ const page = fs.readFileSync(
   path.join(__dirname, '..', 'public', 'sign-contract.html'),
   'utf8'
 );
+const detailPage = fs.readFileSync(
+  path.join(__dirname, '..', 'public', 'sent-quote-detail.html'),
+  'utf8'
+);
 
 describe('customer service agreement page', () => {
   test('uses the Estimate v4 brand system and email logo', () => {
@@ -33,5 +37,14 @@ describe('customer service agreement page', () => {
     expect(page).toContain('id="consentCheckbox"');
     expect(page).toContain("fetch(`${API_BASE}/api/sign/${token}`)");
     expect(page).toContain("fetch(`${API_BASE}/api/sent-quotes/${quoteData.id}/sign-contract`,");
+  });
+});
+
+describe('HomeWorks agreement resend control', () => {
+  test('shows a dedicated agreement resend action for HomeWorks estimates', () => {
+    expect(detailPage).toContain('Resend Agreement');
+    expect(detailPage).toContain('function resendAgreement()');
+    expect(detailPage).toContain("force_resend_contract: true");
+    expect(detailPage).toContain("integration_source: 'homeworks_official'");
   });
 });

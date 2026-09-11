@@ -1860,7 +1860,12 @@ const SAMPLE_VARS = {
 };
 
 function replacePreviewVars(value) {
-    let rendered = String(value || '');
+    // TinyMCE can wrap merge tags in formatting spans. Normalize those
+    // wrappers so preview replacement still sees a complete {variable}.
+    let rendered = String(value || '').replace(
+        /<span(?:\s[^>]*)?>\{(\w+)\}<\/span>/gi,
+        '{$1}'
+    );
     for (const [key, val] of Object.entries(SAMPLE_VARS)) {
         const currencyRe = new RegExp('\\$\\{' + key + '\\}', 'g');
         rendered = rendered.replace(currencyRe, String(val).startsWith('$') ? val : '$' + val);

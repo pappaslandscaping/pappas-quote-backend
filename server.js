@@ -10303,7 +10303,13 @@ app.get('/api/reports/sales-tax', async (req, res) => {
 // Template variable replacement
 function replaceTemplateVars(str, data) {
   if (!str) return str;
-  const withCurrency = str.replace(/\$\{(\w+)\}/g, (match, key) => {
+  // Rich-text editors may wrap merge tags in spans. Normalize only spans
+  // whose complete contents are a merge tag so saved formatting remains intact.
+  const normalized = String(str).replace(
+    /<span(?:\s[^>]*)?>\{(\w+)\}<\/span>/gi,
+    '{$1}'
+  );
+  const withCurrency = normalized.replace(/\$\{(\w+)\}/g, (match, key) => {
     if (data[key] === undefined) return match;
     const value = String(data[key]);
     return value.startsWith('$') ? value : `$${value}`;

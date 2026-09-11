@@ -1,4 +1,4 @@
-const { renderMJML, renderWithBaseLayout, emailTemplate } = require('../lib/email-renderer');
+const { renderMJML, renderWithBaseLayout, emailTemplate, buildServiceAgreementEmailV4 } = require('../lib/email-renderer');
 
 describe('email renderer', () => {
   test('renderMJML compiles a simple MJML document', async () => {
@@ -35,5 +35,25 @@ describe('email renderer', () => {
 
     expect(html).toContain('<p>Hello</p>');
     expect(html).not.toContain('Unsubscribe');
+  });
+
+  test('service agreement email matches the HomeWorks Estimate v4 structure', () => {
+    const html = buildServiceAgreementEmailV4({
+      customerFirstName: 'Theresa',
+      estimateNumber: '1676',
+      total: 1.08,
+      contractUrl: 'https://app.pappaslandscaping.com/sign-contract.html?token=test',
+    });
+
+    expect(html).toContain('background-color:#1f2933');
+    expect(html).toContain('linear-gradient(135deg,#f7f9f5 0%,#edf3e6 100%)');
+    expect(html).toContain('Agreement Ready');
+    expect(html).toContain('Your service agreement is ready');
+    expect(html).toContain('Agreement Summary');
+    expect(html).toContain('<strong>Estimate:</strong> #1676');
+    expect(html).toContain('<strong>Total:</strong> $1.08');
+    expect(html).toContain('Review &amp; Sign Agreement');
+    expect(html).toContain('Next Steps');
+    expect(html).toContain('Hi Theresa,');
   });
 });

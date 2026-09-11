@@ -10,6 +10,7 @@ const { validate, schemas } = require('../lib/validate');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 const { classifyServiceArea, syncWebsiteLead } = require('../services/copilot/website-leads');
 const { formatPropertyAddress, queryHomeWorksGraphql } = require('../services/homeworks/client');
+const { buildServiceAgreementEmailV4 } = require('../lib/email-renderer');
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, generateContractPDF, emailTemplate }) {
   const router = express.Router();
@@ -2270,26 +2271,19 @@ async function handleCopilotEstimateAccepted(req, res) {
           ]
         );
 
-        const firstName = escapeHtml((resendName || '').split(' ')[0] || 'there');
-        const emailContent = `
-          <div style="text-align:center;margin:0 0 28px;">
-            <h2 style="font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2e403d;font-size:24px;font-weight:600;margin:0;">Your Service Agreement is Ready</h2>
-          </div>
-          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
-          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>
-          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for your accepted estimate.</p>
-          <div style="text-align:center;margin:28px 0 20px;">
-            <a href="${contractUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">Review & Sign Agreement &#8594;</a>
-          </div>
-          <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or just reply to this email with any questions</p>
-          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
-          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We look forward to working with you!</p>
-        `;
+        const emailContent = buildServiceAgreementEmailV4({
+          customerFirstName: (resendName || '').split(' ')[0] || 'there',
+          estimateNumber: estimate_number,
+          total: resendTotal,
+          contractUrl,
+          companyName: COMPANY_NAME,
+          assetsUrl: process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com'
+        });
 
         await sendEmail(
           resendEmail,
-          'Your Service Agreement from ' + COMPANY_NAME,
-          emailTemplate(emailContent),
+          `Your Service Agreement for Estimate #${estimate_number} is Ready: ${COMPANY_NAME}`,
+          emailContent,
           null,
           { type: 'contract', customer_id: resendCustomerId, customer_name: resendName, quote_id: ex.id }
         );
@@ -2487,28 +2481,20 @@ async function handleCopilotEstimateAccepted(req, res) {
 
     // Build and send contract email
     const contractUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-contract.html?token=${sign_token}`;
-    const firstName = escapeHtml((customer_name || '').split(' ')[0] || 'there');
     const assetsUrl = process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-
-    const emailContent = `
-      <div style="text-align:center;margin:0 0 28px;">
-        <h2 style="font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2e403d;font-size:24px;font-weight:600;margin:0;">Your Service Agreement is Ready</h2>
-      </div>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for your accepted estimate.</p>
-      <div style="text-align:center;margin:28px 0 20px;">
-        <a href="${contractUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">Review & Sign Agreement \u{2192}</a>
-      </div>
-      <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or just reply to this email with any questions</p>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We look forward to working with you!</p>
-    `;
+    const emailContent = buildServiceAgreementEmailV4({
+      customerFirstName: (customer_name || '').split(' ')[0] || 'there',
+      estimateNumber: estimate_number,
+      total: estimate_amount,
+      contractUrl,
+      companyName: COMPANY_NAME,
+      assetsUrl
+    });
 
     await sendEmail(
       email,
-      'Your Service Agreement from ' + COMPANY_NAME,
-      emailTemplate(emailContent),
+      `Your Service Agreement for Estimate #${estimate_number} is Ready: ${COMPANY_NAME}`,
+      emailContent,
       null,
       { type: 'contract', customer_id, customer_name, quote_id: newQuote.id }
     );

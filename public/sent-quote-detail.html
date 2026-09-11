@@ -346,11 +346,16 @@
 
         // Status badge
         const badge = document.getElementById('statusBadge');
+        const isAcceptedEstimateAgreement = /Auto-created from (?:HomeWorks|CopilotCRM) estimate/i.test(q.notes || '');
         const statusLabels = {
             'draft': 'Draft', 'sent': 'Sent', 'viewed': 'Viewed',
             'signed': 'Signed', 'contracted': 'Contracted',
             'declined': 'Declined', 'changes_requested': 'Changes Requested'
         };
+        if (isAcceptedEstimateAgreement && !q.contract_signed_at) {
+            statusLabels.sent = 'Agreement Sent';
+            statusLabels.viewed = 'Awaiting Signature';
+        }
         badge.className = 'status-badge ' + q.status;
         badge.textContent = statusLabels[q.status] || q.status;
 
@@ -411,8 +416,7 @@
             actionsHtml += `<button class="btn btn-outline" onclick="sendQuoteSMS()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Send by Text</button>`;
         }
         if (q.status !== 'draft' && q.status !== 'contracted') {
-            const isHomeworksAgreement = /Auto-created from HomeWorks estimate/i.test(q.notes || '');
-            if (isHomeworksAgreement) {
+            if (isAcceptedEstimateAgreement) {
                 actionsHtml += `<button class="btn btn-outline" onclick="resendAgreement()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend Agreement</button>`;
             } else {
                 actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;

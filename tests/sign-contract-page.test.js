@@ -9,6 +9,10 @@ const detailPage = fs.readFileSync(
   path.join(__dirname, '..', 'public', 'sent-quote-detail.html'),
   'utf8'
 );
+const sentQuotesPage = fs.readFileSync(
+  path.join(__dirname, '..', 'public', 'sent-quotes.html'),
+  'utf8'
+);
 
 describe('customer service agreement page', () => {
   test('uses the Estimate v4 brand system and email logo', () => {
@@ -83,5 +87,14 @@ describe('HomeWorks agreement resend control', () => {
     expect(detailPage).toContain('function resendAgreement()');
     expect(detailPage).toContain("force_resend_contract: true");
     expect(detailPage).toContain("integration_source: 'homeworks_official'");
+  });
+
+  test('labels accepted-estimate records as agreement workflow stages', () => {
+    for (const source of [sentQuotesPage, detailPage]) {
+      expect(source).toContain('Agreement Sent');
+      expect(source).toContain('Awaiting Signature');
+      expect(source).toContain('Auto-created from (?:HomeWorks|CopilotCRM) estimate');
+    }
+    expect(sentQuotesPage).toContain('data-status="pending_signature"');
   });
 });

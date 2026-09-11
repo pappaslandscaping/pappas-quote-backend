@@ -387,6 +387,7 @@
         <button class="filter-btn active" data-status="">All</button>
         <button class="filter-btn" data-status="draft">Drafts</button>
         <button class="filter-btn" data-status="sent">Sent</button>
+        <button class="filter-btn" data-status="pending_signature">Awaiting Signature</button>
         <button class="filter-btn" data-status="viewed">Viewed</button>
         <button class="filter-btn" data-status="signed">Signed</button>
         <button class="filter-btn" data-status="contracted">Contracted</button>
@@ -458,6 +459,28 @@
         return addr;
     }
 
+    function isAcceptedEstimateAgreement(quote) {
+        return /Auto-created from (?:HomeWorks|CopilotCRM) estimate/i.test(quote.notes || '');
+    }
+
+    function quoteStatusLabel(quote) {
+        if (isAcceptedEstimateAgreement(quote) && !quote.contract_signed_at) {
+            if (quote.status === 'sent') return 'Agreement Sent';
+            if (quote.status === 'viewed') return 'Awaiting Signature';
+        }
+
+        const labels = {
+            'draft': 'Draft',
+            'sent': 'Sent',
+            'viewed': 'Viewed',
+            'signed': 'Signed',
+            'contracted': 'Contracted',
+            'declined': 'Declined',
+            'changes_requested': 'Changes Requested'
+        };
+        return labels[quote.status] || quote.status;
+    }
+
     // Load quotes
     async function loadQuotes() {
         try {
@@ -505,16 +528,7 @@
         }
 
         tbody.innerHTML = quotes.map(q => {
-            const statusLabels = {
-                'draft': 'Draft',
-                'sent': 'Sent',
-                'viewed': 'Viewed',
-                'signed': 'Signed',
-                'contracted': 'Contracted',
-                'declined': 'Declined',
-                'changes_requested': 'Changes Requested'
-            };
-            const statusLabel = statusLabels[q.status] || q.status;
+            const statusLabel = quoteStatusLabel(q);
             
             return `
             <tr>

@@ -261,24 +261,32 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('Total:\\s*([\\d,]+\\.\\d{2})');
   });
 
-  test('accepted-estimate polling backstop exists for missed CopilotCRM automation triggers', () => {
-    expect(quotesCode).toContain('processRecentAcceptedCopilotEstimates');
+  test('accepted-estimate polling uses the official HomeWorks GraphQL source', () => {
+    expect(quotesCode).toContain('processRecentAcceptedHomeWorksEstimates');
+    expect(quotesCode).toContain("'/api/cron/homeworks-accepted-estimates'");
     expect(quotesCode).toContain("'/api/cron/copilot-accepted-estimates'");
-    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_POLLING');
-    expect(quotesCode).toContain('runCopilotAcceptedEstimatePoll');
-    expect(quotesCode).toContain('getEstimatesListAjax');
-    expect(quotesCode).toContain('estimate_status: [2]');
+    expect(quotesCode).toContain('HOMEWORKS_ACCEPTED_ESTIMATE_POLLING');
+    expect(quotesCode).toContain('runHomeWorksAcceptedEstimatePoll');
+    expect(quotesCode).toContain('queryHomeWorksGraphql');
+    expect(quotesCode).toContain('YardDeskAcceptedEstimates');
+    expect(quotesCode).toContain('status: { in: [ACCEPTED, INVOICED] }');
+    expect(quotesCode).toContain('acceptedAt: { gte: $since }');
+    expect(quotesCode).toContain("integration_source: 'homeworks_official'");
     expect(quotesCode).toContain('contract_exists');
-    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 60_000');
-    expect(quotesCode).toContain('resolveAcceptedCopilotEstimatePayload');
+    expect(quotesCode).toContain('HOMEWORKS_ACCEPTED_ESTIMATE_POLL_MS || 60_000');
+    expect(quotesCode).not.toContain('async function processRecentAcceptedCopilotEstimates');
   });
 
   test('accepted-estimate polling sends owner alerts for parse or send failures', () => {
     expect(quotesCode).toContain('alertCopilotAcceptedEstimateFailure');
-    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL');
-    expect(quotesCode).toContain('copilotAcceptedEstimateFailureAlerts');
-    expect(quotesCode).toContain('Could not parse required accepted estimate detail');
+    expect(quotesCode).toContain('HOMEWORKS_ACCEPTED_ESTIMATE_ALERT_EMAIL');
+    expect(quotesCode).toContain('acceptedEstimateFailureAlerts');
+    expect(quotesCode).toContain('HomeWorks accepted estimate is missing contract details');
     expect(quotesCode).toContain('signed-contract-');
+  });
+
+  test('HomeWorks-created contracts remain visible in pending signature totals and lists', () => {
+    expect(quotesCode).toContain("ILIKE 'Auto-created from HomeWorks estimate #%'");
   });
 
   test('accepted-estimate handler can resend/update an existing contract explicitly', () => {

@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 const { classifyServiceArea, syncWebsiteLead } = require('../services/copilot/website-leads');
+const { formatPropertyAddress, queryHomeWorksGraphql } = require('../services/homeworks/client');
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, generateContractPDF, emailTemplate }) {
   const router = express.Router();
@@ -150,7 +151,10 @@ router.get('/api/sent-quotes', async (req, res) => {
       if (status === 'pending_signature') {
         query += ` AND sq.contract_signed_at IS NULL
                    AND sq.status IN ('sent', 'viewed')
-                   AND COALESCE(sq.notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+                   AND (
+                     COALESCE(sq.notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+                     OR COALESCE(sq.notes, '') ILIKE 'Auto-created from HomeWorks estimate #%'
+                   )
         `;
       } else {
         query += ` AND sq.status = $${p++}`;
@@ -185,7 +189,10 @@ router.get('/api/sent-quotes', async (req, res) => {
           COUNT(*) FILTER (
             WHERE contract_signed_at IS NULL
               AND status IN ('sent', 'viewed')
-              AND COALESCE(notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+              AND (
+                COALESCE(notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+                OR COALESCE(notes, '') ILIKE 'Auto-created from HomeWorks estimate #%'
+              )
           )::int AS pending_signatures
         FROM sent_quotes
       `)
@@ -2166,6 +2173,8 @@ router.post('/api/webhooks/copilotcrm/estimate-accepted', async (req, res) => {
 async function handleCopilotEstimateAccepted(req, res) {
   try {
     const payload = getCopilotEstimateAcceptedPayload(req);
+    const integrationSource = payload.integration_source === 'homeworks_official' ? 'homeworks' : 'copilotcrm';
+    const integrationLabel = integrationSource === 'homeworks' ? 'HomeWorks' : 'CopilotCRM';
     let {
       customer_name,
       CUSTOMER_NAME,
@@ -2439,14 +2448,14 @@ async function handleCopilotEstimateAccepted(req, res) {
         [newCustNum, customer_name, email, phone || null, address || null]
       );
       customer_id = newCustomer.rows[0].id;
-      console.log('Created new customer from CopilotCRM estimate:', customer_id);
+      console.log(`Created new customer from ${integrationLabel} estimate:`, customer_id);
 
       if (process.env.ZAPIER_CUSTOMER_WEBHOOK) {
         try {
           await fetch(process.env.ZAPIER_CUSTOMER_WEBHOOK, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customer_id, name: customer_name, email, phone, address, source: 'copilotcrm_estimate' })
+            body: JSON.stringify({ customer_id, name: customer_name, email, phone, address, source: `${integrationSource}_estimate` })
           });
         } catch (e) { console.error('Zapier webhook failed:', e); }
       }
@@ -2467,13 +2476,13 @@ async function handleCopilotEstimateAccepted(req, res) {
       [
         customer_id, customer_name, email, phone || null, address || null,
         JSON.stringify(serviceItems), estimate_amount,
-        sign_token, 'Auto-created from CopilotCRM estimate #' + estimate_number, estimate_number
+        sign_token, `Auto-created from ${integrationLabel} estimate #${estimate_number}`, estimate_number
       ]
     );
     const newQuote = result.rows[0];
 
-    await logQuoteEvent(newQuote.id, 'created', 'Contract created from CopilotCRM estimate #' + estimate_number, {
-      source: 'copilotcrm', estimate_number, total: estimate_amount, services_count: services.length
+    await logQuoteEvent(newQuote.id, 'created', `Contract created from ${integrationLabel} estimate #${estimate_number}`, {
+      source: integrationSource, estimate_number, total: estimate_amount, services_count: services.length
     });
 
     // Build and send contract email
@@ -2504,12 +2513,12 @@ async function handleCopilotEstimateAccepted(req, res) {
       { type: 'contract', customer_id, customer_name, quote_id: newQuote.id }
     );
 
-    await logQuoteEvent(newQuote.id, 'sent', 'Contract sent to ' + email, { email, source: 'copilotcrm' });
+    await logQuoteEvent(newQuote.id, 'sent', 'Contract sent to ' + email, { email, source: integrationSource });
 
-    console.log(`✅ CopilotCRM estimate-accepted: Contract sent to ${email} for estimate #${estimate_number}`);
+    console.log(`✅ ${integrationLabel} estimate-accepted: Contract sent to ${email} for estimate #${estimate_number}`);
     res.json({ success: true, message: 'Contract sent to ' + email, quote_id: newQuote.id, contract_url: contractUrl });
   } catch (error) {
-    serverError(res, error, 'Error creating contract from CopilotCRM estimate');
+    serverError(res, error, 'Error creating contract from accepted estimate');
   }
 }
 
@@ -2574,13 +2583,13 @@ async function createContractFromAcceptedEstimatePayload(payload) {
     handleCopilotEstimateAccepted(req, res).catch(error => {
       resolve({
         statusCode: 500,
-        data: { success: false, error: error.message || 'Error creating contract from CopilotCRM estimate' }
+        data: { success: false, error: error.message || 'Error creating contract from accepted estimate' }
       });
     });
   });
 }
 
-const copilotAcceptedEstimateFailureAlerts = new Set();
+const acceptedEstimateFailureAlerts = new Set();
 
 function copilotAcceptedEstimateAlertKey({ estimate_number, error }) {
   return `${estimate_number || 'unknown'}:${String(error || '').slice(0, 160)}`;
@@ -2588,10 +2597,10 @@ function copilotAcceptedEstimateAlertKey({ estimate_number, error }) {
 
 async function alertCopilotAcceptedEstimateFailure({ estimate_number, source, error, parsed }) {
   const alertKey = copilotAcceptedEstimateAlertKey({ estimate_number, error });
-  if (copilotAcceptedEstimateFailureAlerts.has(alertKey)) return;
-  copilotAcceptedEstimateFailureAlerts.add(alertKey);
+  if (acceptedEstimateFailureAlerts.has(alertKey)) return;
+  acceptedEstimateFailureAlerts.add(alertKey);
 
-  const recipient = process.env.COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL || NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
+  const recipient = process.env.HOMEWORKS_ACCEPTED_ESTIMATE_ALERT_EMAIL || process.env.COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL || NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
   const safeParsed = parsed ? JSON.stringify(parsed, null, 2) : '{}';
   const content = `
     <p><strong>Estimate:</strong> ${escapeHtml(estimate_number || 'unknown')}</p>
@@ -2604,45 +2613,91 @@ async function alertCopilotAcceptedEstimateFailure({ estimate_number, source, er
   try {
     await sendEmail(
       recipient,
-      `Copilot accepted estimate contract failed${estimate_number ? `: #${estimate_number}` : ''}`,
+      `HomeWorks accepted estimate contract failed${estimate_number ? `: #${estimate_number}` : ''}`,
       emailTemplate(content, { showSignature: false }),
       null,
-      { type: 'admin_notification', source: 'copilotcrm_accepted_estimate', estimate_number }
+      { type: 'admin_notification', source: 'homeworks_accepted_estimate', estimate_number }
     );
   } catch (alertError) {
-    console.error('CopilotCRM accepted estimate failure alert failed:', alertError.message);
+    console.error('HomeWorks accepted estimate failure alert failed:', alertError.message);
   }
 }
 
-async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
-  const copilotHeaders = await loginToCopilotCrmForEstimates();
-  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: encodeCopilotForm({
-      postData: { estimate_status: [2] },
-      pagination: '',
-      sort: 'datedesc'
-    })
+function acceptedHomeWorksLineItems(estimate) {
+  return (estimate.lineItems || [])
+    .filter(lineItem => lineItem.removed !== 'REMOVED')
+    .map(lineItem => ({
+      name: lineItem.name,
+      description: lineItem.description || '',
+      price: Number(lineItem.subtotalWithTax || lineItem.subtotal || lineItem.price || 0),
+      quantity: Number(lineItem.quantity || 1),
+    }));
+}
+
+function homeWorksEstimatePayload(estimate) {
+  const acceptedLineItems = (estimate.lineItems || []).filter(lineItem => lineItem.removed !== 'REMOVED');
+  const property = acceptedLineItems.find(lineItem => lineItem.property)?.property || null;
+  const customer = estimate.customer || {};
+  return {
+    integration_source: 'homeworks_official',
+    homeworks_estimate_id: estimate.id,
+    estimate_number: String(estimate.number),
+    estimate_amount: Number(estimate.total || 0),
+    accepted_at: estimate.acceptedAt,
+    customer_name: customer.fullName,
+    email: customer.email,
+    phone: customer.cell || customer.phone || '',
+    address: formatPropertyAddress(property),
+    services: acceptedHomeWorksLineItems(estimate),
+  };
+}
+
+async function fetchRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
+  const safeDays = Math.max(1, Math.min(30, Number(maxAgeDays) || 3));
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
+  const since = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000).toISOString();
+  const data = await queryHomeWorksGraphql({
+    pool,
+    operationName: 'YardDeskAcceptedEstimates',
+    query: `query YardDeskAcceptedEstimates($since: DateTime!, $limit: SafeInt!) {
+      estimates(
+        take: $limit
+        orderBy: [{ acceptedAt: desc }, { id: desc }]
+        where: {
+          isDeleted: false
+          isArchived: false
+          status: { in: [ACCEPTED, INVOICED] }
+          acceptedAt: { gte: $since }
+        }
+      ) {
+        id number status acceptedAt total
+        customer { id fullName email phone cell }
+        lineItems {
+          id name description price quantity subtotal subtotalWithTax removed
+          property { id name address { street1 street2 city state zip country } }
+        }
+      }
+    }`,
+    variables: { since, limit: safeLimit },
   });
-  const listData = await listRes.json().catch(() => null);
-  const listHtml = listData?.html || '';
-  const acceptedRows = parseRecentAcceptedCopilotEstimateRows(listHtml, maxAgeDays).slice(0, limit);
+  return data.estimates || [];
+}
+
+async function processRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
+  const acceptedEstimates = await fetchRecentAcceptedHomeWorksEstimates({ maxAgeDays, limit });
   const results = [];
 
-  for (const row of acceptedRows) {
+  for (const estimate of acceptedEstimates) {
+    const payload = homeWorksEstimatePayload(estimate);
+    const estimateNumber = payload.estimate_number;
     const existing = await pool.query(
       `SELECT id, sign_token FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
-      [row.estimate_number]
+      [estimateNumber]
     );
     if (existing.rows.length > 0) {
-      results.push({ estimate_number: row.estimate_number, skipped: true, reason: 'contract_exists', quote_id: existing.rows[0].id });
+      results.push({ estimate_number: estimateNumber, skipped: true, reason: 'contract_exists', quote_id: existing.rows[0].id });
       continue;
     }
-
-    const { payload } = await resolveAcceptedCopilotEstimatePayload(copilotHeaders, row.estimate_number, {
-      estimate_number: row.estimate_number
-    });
 
     if (!payload.customer_name || !payload.email || !payload.estimate_number || !payload.estimate_amount || !payload.services?.length) {
       const parsed = {
@@ -2652,15 +2707,15 @@ async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 1
         services_count: payload.services?.length || 0
       };
       await alertCopilotAcceptedEstimateFailure({
-        estimate_number: row.estimate_number,
-        source: 'poll',
-        error: 'Could not parse required accepted estimate detail',
+        estimate_number: estimateNumber,
+        source: 'homeworks-official-poll',
+        error: 'HomeWorks accepted estimate is missing contract details',
         parsed
       });
       results.push({
-        estimate_number: row.estimate_number,
+        estimate_number: estimateNumber,
         success: false,
-        error: 'Could not parse required accepted estimate detail',
+        error: 'HomeWorks accepted estimate is missing contract details',
         parsed
       });
       continue;
@@ -2669,17 +2724,18 @@ async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 1
     const result = await createContractFromAcceptedEstimatePayload(payload);
     if (result.data?.success === false) {
       await alertCopilotAcceptedEstimateFailure({
-        estimate_number: row.estimate_number,
-        source: 'poll',
+        estimate_number: estimateNumber,
+        source: 'homeworks-official-poll',
         error: result.data.error || 'Contract creation failed',
         parsed: payload
       });
     }
-    results.push({ estimate_number: row.estimate_number, ...result.data, statusCode: result.statusCode });
+    results.push({ estimate_number: estimateNumber, ...result.data, statusCode: result.statusCode });
   }
 
   return {
-    checked: acceptedRows.length,
+    source: 'official_homeworks_graphql',
+    checked: acceptedEstimates.length,
     sent: results.filter(result => result.success && !result.skipped && /Contract sent/i.test(result.message || '')).length,
     skipped: results.filter(result => result.skipped || /already exists/i.test(result.message || '')).length,
     failed: results.filter(result => result.success === false).length,
@@ -2687,41 +2743,44 @@ async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 1
   };
 }
 
-let copilotAcceptedEstimatePollInProgress = false;
+let homeWorksAcceptedEstimatePollInProgress = false;
 
-async function runCopilotAcceptedEstimatePoll(trigger = 'interval') {
-  if (copilotAcceptedEstimatePollInProgress) {
+async function runHomeWorksAcceptedEstimatePoll(trigger = 'interval') {
+  if (homeWorksAcceptedEstimatePollInProgress) {
     return { success: true, skipped: true, reason: 'poll_already_running' };
   }
-  copilotAcceptedEstimatePollInProgress = true;
+  homeWorksAcceptedEstimatePollInProgress = true;
   try {
-    const result = await processRecentAcceptedCopilotEstimates({
-      maxAgeDays: Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_DAYS || 3),
-      limit: Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_LIMIT || 10)
+    const result = await processRecentAcceptedHomeWorksEstimates({
+      maxAgeDays: Number(process.env.HOMEWORKS_ACCEPTED_ESTIMATE_POLL_DAYS || process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_DAYS || 3),
+      limit: Number(process.env.HOMEWORKS_ACCEPTED_ESTIMATE_POLL_LIMIT || process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_LIMIT || 10)
     });
-    console.log(`✅ CopilotCRM accepted-estimate poll (${trigger}): checked=${result.checked}, sent=${result.sent}, skipped=${result.skipped}, failed=${result.failed}`);
+    console.log(`✅ HomeWorks accepted-estimate poll (${trigger}): checked=${result.checked}, sent=${result.sent}, skipped=${result.skipped}, failed=${result.failed}`);
     return { success: true, trigger, ...result };
   } catch (error) {
-    console.error(`CopilotCRM accepted-estimate poll failed (${trigger}):`, error);
-    return { success: false, trigger, error: error.message || 'CopilotCRM accepted-estimate poll failed' };
+    console.error(`HomeWorks accepted-estimate poll failed (${trigger}):`, error);
+    return { success: false, trigger, error: error.message || 'HomeWorks accepted-estimate poll failed' };
   } finally {
-    copilotAcceptedEstimatePollInProgress = false;
+    homeWorksAcceptedEstimatePollInProgress = false;
   }
 }
 
-async function handleCopilotAcceptedEstimateCron(req, res) {
+async function handleHomeWorksAcceptedEstimateCron(req, res) {
   if (!assertQuoteCronSecret(req, res)) return;
-  const result = await runCopilotAcceptedEstimatePoll('cron');
+  const result = await runHomeWorksAcceptedEstimatePoll('cron');
   res.status(result.success ? 200 : 500).json(result);
 }
 
-router.post('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimateCron);
-router.get('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimateCron);
+router.post('/api/cron/homeworks-accepted-estimates', handleHomeWorksAcceptedEstimateCron);
+router.get('/api/cron/homeworks-accepted-estimates', handleHomeWorksAcceptedEstimateCron);
+// Keep the old URL working for any existing scheduler while it moves to HomeWorks.
+router.post('/api/cron/copilot-accepted-estimates', handleHomeWorksAcceptedEstimateCron);
+router.get('/api/cron/copilot-accepted-estimates', handleHomeWorksAcceptedEstimateCron);
 
-if (process.env.NODE_ENV !== 'test' && process.env.COPILOT_ACCEPTED_ESTIMATE_POLLING !== 'false') {
-  const intervalMs = Math.max(60_000, Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 60_000));
-  setTimeout(() => runCopilotAcceptedEstimatePoll('startup'), 30_000).unref?.();
-  setInterval(() => runCopilotAcceptedEstimatePoll('interval'), intervalMs).unref?.();
+if (process.env.NODE_ENV !== 'test' && process.env.HOMEWORKS_ACCEPTED_ESTIMATE_POLLING !== 'false') {
+  const intervalMs = Math.max(60_000, Number(process.env.HOMEWORKS_ACCEPTED_ESTIMATE_POLL_MS || 60_000));
+  setTimeout(() => runHomeWorksAcceptedEstimatePoll('startup'), 30_000).unref?.();
+  setInterval(() => runHomeWorksAcceptedEstimatePoll('interval'), intervalMs).unref?.();
 }
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status

@@ -36,6 +36,7 @@ describe('customer service agreement page', () => {
     expect(page).toContain("replace(/^#/, '')");
     expect(page).toContain('printWindow.print()');
     expect(page).toContain('Associated Estimate');
+    expect(page).toContain('Estimate/Proposal Number: <strong>#${String(quoteData.quote_number || quoteData.id).replace(/^#/, \'\')}</strong>');
     expect(page).not.toContain('Review Quote');
     expect(page).not.toContain('Accept Quote');
     expect(page).not.toContain('Quote Reference');

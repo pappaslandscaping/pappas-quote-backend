@@ -1586,7 +1586,7 @@
                 </div>
 
                 <h2>I. Scope of Agreement</h2>
-                <p><strong>A. Associated Estimate:</strong> This Agreement is directly tied to Estimate/Proposal Number: <strong>${quoteData.quote_number || 'Q-' + quoteData.id}</strong>.</p>
+                <p><strong>A. Associated Estimate:</strong> This Agreement is directly tied to Estimate/Proposal Number: <strong>#${String(quoteData.quote_number || quoteData.id).replace(/^#/, '')}</strong>.</p>
                 <p><strong>B. Scope of Services:</strong> The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing. This Proposal is hereby incorporated into and made a part of this Agreement.</p>
                 <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved estimate.</p>
 

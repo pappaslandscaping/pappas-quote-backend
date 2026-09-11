@@ -80,6 +80,8 @@
 - Latest pass P1: printing opened a separate legacy document whose logo treatment, header, color system, estimate information, cards, and typography did not match the customer agreement.
 - Fix: replaced the legacy print document with a printable version of the same branded experience, including the charcoal logo header, Estimate Reference card, address and services divider, compact Estimate Total, agreement card, party block, lime highlights, signature fields, and exact-color print settings. Post-fix evidence: `/private/tmp/yarddesk-print-layout-fixed.png`.
 - Combined visual comparison: `/private/tmp/yarddesk-print-fixes-comparison.png` places both user-supplied before states beside their corrected implementations. The action is no longer truncated, and the PDF is visually continuous with the signing page.
+- Copy consistency P2: the Estimate Reference card showed `#1676`, but the Associated Estimate sentence inside the agreement showed `1676` without the number sign.
+- Fix: the agreement body now formats that reference as `#1676`. Because the printable document reuses the same agreement body, the on-screen and PDF copies match.
 
 **Findings**
 

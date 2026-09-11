@@ -197,6 +197,9 @@
             display: flex;
             flex-shrink: 0;
             gap: 8px;
+            justify-content: flex-end;
+            min-width: 124px;
+            overflow: visible;
         }
 
         .btn-icon {
@@ -226,6 +229,9 @@
             color: #425466;
             flex-shrink: 0;
             font-weight: 600;
+            justify-content: flex-end;
+            min-width: 120px;
+            overflow: visible;
             padding-left: 0;
             padding-right: 0;
             text-decoration: underline;
@@ -1192,14 +1198,15 @@
             }
 
             .contract-actions {
-                min-width: 86px;
+                min-width: 108px;
             }
 
             .btn-download {
                 font-size: 11px;
-                justify-content: center;
-                padding: 8px 10px;
-                width: 100%;
+                justify-content: flex-end;
+                min-width: 108px;
+                padding: 8px 0;
+                width: auto;
             }
 
             .btn-download svg {
@@ -1466,6 +1473,7 @@
             } else {
                 await loadQuoteData(quoteId);
             }
+
             initSignaturePad();
         });
 
@@ -1875,240 +1883,363 @@
             return addr;
         }
 
-        async function downloadContract() {
-            // Open in new tab with professional styled contract
-            const printWindow = window.open('', '_blank');
-            const effectiveDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        function escapePrintHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
 
-            printWindow.document.write(`
+        function buildPrintableAgreementHtml() {
+            const estimateNumber = String(quoteData.quote_number || quoteData.id).replace(/^#/, '');
+            const services = Array.isArray(quoteData.services) ? quoteData.services : [];
+            const serviceNames = services.length
+                ? services.map(service => service.name || service).join(', ')
+                : 'Services listed in the accepted estimate';
+            const effectiveDate = new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            const printableAddress = formatAddr(escapePrintHtml(quoteData.customer_address || ''));
+            const agreementContent = document.getElementById('contractContent').innerHTML;
+
+            return `
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Service Agreement - ${quoteData.quote_number || 'Q-' + quoteData.id}</title>
-                    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <title>Service Agreement - #${escapePrintHtml(estimateNumber)}</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
 
                         body {
-                            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-                            padding: 40px 50px;
-                            line-height: 1.6;
-                            color: #1e293b;
-                            font-size: 11pt;
-                            max-width: 850px;
+                            background: #f7f9f5;
+                            color: #425466;
+                            font-family: Helvetica, Arial, sans-serif;
+                            font-size: 10.5pt;
+                            line-height: 1.55;
                             margin: 0 auto;
+                            padding: 28px;
                         }
 
-                        .header {
+                        .print-shell {
+                            margin: 0 auto;
+                            max-width: 800px;
+                        }
+
+                        .brand-header {
+                            align-items: center;
+                            background: #1f2933;
+                            border-radius: 22px 22px 0 0;
                             display: flex;
                             justify-content: space-between;
-                            align-items: flex-start;
-                            margin-bottom: 30px;
-                            padding-bottom: 20px;
-                            border-bottom: 2px solid #2e403d;
+                            min-height: 118px;
+                            padding: 24px 34px;
                         }
 
-                        .logo-section {
-                            display: flex;
-                            align-items: center;
-                            gap: 15px;
+                        .brand-header img {
+                            display: block;
+                            height: auto;
+                            max-width: 275px;
+                            width: 44%;
                         }
 
-                        .logo-section img {
-                            width: 60px;
-                            height: 60px;
-                            border-radius: 50%;
-                        }
-
-                        .company-info h2 {
-                            font-size: 18pt;
-                            color: #2e403d;
-                            margin-bottom: 4px;
-                        }
-
-                        .company-info p {
+                        .brand-header-copy {
+                            color: #fff;
                             font-size: 9pt;
-                            color: #64748b;
-                        }
-
-                        .doc-info {
+                            line-height: 1.5;
                             text-align: right;
-                            font-size: 10pt;
                         }
 
-                        .doc-info .label {
-                            color: #64748b;
-                            font-size: 9pt;
+                        .estimate-card {
+                            background: #fff;
+                            border: 1px solid #dfe6e1;
+                            border-radius: 0 0 22px 22px;
+                            margin-bottom: 22px;
+                            padding: 26px 34px 28px;
                         }
 
-                        .doc-info .value {
-                            font-weight: 600;
-                            color: #1e293b;
+                        .eyebrow,
+                        .estimate-card dt {
+                            color: #6e7f6d;
+                            font-size: 8.5pt;
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                            text-transform: uppercase;
                         }
 
-                        h1 {
-                            text-align: center;
-                            font-size: 20pt;
+                        .estimate-number {
                             color: #2e403d;
-                            margin-bottom: 8px;
+                            font-size: 18pt;
+                            font-weight: 700;
+                            margin: 3px 0 19px;
                         }
 
-                        .effective-date {
-                            text-align: center;
-                            color: #64748b;
-                            font-size: 10pt;
-                            margin-bottom: 25px;
-                        }
-
-                        .parties {
+                        .estimate-details {
                             display: grid;
                             grid-template-columns: 1fr 1fr;
-                            gap: 30px;
-                            margin: 25px 0;
-                            padding: 20px;
-                            background: #f8fafc;
-                            border-radius: 8px;
-                            border: 1px solid #e2e8f0;
                         }
 
-                        .party h4 {
-                            font-size: 9pt;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            color: #64748b;
-                            margin-bottom: 8px;
+                        .estimate-detail {
+                            min-width: 0;
+                            padding-right: 22px;
+                        }
+
+                        .estimate-detail + .estimate-detail {
+                            border-left: 3px solid #c9dd80;
+                            padding-left: 22px;
+                            padding-right: 0;
+                        }
+
+                        .estimate-card dd {
+                            color: #425466;
+                            font-size: 10pt;
                             font-weight: 600;
+                            margin: 8px 0 0;
                         }
 
-                        .party p {
-                            margin: 2px 0;
-                            font-size: 10pt;
+                        .estimate-total {
+                            background: #edf3e6;
+                            border-radius: 12px;
+                            margin-top: 20px;
+                            padding: 11px 18px;
+                            text-align: center;
                         }
 
-                        h2 {
-                            font-size: 13pt;
-                            margin-top: 22px;
-                            margin-bottom: 10px;
+                        .estimate-total strong {
                             color: #2e403d;
-                            border-bottom: 1px solid #e2e8f0;
-                            padding-bottom: 5px;
+                            display: block;
+                            font-size: 16pt;
+                            margin-top: 2px;
                         }
 
-                        p {
-                            margin-bottom: 10px;
-                            text-align: justify;
+                        .agreement-card {
+                            background: #fff;
+                            border: 1px solid #dfe6e1;
+                            border-radius: 22px;
+                            overflow: hidden;
                         }
 
-                        ul {
-                            margin-left: 25px;
-                            margin-bottom: 10px;
+                        .agreement-label {
+                            color: #2e403d;
+                            border-bottom: 1px solid #d7dfd1;
+                            font-size: 13pt;
+                            font-weight: 700;
+                            padding: 19px 30px;
                         }
 
-                        li {
-                            margin-bottom: 6px;
+                        .agreement-content {
+                            padding: 28px 32px 10px;
                         }
 
-                        .highlight-box {
-                            background: #fef3c7;
-                            border-left: 4px solid #f59e0b;
-                            padding: 12px 16px;
+                        .agreement-content h1 {
+                            color: #2e403d;
+                            font-size: 21pt;
+                            margin-bottom: 7px;
+                            text-align: center;
+                        }
+
+                        .agreement-content .effective-date {
+                            color: #64748b;
+                            font-size: 9.5pt;
+                            margin: 0 auto 22px;
+                            max-width: 650px;
+                            text-align: center;
+                        }
+
+                        .agreement-content .parties {
+                            background: #f7f9f5;
+                            border: 1px solid #e4e9e4;
+                            border-radius: 14px;
+                            display: grid;
+                            gap: 28px;
+                            grid-template-columns: 1fr 1fr;
+                            margin: 22px 0 28px;
+                            padding: 20px 22px;
+                        }
+
+                        .agreement-content .party h4 {
+                            color: #6e7f6d;
+                            font-size: 8.5pt;
+                            letter-spacing: .8px;
+                            margin-bottom: 7px;
+                            text-transform: uppercase;
+                        }
+
+                        .agreement-content .party p {
+                            font-size: 9.5pt;
+                            margin: 2px 0;
+                        }
+
+                        .agreement-content h2 {
+                            border-top: 1px solid #e4e9e4;
+                            color: #2e403d;
+                            font-size: 12.5pt;
+                            margin: 22px 0 10px;
+                            padding-top: 17px;
+                        }
+
+                        .agreement-content p { margin-bottom: 9px; }
+                        .agreement-content ul { margin: 0 0 10px 22px; }
+                        .agreement-content li { margin-bottom: 5px; }
+
+                        .agreement-content .highlight-box {
+                            background: #f7f9f5;
+                            border-left: 4px solid #c9dd80;
+                            border-radius: 0 10px 10px 0;
+                            font-size: 9.5pt;
                             margin: 15px 0;
-                            border-radius: 0 6px 6px 0;
-                            font-size: 10pt;
+                            padding: 12px 15px;
                         }
 
                         .signature-block {
-                            margin-top: 40px;
-                            padding-top: 30px;
-                            border-top: 1px solid #e2e8f0;
+                            background: #f7f9f5;
+                            border-top: 1px solid #d7dfd1;
                             display: grid;
+                            gap: 34px;
                             grid-template-columns: 1fr 1fr;
-                            gap: 40px;
+                            margin-top: 24px;
+                            padding: 24px 32px;
                         }
 
                         .sig-party h4 {
-                            font-size: 10pt;
-                            margin-bottom: 30px;
-                            color: #64748b;
+                            color: #6e7f6d;
+                            font-size: 8.5pt;
+                            letter-spacing: .8px;
+                            margin-bottom: 20px;
+                            text-transform: uppercase;
                         }
 
                         .sig-line {
-                            border-bottom: 1px solid #1e293b;
-                            margin-bottom: 5px;
-                            height: 25px;
+                            border-bottom: 1px solid #2e403d;
+                            height: 22px;
+                            margin-bottom: 4px;
                         }
 
                         .sig-label {
-                            font-size: 9pt;
-                            color: #64748b;
-                            margin-bottom: 15px;
+                            color: #6e7f6d;
+                            font-size: 8pt;
+                            margin-bottom: 12px;
                         }
 
                         .footer {
-                            margin-top: 40px;
-                            padding-top: 15px;
-                            border-top: 1px solid #e2e8f0;
+                            color: #6e7f6d;
+                            font-size: 8.5pt;
+                            padding: 19px 24px 22px;
                             text-align: center;
-                            font-size: 9pt;
-                            color: #94a3b8;
                         }
 
+                        @page { size: Letter; margin: .42in; }
+
                         @media print {
-                            body { padding: 20px 30px; }
-                            .header { margin-bottom: 20px; }
-                            h2 { page-break-after: avoid; }
-                            .parties, .signature-block { page-break-inside: avoid; }
+                            * {
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            body { background: #fff; padding: 0; }
+                            .print-shell { max-width: none; }
+                            .estimate-card,
+                            .estimate-details,
+                            .estimate-total,
+                            .agreement-content .parties,
+                            .signature-block { break-inside: avoid; page-break-inside: avoid; }
+                            .agreement-content h1,
+                            .agreement-content h2 { break-after: avoid; page-break-after: avoid; }
                         }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <div class="logo-section">
-                            <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284%2C75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%283%29-Picsart-BackgroundRemover.png" alt="Pappas & Co." style="height:50px;width:auto;" onerror="this.style.display='none'">
-                            <div class="company-info">
-                                <h2>Pappas & Co. Landscaping</h2>
-                                <p>PO Box 770057, Lakewood, OH 44107</p>
-                                <p>(440) 886-7318 • hello@pappaslandscaping.com</p>
+                    <main class="print-shell">
+                        <header class="brand-header">
+                            <img src="https://app.pappaslandscaping.com/images/email-logo.png" alt="Pappas & Co. Landscaping">
+                            <div class="brand-header-copy">
+                                pappaslandscaping.com<br>
+                                (440) 886-7318
                             </div>
-                        </div>
-                        <div class="doc-info">
-                            <div><span class="label">Estimate #</span><br><span class="value">${quoteData.quote_number || 'Q-' + quoteData.id}</span></div>
-                            <div style="margin-top: 8px;"><span class="label">Date</span><br><span class="value">${effectiveDate}</span></div>
-                        </div>
-                    </div>
+                        </header>
 
-                    ${document.getElementById('contractContent').innerHTML}
+                        <section class="estimate-card">
+                            <div class="eyebrow">Estimate Reference</div>
+                            <div class="estimate-number">#${escapePrintHtml(estimateNumber)}</div>
+                            <dl class="estimate-details">
+                                <div class="estimate-detail">
+                                    <dt>Service Address</dt>
+                                    <dd>${printableAddress}</dd>
+                                </div>
+                                <div class="estimate-detail">
+                                    <dt>Services</dt>
+                                    <dd>${escapePrintHtml(serviceNames)}</dd>
+                                </div>
+                            </dl>
+                            <div class="estimate-total">
+                                <span class="eyebrow">Estimate Total</span>
+                                <strong>${escapePrintHtml(formatCurrency(quoteData.total))}</strong>
+                            </div>
+                        </section>
 
-                    <div class="signature-block">
-                        <div class="sig-party">
-                            <h4>SERVICE PROVIDER</h4>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Signature</div>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Printed Name</div>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Date</div>
-                        </div>
-                        <div class="sig-party">
-                            <h4>CLIENT</h4>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Signature</div>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Printed Name</div>
-                            <div class="sig-line"></div>
-                            <div class="sig-label">Date</div>
-                        </div>
-                    </div>
+                        <section class="agreement-card">
+                            <div class="agreement-label">Service Agreement</div>
+                            <div class="agreement-content">${agreementContent}</div>
 
-                    <div class="footer">
-                        Pappas & Co. Landscaping • www.pappaslandscaping.com • (440) 886-7318
-                    </div>
+                            <div class="signature-block">
+                                <div class="sig-party">
+                                    <h4>Service Provider</h4>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Signature</div>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Printed Name</div>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Date</div>
+                                </div>
+                                <div class="sig-party">
+                                    <h4>Client</h4>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Signature</div>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Printed Name</div>
+                                    <div class="sig-line"></div>
+                                    <div class="sig-label">Date</div>
+                                </div>
+                            </div>
+
+                            <div class="footer">
+                                Pappas & Co. Landscaping &nbsp;|&nbsp; ${escapePrintHtml(effectiveDate)} &nbsp;|&nbsp; Estimate #${escapePrintHtml(estimateNumber)}
+                            </div>
+                        </section>
+                    </main>
                 </body>
                 </html>
-            `);
+            `;
+        }
+
+        async function downloadContract() {
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                showError('Please allow pop-ups to print or save this agreement as a PDF.');
+                return;
+            }
+
+            printWindow.document.write(buildPrintableAgreementHtml());
             printWindow.document.close();
-            printWindow.focus();
-            window.setTimeout(() => printWindow.print(), 500);
+
+            let printStarted = false;
+            const beginPrint = () => {
+                if (printStarted) return;
+                printStarted = true;
+                printWindow.focus();
+                printWindow.print();
+            };
+            const logo = printWindow.document.querySelector('.brand-header img');
+
+            if (!logo || logo.complete) {
+                window.setTimeout(beginPrint, 300);
+            } else {
+                logo.addEventListener('load', beginPrint, { once: true });
+                logo.addEventListener('error', beginPrint, { once: true });
+                window.setTimeout(beginPrint, 1800);
+            }
         }
     </script>
 </body>

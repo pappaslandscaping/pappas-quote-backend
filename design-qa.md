@@ -4,6 +4,10 @@
 - HomeWorks Estimate v4 email shown on an iPhone in Gmail.
 - `/Users/theresapappas/Downloads/Sign Service Agreement  Pappas & Co. Landscaping 3.png`
 - Customer-facing agreement screenshot showing the Estimate Reference card before this refinement.
+- `/var/folders/6d/j454h77j0x98rm6f8fqywlvc0000gn/T/TemporaryItems/NSIRD_screencaptureui_pJFAJF/Screenshot 2026-09-10 at 9.53.16 PM.png`
+- Live customer agreement showing the clipped `Print / Save PDF` action.
+- `/var/folders/6d/j454h77j0x98rm6f8fqywlvc0000gn/T/TemporaryItems/NSIRD_screencaptureui_wqPqZw/Screenshot 2026-09-10 at 9.53.24 PM.png`
+- Previous printable agreement showing the separate, older document layout.
 
 **Implementation evidence**
 
@@ -18,6 +22,9 @@
 - `/private/tmp/yarddesk-clean-pdf-action-mobile.png`
 - `/private/tmp/yarddesk-smaller-estimate-total-mobile.png`
 - `/private/tmp/yarddesk-compact-estimate-total-mobile.png`
+- `/private/tmp/yarddesk-agreement-action-fixed.png`
+- `/private/tmp/yarddesk-print-layout-fixed.png`
+- `/private/tmp/yarddesk-print-fixes-comparison.png`
 
 **Viewport and normalization**
 
@@ -28,6 +35,7 @@
 - Desktop CSS viewport: 1440 x 1000. Browser content capture: 1425 x 689 px.
 - The combined comparison scales each artifact to the same column width and compares the shared top-of-content region. Device and Gmail chrome are excluded from fidelity judgments.
 - State: unsigned Estimate #1676 with Theresa Pappas, 1513 Lincoln Avenue, Mowing (Weekly), and a $1.08 total.
+- Latest source captures: 3456 x 2234 px. Corrected action capture: 1425 x 892 px. Corrected printable layout and combined comparison: 1232 x 712 px. The comparison normalizes each screenshot to the same column width and excludes browser chrome from design judgments.
 
 **Full-view comparison evidence**
 
@@ -40,6 +48,7 @@
 - Header and hero: the logo treatment, charcoal header, pale green gradient, uppercase eyebrow, and headline hierarchy match the email system.
 - Estimate summary: the address and service use lime rules, while the total sits in the same pale green treatment used by the email.
 - Agreement and signature cards: typography, borders, radii, colors, and button styling use the same tokens as the email.
+- Print action and printable document: the action is fully visible inside the agreement header, and the printable version now repeats the charcoal logo header, Estimate Reference card, lime divider, pale green total, white agreement card, and agreement typography in the same visual order.
 
 **Required fidelity surfaces**
 
@@ -66,6 +75,11 @@
 - Follow-up refinement: the solid lime PDF button was visually too heavy beside the section heading. It is now a borderless text action with a thin lime underline and no surrounding box. Evidence: `/private/tmp/yarddesk-clean-pdf-action-mobile.png`.
 - Follow-up refinement: reduced the Estimate Total amount from 30 px to 24 px so it remains prominent without overpowering the service summary. Evidence: `/private/tmp/yarddesk-smaller-estimate-total-mobile.png`.
 - Follow-up refinement: the first reduction was still too prominent, so the total is now 18 px with a shorter 12 px vertical total panel. Evidence: `/private/tmp/yarddesk-compact-estimate-total-mobile.png`.
+- Latest pass P2: the `Print / Save PDF` action was clipped at the right edge because its container could shrink below the label width.
+- Fix: reserved 124 px for the action area and 120 px for the label, aligned it to the right, and preserved overflow visibility. Post-fix evidence: `/private/tmp/yarddesk-agreement-action-fixed.png`.
+- Latest pass P1: printing opened a separate legacy document whose logo treatment, header, color system, estimate information, cards, and typography did not match the customer agreement.
+- Fix: replaced the legacy print document with a printable version of the same branded experience, including the charcoal logo header, Estimate Reference card, address and services divider, compact Estimate Total, agreement card, party block, lime highlights, signature fields, and exact-color print settings. Post-fix evidence: `/private/tmp/yarddesk-print-layout-fixed.png`.
+- Combined visual comparison: `/private/tmp/yarddesk-print-fixes-comparison.png` places both user-supplied before states beside their corrected implementations. The action is no longer truncated, and the PDF is visually continuous with the signing page.
 
 **Findings**
 
@@ -81,6 +95,9 @@
 - Verified the Sign Agreement button becomes enabled.
 - Verified no visible error state or loading lock remained.
 - Verified desktop layout has no horizontal overflow.
+- Verified the `Print / Save PDF` label measures 120 px and remains completely within the 1425 px browser viewport.
+- Verified the printable layout renders Estimate #1676, the service address, Mowing (Weekly), $1.08 total, full agreement content, party details, and signature fields using the Estimate v4 brand tokens.
+- Verified the customer agreement page reports no console errors after the change.
 
 **Follow-up polish**
 

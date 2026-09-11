@@ -32,6 +32,7 @@ describe('customer service agreement page', () => {
     expect(page).toContain('Print / Save PDF');
     expect(page).toContain('btn-download');
     expect(page).toContain('.btn-download svg');
+    expect(page).toContain('min-width: 120px');
     expect(page).toContain("replace(/^#/, '')");
     expect(page).toContain('printWindow.print()');
     expect(page).toContain('Associated Estimate');
@@ -39,6 +40,17 @@ describe('customer service agreement page', () => {
     expect(page).not.toContain('Accept Quote');
     expect(page).not.toContain('Quote Reference');
     expect(page).not.toContain('Quote Total');
+  });
+
+  test('prints the agreement with the same branded estimate system', () => {
+    expect(page).toContain('function buildPrintableAgreementHtml()');
+    expect(page).toContain('class="brand-header"');
+    expect(page).toContain('class="estimate-card"');
+    expect(page).toContain('class="agreement-card"');
+    expect(page).toContain('https://app.pappaslandscaping.com/images/email-logo.png');
+    expect(page).toContain('print-color-adjust: exact');
+    expect(page).toContain('@page { size: Letter; margin: .42in; }');
+    expect(page).toContain('printWindow.document.write(buildPrintableAgreementHtml())');
   });
 
   test('preserves the signing controls and API flow', () => {

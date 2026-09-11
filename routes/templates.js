@@ -16,6 +16,26 @@ const { clientCommunicationsDisabledResponse } = require('../lib/client-communic
 module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
 
+function isCompleteEstimateV4Email(body) {
+  const html = String(body || '');
+  return /class=["'][^"']*email-shell/i.test(html)
+    && /images\/email-logo\.png/i.test(html)
+    && /#1f2933/i.test(html)
+    && /unsubscribe\.html/i.test(html);
+}
+
+function normalizeEstimateV4Template(body, channel, options) {
+  if (String(channel || 'email').toLowerCase() === 'sms' || !body) {
+    return { body, options: options || {} };
+  }
+  return {
+    body: isCompleteEstimateV4Email(body)
+      ? body
+      : emailTemplate(body, { wrapper: 'full', showFeatures: false, showSignature: false }),
+    options: { ...(options || {}), wrapper: 'none', design: 'estimate-v4' }
+  };
+}
+
 router.get('/api/templates', async (req, res) => {
   try {
     const { category } = req.query;
@@ -32,10 +52,11 @@ router.post('/api/templates', async (req, res) => {
   try {
     const { name, slug, category, channel, subject, body, sms_body, variables, is_active, options } = req.body;
     if (!name || !slug) return res.status(400).json({ success: false, error: 'name and slug required' });
+    const normalized = normalizeEstimateV4Template(body, channel, options);
     const result = await pool.query(
       `INSERT INTO email_templates (name, slug, category, channel, subject, body, sms_body, variables, is_active, options)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [name, slug, category || 'system', channel || 'email', subject, body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(options || {})]
+      [name, slug, category || 'system', channel || 'email', subject, normalized.body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(normalized.options)]
     );
     res.json({ success: true, template: result.rows[0] });
   } catch (error) { serverError(res, error); }
@@ -43,13 +64,25 @@ router.post('/api/templates', async (req, res) => {
 
 router.patch('/api/templates/:id', async (req, res) => {
   try {
+    const next = { ...req.body };
+    if (next.body !== undefined) {
+      const existing = await pool.query('SELECT channel, options FROM email_templates WHERE id = $1', [req.params.id]);
+      if (existing.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
+      const normalized = normalizeEstimateV4Template(
+        next.body,
+        next.channel || existing.rows[0].channel,
+        next.options || existing.rows[0].options
+      );
+      next.body = normalized.body;
+      next.options = normalized.options;
+    }
     const fields = ['name', 'slug', 'category', 'channel', 'subject', 'body', 'sms_body', 'variables', 'is_active', 'is_default', 'options'];
     const updates = [];
     const params = [];
     let p = 1;
     for (const f of fields) {
-      if (req.body[f] !== undefined) {
-        const val = (f === 'variables' || f === 'options') ? JSON.stringify(req.body[f]) : req.body[f];
+      if (next[f] !== undefined) {
+        const val = (f === 'variables' || f === 'options') ? JSON.stringify(next[f]) : next[f];
         updates.push(`${f} = $${p++}`);
         params.push(val);
       }

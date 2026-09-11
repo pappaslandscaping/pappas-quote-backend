@@ -15,7 +15,7 @@ const rateLimit = require('express-rate-limit');
 const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
-const { renderWithBaseLayout, renderManagedEmail, LOGO_URL, SIGNATURE_IMAGE, emailTemplate, buildServiceAgreementEmailV4 } = require('./lib/email-renderer');
+const { renderWithBaseLayout, renderManagedEmail, LOGO_URL, SIGNATURE_IMAGE, emailTemplate } = require('./lib/email-renderer');
 const {
   isCompiledCopilotTemplateSlug,
   renderCompiledCopilotTemplate
@@ -10396,23 +10396,25 @@ function premiumEmailPanel({ eyebrow, title, body, meta = '', tone = 'sage', ali
 }
 
 function premiumEmailSummaryGrid(items) {
-  const rows = items.map(item => `
-    <tr>
-      <td style="padding:12px 0;border-bottom:1px solid #e6ebe7;vertical-align:top;width:34%;">
-        <p style="margin:0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#7a857d;font-weight:700;">${item.label}</p>
-      </td>
-      <td style="padding:12px 0;border-bottom:1px solid #e6ebe7;vertical-align:top;">
-        <p style="margin:0;font-size:${item.emphasis ? '21px' : '15px'};line-height:1.35;color:#2e403d;font-weight:${item.emphasis ? '700' : '600'};">${item.value}</p>
-        ${item.note ? `<p style="margin:6px 0 0;font-size:12px;line-height:1.65;color:#6d7a72;">${item.note}</p>` : ''}
-      </td>
-    </tr>
+  const rows = items.map((item, index) => `
+    <div style="padding:${index === 0 ? '0 0 10px' : '10px 0'};${index < items.length - 1 ? 'border-bottom:1px solid #e3e8e2;' : ''}">
+      <div style="margin:0 0 3px;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#6e7f6d;font-weight:700;">${item.label}</div>
+      <div style="margin:0;font-size:${item.emphasis ? '18px' : '14px'};line-height:1.4;color:#2e403d;font-weight:${item.emphasis ? '700' : '600'};">${item.value}</div>
+      ${item.note ? `<div style="margin:5px 0 0;font-size:12px;line-height:1.6;color:#6d7a72;">${item.note}</div>` : ''}
+    </div>
   `).join('');
 
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ffffff;border:1px solid #d7dfd1;border-radius:18px;overflow:hidden;">
-      <tr><td style="padding:4px 18px;">
-        <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
-      </td></tr>
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 26px;border-collapse:collapse;">
+      <tr>
+        <td style="width:38%;padding:4px 20px 4px 0;vertical-align:top;">
+          <div style="margin:0 0 8px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6e7f6d;font-weight:700;">Summary</div>
+          <div style="font-size:14px;line-height:1.7;color:#425466;">A quick look at the important details.</div>
+        </td>
+        <td style="width:62%;padding:4px 0 4px 18px;border-left:3px solid #c9dd80;vertical-align:top;">
+          ${rows}
+        </td>
+      </tr>
     </table>
   `;
 }
@@ -10451,7 +10453,7 @@ function premiumEmailChecklist(title, items) {
 function premiumEmailCta(label, href, secondary = '') {
   return `
     <div style="margin:0 0 22px;text-align:center;">
-      <a href="${href}" style="display:inline-block;padding:14px 28px;background:#c9dd80;color:#2e403d;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">${label}</a>
+      <a href="${href}" style="display:inline-block;padding:14px 28px;background:#c9dd80;color:#2e403d;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">${label}</a>
     </div>
     ${secondary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#6d7a72;">${secondary}</p>` : ''}
   `;
@@ -10771,6 +10773,68 @@ function buildYardSignRequestTemplateBody() {
   `;
 }
 
+function buildContractReminderBody(variant = 'reminder') {
+  const isFinal = variant === 'final';
+  return `
+    ${premiumEmailIntro({
+      eyebrow: isFinal ? 'Final reminder' : 'Signature reminder',
+      title: isFinal ? 'Your agreement still needs a signature' : 'One quick step left',
+      subtitle: isFinal
+        ? 'Your accepted estimate is still waiting for the final signature.'
+        : 'Your accepted estimate and service agreement are ready when you are.'
+    })}
+    ${premiumEmailBody(`Hi {customer_first_name}, ${isFinal
+      ? 'we still need your signature on the service agreement for estimate <strong>#{quote_number}</strong>. If you would still like to move forward, please review and sign it below. If your plans have changed, just reply and let us know.'
+      : 'just a quick reminder that the service agreement for estimate <strong>#{quote_number}</strong> is waiting for your signature. We need the signed agreement before we can schedule your service.'}`)}
+    ${premiumEmailSummaryGrid([
+      { label: 'Estimate', value: '#{quote_number}' },
+      { label: 'Total', value: '${quote_total}', emphasis: true }
+    ])}
+    ${premiumEmailCta('Review & Sign Agreement', '{contract_link}', 'Questions first? Reply directly to this email and we will help.')}
+    ${premiumEmailChecklist('Next steps', isFinal ? [
+      'Review the agreement and make sure everything looks correct.',
+      'Sign online if you are ready to move forward.',
+      'Reply if you need help or no longer need service.'
+    ] : [
+      'Review the agreement to confirm the scope, terms, and pricing.',
+      'Add your signature online. It should only take a minute.',
+      'Once it is signed, our team can move forward with scheduling.'
+    ])}
+  `;
+}
+
+function buildReferralAnnouncementBody() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Neighbor referral', title: 'Refer a neighbor and get a free mow', subtitle: 'No codes and no forms. They only need to mention your name.' })}
+    ${premiumEmailBody("Hi {customer_first_name}, it's Tim. If you know a neighbor who could use a good landscaper, send them our way. For every neighbor who signs up and mentions your name, you will get a free mow on us.")}
+    ${premiumEmailSummaryGrid([{ label: 'Your reward', value: '1 referral = 1 free mow', emphasis: true }, { label: 'Limit', value: 'No limit' }])}
+    ${premiumEmailChecklist('How it works', ['Tell your neighbor about us.', 'They call or text and mention your name.', 'We apply a free mow to your next service.'])}
+    ${premiumEmailCta('Send Them Our Way', 'tel:4408867318', 'We service Lakewood, Bay Village, Brook Park, and West Park.')}
+  `;
+}
+
+function buildReferralFollowupBody() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Referral reminder', title: 'A free mow is waiting for you', subtitle: 'One neighbor referral earns one free mow.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, just making sure you saw this. When a neighbor signs up and mentions your name, we will apply a free mow to your next service.')}
+    ${premiumEmailSummaryGrid([{ label: 'Your reward', value: '1 referral = 1 free mow', emphasis: true }, { label: 'What they do', value: 'Mention your name when they call or text' }])}
+    ${premiumEmailCta('Send Them Our Way', 'tel:4408867318', 'No forms, no codes, and no limit.')}
+  `;
+}
+
+function buildReferralThankYouBody() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Referral reward', title: 'You earned a free mow', subtitle: 'Thank you for helping our local business grow.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, your neighbor <strong>{referred_name}</strong> signed up and mentioned your name, so you have a free mow coming.')}
+    ${premiumEmailSummaryGrid([{ label: 'Reward', value: 'Free mow credit', emphasis: true }, { label: 'Applied', value: 'Your next service' }])}
+    ${premiumEmailNote('We appreciate the referral and will apply the credit automatically.')}
+  `;
+}
+
+function composeEstimateV4StoredBody(content) {
+  return emailTemplate(content, { wrapper: 'full', showFeatures: false, showSignature: false });
+}
+
 // Default template seeds
 const DEFAULT_TEMPLATES = [
   { name: 'Quote Sent', slug: 'quote_sent', category: 'quotes', subject: 'Your Quote from Pappas & Co. Landscaping', body: buildQuoteSentBody(), sms_body: 'Hi {customer_first_name}, your quote #{quote_number} for ${quote_total} from Pappas & Co. is ready! View it here: {quote_link}', variables: '["customer_name","customer_first_name","quote_number","quote_total","quote_link","services_list"]' },
@@ -10795,12 +10859,25 @@ const DEFAULT_TEMPLATES = [
   { name: 'Review Request', slug: 'review_request', category: 'marketing', subject: 'How did we do? — Pappas & Co.', body: buildReviewRequestBody(), sms_body: 'Hi {customer_first_name}! Enjoy your recent service from Pappas & Co.? We\'d love a Google review! It really helps us out.', variables: '["customer_first_name"]' },
   { name: 'Appointment Reminder', slug: 'appointment_reminder', category: 'system', subject: 'Service Tomorrow — {service_type}', body: buildAppointmentReminderBody(), sms_body: 'Reminder: Your {service_type} with Pappas & Co. is tomorrow at {address}. Please unlock gates! Questions? (440) 886-7318', variables: '["customer_first_name","service_type","job_date","address"]' },
   { name: 'Campaign Email', slug: 'campaign_email', category: 'marketing', subject: '{subject}', body: buildCampaignEmailBody(), sms_body: '{body}', variables: '["customer_first_name","customer_name","subject","body","company_name","company_phone"]' },
-  { name: 'Contract Unsigned Reminder', slug: 'contract_unsigned_reminder', category: 'quotes', subject: 'Reminder: Please sign your service agreement', body: buildServiceAgreementEmailV4({ customerFirstName: '{customer_first_name}', estimateNumber: '{quote_number}', total: '{quote_total}', contractUrl: '{contract_link}', variant: 'reminder' }), sms_body: 'Hi {customer_first_name}, this is Pappas & Co. Landscaping. We still need your signature on the service agreement for estimate #{quote_number} before we can schedule your service. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]', options: { wrapper: 'none' } },
-  { name: 'Contract Unsigned Final Reminder', slug: 'contract_unsigned_final', category: 'quotes', subject: 'Final reminder: Your service agreement still needs a signature', body: buildServiceAgreementEmailV4({ customerFirstName: '{customer_first_name}', estimateNumber: '{quote_number}', total: '{quote_total}', contractUrl: '{contract_link}', variant: 'final' }), sms_body: 'Hi {customer_first_name}, this is Pappas & Co. Landscaping. If you still want to move forward with estimate #{quote_number}, please sign your service agreement here: {contract_link}. If your plans changed, just let us know.', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]', options: { wrapper: 'none' } },
+  { name: 'Contract Unsigned Reminder', slug: 'contract_unsigned_reminder', category: 'quotes', subject: 'Reminder: Please sign your service agreement', body: buildContractReminderBody('reminder'), sms_body: 'Hi {customer_first_name}, this is Pappas & Co. Landscaping. We still need your signature on the service agreement for estimate #{quote_number} before we can schedule your service. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]' },
+  { name: 'Contract Unsigned Final Reminder', slug: 'contract_unsigned_final', category: 'quotes', subject: 'Final reminder: Your service agreement still needs a signature', body: buildContractReminderBody('final'), sms_body: 'Hi {customer_first_name}, this is Pappas & Co. Landscaping. If you still want to move forward with estimate #{quote_number}, please sign your service agreement here: {contract_link}. If your plans changed, just let us know.', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]' },
   { name: 'Referral Announcement', slug: 'referral_announcement', category: 'marketing', subject: 'Know a neighbor who needs a landscaper? Get a free mow.', body: '<h2 style="color:#2e403d;margin:0 0 4px;">Refer a Neighbor, Get a Free Mow</h2><p style="font-size:13px;color:#94a3b8;margin:0 0 24px;">No limit. No codes. No forms.</p><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 8px;">Hi {customer_first_name}, it\'s Tim.</p><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 20px;">If you know a neighbor who could use a good landscaper, send them our way. For every neighbor who signs up and mentions your name, you\'ll get a free mow on us.</p><table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f0e4;border-radius:10px;margin:0 0 24px;"><tr><td style="padding:20px 24px;text-align:center;"><p style="font-size:16px;font-weight:700;color:#2e403d;margin:0 0 4px;">1 Referral = 1 Free Mow</p><p style="font-size:13px;color:#4a5568;margin:0;">No limit. The more neighbors you refer, the more free mows you earn.</p></td></tr></table><p style="font-size:14px;font-weight:700;color:#2e403d;margin:0 0 10px;">How it works:</p><table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr><td style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:32px;vertical-align:top;"><span style="display:inline-block;width:24px;height:24px;background:#c9dd80;color:#2e403d;border-radius:50%;text-align:center;line-height:24px;font-weight:700;font-size:12px;">1</span></td><td style="font-size:14px;color:#4a5568;line-height:1.5;">Tell your neighbor about us</td></tr></table></td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:32px;vertical-align:top;"><span style="display:inline-block;width:24px;height:24px;background:#c9dd80;color:#2e403d;border-radius:50%;text-align:center;line-height:24px;font-weight:700;font-size:12px;">2</span></td><td style="font-size:14px;color:#4a5568;line-height:1.5;">They call or text us and mention your name</td></tr></table></td></tr><tr><td style="padding:8px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:32px;vertical-align:top;"><span style="display:inline-block;width:24px;height:24px;background:#c9dd80;color:#2e403d;border-radius:50%;text-align:center;line-height:24px;font-weight:700;font-size:12px;">3</span></td><td style="font-size:14px;color:#4a5568;line-height:1.5;">You get a free mow on your next service</td></tr></table></td></tr></table><p style="font-size:12px;color:#94a3b8;text-align:center;margin:0 0 20px;">We service Lakewood, Bay Village, Brook Park, and Westpark.</p><p style="text-align:center;margin:0 0 6px;"><a href="tel:4408867318" style="display:inline-block;padding:12px 36px;background:#c9dd80;color:#2e403d;border-radius:50px;font-weight:700;font-size:14px;text-decoration:none;">Send Them Our Way</a></p><p style="text-align:center;font-size:12px;color:#94a3b8;margin:6px 0 0;">Call or text (440) 886-7318</p>', sms_body: 'Hi {customer_first_name}, it\'s Tim from Pappas & Co. Got a neighbor who could use a good landscaper? Send them our way and you\'ll get a free mow. No limit. They just mention your name when they reach out. We service Lakewood, Bay Village, Brook Park, and Westpark.', variables: '["customer_first_name","customer_name"]' },
   { name: 'Referral Follow-up', slug: 'referral_followup', category: 'marketing', subject: 'A free mow is waiting for you', body: '<h2 style="color:#2e403d;margin:0 0 24px;">A Free Mow is Waiting for You</h2><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 8px;">Hi {customer_first_name}, just wanted to make sure you saw this.</p><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 20px;">We\'re offering a free mow for every neighbor you refer to Pappas & Co. No forms, no codes. They just mention your name when they call or text us.</p><table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f0e4;border-radius:10px;margin:0 0 24px;"><tr><td style="padding:20px 24px;text-align:center;"><p style="font-size:16px;font-weight:700;color:#2e403d;margin:0 0 4px;">1 Referral = 1 Free Mow</p><p style="font-size:13px;color:#4a5568;margin:0;">No limit. Tell a neighbor, get a free mow. Simple as that.</p></td></tr></table><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 20px;">Know someone whose yard could use some help?</p><p style="text-align:center;margin:0 0 6px;"><a href="tel:4408867318" style="display:inline-block;padding:12px 36px;background:#c9dd80;color:#2e403d;border-radius:50px;font-weight:700;font-size:14px;text-decoration:none;">Send Them Our Way</a></p><p style="text-align:center;font-size:12px;color:#94a3b8;margin:6px 0 0;">Call or text (440) 886-7318</p>', sms_body: 'Hi {customer_first_name}, Tim from Pappas & Co. here. Just making sure you saw this. Free mow for every neighbor you refer. No forms, no codes. They just mention your name when they call or text us at (440) 886-7318.', variables: '["customer_first_name","customer_name"]' },
   { name: 'Referral Thank You', slug: 'referral_thank_you', category: 'marketing', subject: 'You earned a free mow!', body: '<h2 style="color:#2e403d;margin:0 0 24px;">You Earned a Free Mow!</h2><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 8px;">Hey {customer_first_name}!</p><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 20px;">Your neighbor <strong>{referred_name}</strong> signed up and mentioned your name, so you\'ve got a free mow coming. We\'ll apply it to your next service.</p><table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f0e4;border-radius:10px;margin:0 0 24px;"><tr><td style="padding:16px 24px;text-align:center;"><p style="font-size:15px;font-weight:700;color:#2e403d;margin:0;">Free mow credit applied</p></td></tr></table><p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 0;">Thanks for helping us grow in the neighborhood. Know another neighbor? Every referral earns another free mow.</p>', sms_body: 'Hey {customer_first_name}! It\'s Tim from Pappas & Co. Your neighbor {referred_name} signed up and mentioned your name, so you\'ve got a free mow coming. We\'ll apply it to your next service. Thanks for helping us grow in the neighborhood!', variables: '["customer_first_name","customer_name","referred_name"]' },
-];
+].map((template) => {
+  const bodyOverrides = {
+    referral_announcement: buildReferralAnnouncementBody(),
+    referral_followup: buildReferralFollowupBody(),
+    referral_thank_you: buildReferralThankYouBody()
+  };
+  const sourceBody = bodyOverrides[template.slug] || template.body;
+  if (!sourceBody) return template;
+  return {
+    ...template,
+    body: composeEstimateV4StoredBody(sourceBody),
+    options: { ...(template.options || {}), wrapper: 'none', design: 'estimate-v4' }
+  };
+});
 
 // Seed default templates
 async function seedDefaultTemplates() {
@@ -10832,9 +10909,9 @@ async function ensureAppManagedTemplates() {
         'marketing',
         'email',
         'Quick Question: Would you be open to a yard sign?',
-        buildYardSignRequestTemplateBody(),
+        composeEstimateV4StoredBody(buildYardSignRequestTemplateBody()),
         JSON.stringify(['customer_first_name', 'company_name', 'company_phone', 'company_email', 'yard_sign_yes_link', 'yard_sign_no_link']),
-        JSON.stringify({ wrapper: 'full' })
+        JSON.stringify({ wrapper: 'none', design: 'estimate-v4' })
       ]
     );
 
@@ -10887,6 +10964,38 @@ Questions? Call {company_phone} or email {company_email}.`;
   }
 }
 setTimeout(() => ensureAppManagedTemplates().then(() => console.log('✅ App-managed templates ensured')).catch(e => console.error('App-managed template ensure error:', e.message)), 5500);
+
+function isCompleteEstimateV4Email(body) {
+  const html = String(body || '');
+  return /class=["'][^"']*email-shell/i.test(html)
+    && /images\/email-logo\.png/i.test(html)
+    && /#1f2933/i.test(html)
+    && /unsubscribe\.html/i.test(html);
+}
+
+async function ensureEstimateV4TemplateBodies() {
+  try {
+    const result = await pool.query(
+      `SELECT id, body, options
+       FROM email_templates
+       WHERE COALESCE(channel, 'email') <> 'sms'
+         AND COALESCE(body, '') <> ''`
+    );
+    for (const template of result.rows) {
+      if (isCompleteEstimateV4Email(template.body)) continue;
+      const options = { ...(template.options || {}), wrapper: 'none', design: 'estimate-v4' };
+      await pool.query(
+        `UPDATE email_templates
+         SET body = $1, options = $2::jsonb, updated_at = NOW()
+         WHERE id = $3`,
+        [composeEstimateV4StoredBody(template.body), JSON.stringify(options), template.id]
+      );
+    }
+  } catch (e) {
+    console.error('Estimate v4 template normalization error:', e.message);
+  }
+}
+setTimeout(() => ensureEstimateV4TemplateBodies().then(() => console.log('✅ Email templates normalized to Estimate v4')).catch(e => console.error('Estimate v4 template normalization error:', e.message)), 6500);
 
 // ═══════════════════════════════════════════════════════════
 
@@ -13729,9 +13838,9 @@ app.post('/api/ai/create-campaign', async (req, res) => {
     if (subject && body) {
       const slug = 'ai_campaign_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50) + '_' + Date.now();
       const tmplResult = await pool.query(
-        `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, is_active, created_at, updated_at)
-         VALUES ($1, $2, 'marketing', $3, $4, $5, true, NOW(), NOW()) RETURNING id`,
-        [name, slug, subject, body, sms_body || '']
+        `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, options, is_active, created_at, updated_at)
+         VALUES ($1, $2, 'marketing', $3, $4, $5, $6::jsonb, true, NOW(), NOW()) RETURNING id`,
+        [name, slug, subject, composeEstimateV4StoredBody(body), sms_body || '', JSON.stringify({ wrapper: 'none', design: 'estimate-v4' })]
       );
       templateId = tmplResult.rows[0].id;
     }

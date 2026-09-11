@@ -47,6 +47,9 @@ describe('customer service agreement page', () => {
     expect(page).toContain('id="consentCheckbox"');
     expect(page).toContain("fetch(`${API_BASE}/api/sign/${token}`)");
     expect(page).toContain("fetch(`${API_BASE}/api/sent-quotes/${quoteData.id}/sign-contract`,");
+    expect(page).not.toContain("document.getElementById('printedName').value = quoteData.customer_name");
+    expect(page).toContain("document.getElementById('printedName').value = typed;");
+    expect(page).toContain("printedName.value = '';");
   });
 });
 

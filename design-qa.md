@@ -76,6 +76,8 @@
 - Loaded the agreement with realistic Estimate #1676 data.
 - Switched from Draw Signature to Type Signature.
 - Entered a typed signature and checked the consent box.
+- Verified Printed Name starts blank in Draw Signature mode.
+- Verified a typed signature automatically fills Printed Name, and switching back to Draw clears it for manual entry.
 - Verified the Sign Agreement button becomes enabled.
 - Verified no visible error state or loading lock remained.
 - Verified desktop layout has no horizontal overflow.

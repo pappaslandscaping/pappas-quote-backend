@@ -1501,9 +1501,6 @@
                     document.getElementById('servicesList').textContent = display;
                 }
 
-                // Pre-fill printed name
-                document.getElementById('printedName').value = quoteData.customer_name || '';
-
                 // Generate contract content
                 generateContractContent();
 
@@ -1544,9 +1541,6 @@
                     const display = serviceNames.join(', ') + (services.length > 3 ? ` +${services.length - 3} more` : '');
                     document.getElementById('servicesList').textContent = display;
                 }
-
-                // Pre-fill printed name
-                document.getElementById('printedName').value = quoteData.customer_name || '';
 
                 // Generate contract content
                 generateContractContent();
@@ -1743,10 +1737,13 @@
 
             // Show/hide script preview based on mode
             const previewBox = document.getElementById('signaturePreviewBox');
+            const typed = document.getElementById('typedSignature').value;
+            const printedName = document.getElementById('printedName');
             if (type === 'type') {
-                const typed = document.getElementById('typedSignature').value.trim();
-                previewBox.style.display = typed ? 'flex' : 'none';
+                printedName.value = typed;
+                previewBox.style.display = typed.trim() ? 'flex' : 'none';
             } else {
+                printedName.value = '';
                 previewBox.style.display = 'none';
             }
 
@@ -1756,6 +1753,7 @@
         function updateTypedPreview() {
             const typed = document.getElementById('typedSignature').value;
             document.getElementById('typedPreview').textContent = typed;
+            document.getElementById('printedName').value = typed;
             const previewBox = document.getElementById('signaturePreviewBox');
             previewBox.style.display = typed.trim() ? 'flex' : 'none';
             validateForm();

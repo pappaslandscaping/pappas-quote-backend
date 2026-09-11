@@ -106,3 +106,32 @@
 - P3: a future pass could visually match the post-signing portal-success screen, which was outside this unsigned-agreement comparison.
 
 final result: passed
+
+## YardDesk template library Estimate v4 standardization
+
+**Source and implementation evidence**
+
+- Source: `/Users/theresapappas/Downloads/Screenshot 2026-09-10 at 8.46.19 PM.png`
+- Live implementation: `/private/tmp/yarddesk-template-v4-live.png`
+- Side-by-side review: `/private/tmp/estimate-v4-template-comparison.png`
+
+**Visual comparison**
+
+- The shared full and minimal email wrappers now use the Estimate v4 charcoal logo header, 600 px email width, pale green background, dark green headings, lime pill buttons, rounded content surfaces, and matching footer treatment.
+- Follow-up, invoice, payment, portal, quote, agreement reminder, job, service-request, campaign, and yard-sign templates use the same visual hierarchy instead of separate legacy styles.
+- Agreement reminder templates intentionally use no additional wrapper because their stored HTML already contains the complete Estimate v4 frame.
+- SMS templates remain text-only and were not given visual email styling.
+
+**Functional QA**
+
+- Verified representative live previews for Follow-up Stage 1, Invoice Sent, Payment Confirmation - Customer, Portal Magic Link, Contract Unsigned Reminder, Quote Accepted - Admin, Job Completed, and Review Request.
+- Confirmed the customer name, quote or invoice reference, totals, service details, and calls to action render with sample data.
+- Confirmed rich-text editor spans around merge tags are normalized before preview and send rendering.
+- Confirmed formatted currency placeholders render once, including `$3,400.00` instead of `$$3,400.00`.
+- No test email or customer communication was sent during QA.
+
+**Findings**
+
+- No actionable P0, P1, or P2 template inconsistencies remain in the representative live set.
+
+final result: passed

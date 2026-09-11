@@ -139,6 +139,8 @@
         .timeline-icon.changes { background: var(--amber-bg); }
         .timeline-icon.updated { background: var(--blue-bg); }
         .timeline-icon.edited { background: #f0f4ff; }
+        .timeline-icon.pending { background: #eef6d8; color: var(--primary); border: 1px solid var(--accent); }
+        .timeline-item.pending-step { background: #f8faef; margin: 8px -12px -4px; padding: 16px 12px; border-radius: 10px; border-bottom: none; }
         .timeline-content { flex: 1; min-width: 0; }
         .timeline-title { font-size: 14px; font-weight: 600; color: var(--gray-700); }
         .timeline-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
@@ -266,11 +268,11 @@
                     </div>
                 </div>
 
-                <!-- Right Column - Quote History -->
+                <!-- Right Column - Quote or agreement timeline -->
                 <div class="right-col">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Quote History</h3>
+                            <h3 id="historyTitle">Quote Timeline</h3>
                         </div>
                         <div class="card-body">
                             <div class="timeline" id="timeline"></div>
@@ -443,6 +445,8 @@
     async function buildTimeline(q) {
         const timeline = document.getElementById('timeline');
         const events = [];
+        const isAgreement = /Auto-created from (?:HomeWorks|CopilotCRM) estimate/i.test(q.notes || '');
+        document.getElementById('historyTitle').textContent = isAgreement ? 'Agreement Timeline' : 'Quote Timeline';
 
         const reasonLabels = {
             'price': 'Price too high',
@@ -481,16 +485,18 @@
                 let icon, cls, title, desc;
                 switch (ev.event_type) {
                     case 'created':
-                        icon = '📝'; cls = 'created'; title = 'Quote Created';
-                        desc = 'Quote was created and saved as draft';
+                        icon = '📝'; cls = 'created'; title = isAgreement ? 'Agreement Created' : 'Quote Created';
+                        desc = isAgreement
+                            ? 'Created automatically after the estimate was accepted in HomeWorks'
+                            : 'Quote was created and saved as draft';
                         break;
                     case 'sent':
-                        icon = '📤'; cls = 'sent'; title = 'Sent by Email';
-                        desc = details.email ? 'Emailed to ' + details.email : 'Quote sent to customer';
+                        icon = '📤'; cls = 'sent'; title = isAgreement ? 'Agreement Sent' : 'Sent by Email';
+                        desc = details.email ? 'Emailed to ' + details.email : (isAgreement ? 'Agreement sent to customer' : 'Quote sent to customer');
                         break;
                     case 'resent':
-                        icon = '📤'; cls = 'sent'; title = 'Quote Resent';
-                        desc = details.email ? 'Resent to ' + details.email : 'Quote resent to customer';
+                        icon = '📤'; cls = 'sent'; title = isAgreement ? 'Agreement Resent' : 'Quote Resent';
+                        desc = details.email ? 'Resent to ' + details.email : (isAgreement ? 'Agreement resent to customer' : 'Quote resent to customer');
                         if (details.total) desc += ' · Total: $' + parseFloat(details.total).toFixed(2);
                         break;
                     case 'edited':
@@ -501,8 +507,8 @@
                         if (details.new_total) desc += ' · New total: $' + parseFloat(details.new_total).toFixed(2);
                         break;
                     case 'viewed':
-                        icon = '👁'; cls = 'viewed'; title = 'Viewed by Customer';
-                        desc = 'Customer opened the quote link';
+                        icon = '👁'; cls = 'viewed'; title = isAgreement ? 'Agreement Opened' : 'Viewed by Customer';
+                        desc = isAgreement ? 'Customer opened the agreement link' : 'Customer opened the quote link';
                         break;
                     case 'declined':
                         icon = '❌'; cls = 'declined'; title = 'Quote Declined';
@@ -523,7 +529,9 @@
                         break;
                     case 'sent_sms':
                         icon = '💬'; cls = 'sent'; title = 'Sent by Text';
-                        desc = details.phone ? 'Quote sent via text to ' + details.phone : 'Quote sent via text';
+                        desc = details.phone
+                            ? (isAgreement ? 'Agreement link sent via text to ' : 'Quote sent via text to ') + details.phone
+                            : (isAgreement ? 'Agreement link sent via text' : 'Quote sent via text');
                         break;
                     default:
                         icon = '📌'; cls = 'created'; title = ev.event_type;
@@ -534,13 +542,22 @@
         } else {
             // Fallback: build from quote fields (for quotes created before events table)
             if (q.created_at) {
-                events.push({ icon: '📝', cls: 'created', title: 'Quote Created', desc: 'Quote was created and saved as draft', time: new Date(q.created_at) });
+                events.push({
+                    icon: '📝', cls: 'created',
+                    title: isAgreement ? 'Agreement Created' : 'Quote Created',
+                    desc: isAgreement ? 'Created automatically after the estimate was accepted in HomeWorks' : 'Quote was created and saved as draft',
+                    time: new Date(q.created_at)
+                });
             }
             if (q.sent_at) {
-                events.push({ icon: '📤', cls: 'sent', title: 'Sent by Email', desc: q.customer_email ? 'Emailed to ' + q.customer_email : 'Quote sent to customer', time: new Date(q.sent_at) });
+                events.push({
+                    icon: '📤', cls: 'sent', title: isAgreement ? 'Agreement Sent' : 'Sent by Email',
+                    desc: q.customer_email ? 'Emailed to ' + q.customer_email : (isAgreement ? 'Agreement sent to customer' : 'Quote sent to customer'),
+                    time: new Date(q.sent_at)
+                });
             }
             if (q.viewed_at) {
-                events.push({ icon: '👁', cls: 'viewed', title: 'Viewed by Customer', desc: 'Customer opened the quote link', time: new Date(q.viewed_at) });
+                events.push({ icon: '👁', cls: 'viewed', title: isAgreement ? 'Agreement Opened' : 'Viewed by Customer', desc: isAgreement ? 'Customer opened the agreement link' : 'Customer opened the quote link', time: new Date(q.viewed_at) });
             }
             if (q.signed_at || (q.contract_signed_at && q.status === 'signed')) {
                 events.push({ icon: '✍️', cls: 'signed', title: 'Quote Accepted', desc: q.contract_signer_name ? 'Accepted by ' + q.contract_signer_name : 'Customer accepted', time: new Date(q.signed_at || q.contract_signed_at) });
@@ -576,7 +593,7 @@
                     else if (ua.includes('Linux')) device = 'Linux computer';
                     events.push({
                         icon: '👁', cls: 'viewed',
-                        title: 'Quote Viewed',
+                        title: isAgreement ? 'Agreement Viewed' : 'Quote Viewed',
                         desc: device + (v.ip_address ? ' · ' + v.ip_address : ''),
                         time: dt
                     });
@@ -584,8 +601,23 @@
             }
         } catch (e) { console.error('Error loading views:', e); }
 
-        // Sort by time ascending (oldest first)
-        events.sort((a, b) => a.time - b.time);
+        if (isAgreement && !q.contract_signed_at && (q.status === 'sent' || q.status === 'viewed')) {
+            const firstName = (q.customer_name || 'the customer').split(' ')[0];
+            events.push({
+                icon: '✍️', cls: 'pending', title: 'Awaiting Customer Signature',
+                desc: q.status === 'viewed'
+                    ? firstName + ' opened the agreement. Waiting for a signature.'
+                    : 'Waiting for ' + firstName + ' to open and sign the agreement.',
+                pending: true
+            });
+        }
+
+        // Sort completed events by time, with the current pending step last.
+        events.sort((a, b) => {
+            if (a.pending) return 1;
+            if (b.pending) return -1;
+            return a.time - b.time;
+        });
 
         if (events.length === 0) {
             timeline.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px;">No history yet</div>';
@@ -593,12 +625,12 @@
         }
 
         timeline.innerHTML = events.map(e => `
-            <div class="timeline-item">
+            <div class="timeline-item ${e.pending ? 'pending-step' : ''}">
                 <div class="timeline-icon ${e.cls}">${e.icon}</div>
                 <div class="timeline-content">
                     <div class="timeline-title">${e.title}</div>
                     <div class="timeline-desc">${e.desc}</div>
-                    <div class="timeline-time">${formatDateTime(e.time)}</div>
+                    <div class="timeline-time">${e.pending ? 'Current step' : formatDateTime(e.time)}</div>
                 </div>
             </div>
         `).join('');

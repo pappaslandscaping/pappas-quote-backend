@@ -97,4 +97,12 @@ describe('HomeWorks agreement resend control', () => {
     }
     expect(sentQuotesPage).toContain('data-status="pending_signature"');
   });
+
+  test('shows a clearly named agreement timeline and its pending signature step', () => {
+    expect(detailPage).toContain("isAgreement ? 'Agreement Timeline' : 'Quote Timeline'");
+    expect(detailPage).toContain("title: isAgreement ? 'Agreement Created' : 'Quote Created'");
+    expect(detailPage).toContain("title = isAgreement ? 'Agreement Sent' : 'Sent by Email'");
+    expect(detailPage).toContain("title: 'Awaiting Customer Signature'");
+    expect(detailPage).toContain("e.pending ? 'Current step' : formatDateTime(e.time)");
+  });
 });

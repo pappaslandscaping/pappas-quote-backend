@@ -1859,6 +1859,17 @@ const SAMPLE_VARS = {
     yard_sign_no_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no'
 };
 
+function replacePreviewVars(value) {
+    let rendered = String(value || '');
+    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+        const currencyRe = new RegExp('\\$\\{' + key + '\\}', 'g');
+        rendered = rendered.replace(currencyRe, String(val).startsWith('$') ? val : '$' + val);
+        const re = new RegExp('\\{' + key + '\\}', 'g');
+        rendered = rendered.replace(re, val);
+    }
+    return rendered;
+}
+
 /* ==============================================================
    Init
    ============================================================== */
@@ -2615,13 +2626,8 @@ async function refreshPreview() {
     const requestId = ++previewRequestId;
 
     // Replace variables with sample data
-    let subj = subject;
-    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
-        const currencyRe = new RegExp('\\$\\{' + key + '\\}', 'g');
-        subj = subj.replace(currencyRe, String(val).startsWith('$') ? val : '$' + val);
-        const re = new RegExp('\\{' + key + '\\}', 'g');
-        subj = subj.replace(re, val);
-    }
+    const subj = replacePreviewVars(subject);
+    const previewBody = replacePreviewVars(body);
 
     document.getElementById('previewSubjectLine').textContent = subj || 'No subject yet';
     document.getElementById('previewWrapperPill').textContent = getWrapperLabel(currentWrapper);
@@ -2632,8 +2638,8 @@ async function refreshPreview() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                ...(isCompiledCopilotTemplate ? { slug } : { subject, body }),
-                vars: SAMPLE_VARS,
+                ...(isCompiledCopilotTemplate ? { slug } : { subject: subj, body: previewBody }),
+                vars: isCompiledCopilotTemplate ? SAMPLE_VARS : {},
                 wrapper: currentWrapper,
                 options: currentTemplateOptions
             })
@@ -2664,9 +2670,9 @@ async function renderTemplatePreviewHtml(subject, body, options = {}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            subject,
-            body,
-            vars: SAMPLE_VARS,
+            subject: replacePreviewVars(subject),
+            body: replacePreviewVars(body),
+            vars: {},
             wrapper: options.wrapper || 'full',
             options
         })

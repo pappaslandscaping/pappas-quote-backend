@@ -328,6 +328,10 @@ function render() {
                 </div>
             </div>
             <div class="profile-actions">
+                <button class="btn btn-secondary" onclick="openStatement()" title="Preview a PDF account statement">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
+                    Statement
+                </button>
                 <button class="btn btn-primary" onclick="editMode=true;render()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
                 <div class="dropdown-wrap">
                     <button class="btn btn-secondary" onclick="toggleDropdown()">... More Actions</button>
@@ -533,6 +537,11 @@ function renderEditMode(c, name) {
         </div>
         <div class="edit-field"><label>Notes</label><textarea id="f_notes">${esc(c.notes||'')}</textarea></div>
     </div>`;
+}
+
+function openStatement() {
+    if (!customerId) return;
+    window.open('/api/customers/' + encodeURIComponent(customerId) + '/statement-pdf', '_blank', 'noopener');
 }
 
 function switchOvTab(tab) {

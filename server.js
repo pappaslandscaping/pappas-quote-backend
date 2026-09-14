@@ -16,6 +16,7 @@ const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
 const { renderWithBaseLayout, renderManagedEmail, LOGO_URL, SIGNATURE_IMAGE, emailTemplate } = require('./lib/email-renderer');
+const { renderStatementPdf } = require('./lib/statement-pdf');
 const {
   isCompiledCopilotTemplateSlug,
   renderCompiledCopilotTemplate
@@ -3007,6 +3008,8 @@ app.use(quoteRoutes);
 // ═══════════════════════════════════════════════════════════
 const customerRoutes = require('./routes/customers')({
   pool, serverError, authenticateToken, nextCustomerNumber, upload,
+  generateStatementPDF: renderStatementPdf,
+  getCopilotToken,
 });
 app.use(customerRoutes);
 

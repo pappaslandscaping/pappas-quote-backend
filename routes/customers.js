@@ -7,9 +7,57 @@
 const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
+const { parseCopilotPaymentDetailHtml } = require('../lib/copilot-payments');
 
-module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload }) {
+module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
   const router = express.Router();
+
+async function enrichStatementCheckNumbers(payments) {
+  if (typeof getCopilotToken !== 'function') return payments;
+  const tokenInfo = await getCopilotToken().catch(() => null);
+  if (!tokenInfo?.cookieHeader) return payments;
+
+  const enriched = [...payments];
+  const candidates = enriched
+    .map((payment, index) => ({ payment, index }))
+    .filter(({ payment }) => {
+      const metadata = payment.external_metadata && typeof payment.external_metadata === 'object'
+        ? payment.external_metadata
+        : {};
+      return /check/i.test(String(payment.method || '')) && metadata.payment_path;
+    })
+    .slice(0, 75);
+
+  for (let start = 0; start < candidates.length; start += 6) {
+    const batch = candidates.slice(start, start + 6);
+    const details = await Promise.all(batch.map(async ({ payment }) => {
+      const metadata = payment.external_metadata;
+      try {
+        const response = await fetch(new URL(metadata.payment_path, 'https://secure.copilotcrm.com'), {
+          headers: {
+            Cookie: tokenInfo.cookieHeader,
+            Referer: 'https://secure.copilotcrm.com/finances/payments',
+            'User-Agent': 'Mozilla/5.0',
+          },
+        });
+        if (!response.ok) return null;
+        return parseCopilotPaymentDetailHtml(await response.text());
+      } catch (_error) {
+        return null;
+      }
+    }));
+    details.forEach((detail, offset) => {
+      if (!detail?.check_number) return;
+      const { payment, index } = batch[offset];
+      enriched[index] = {
+        ...payment,
+        method: `Check #${detail.check_number}`,
+        external_metadata: { ...payment.external_metadata, check_number: detail.check_number },
+      };
+    });
+  }
+  return enriched;
+}
 
 // id, property_name, country, state, street, street2, city, zip, tags, status, lot_size, notes, customer_id
 // ═══════════════════════════════════════════════════════════
@@ -1013,20 +1061,60 @@ router.post('/api/import-customers', upload.single('csvfile'), async (req, res) 
 
 router.get('/api/customers/:id/statement-pdf', async (req, res) => {
   try {
+    if (typeof generateStatementPDF !== 'function') {
+      return res.status(503).json({ success: false, error: 'Statement PDF generator is not configured' });
+    }
     const custResult = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
     if (custResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Customer not found' });
     const customer = custResult.rows[0];
     const { from, to, status } = req.query;
-    let query = 'SELECT * FROM invoices WHERE customer_id = $1';
-    const params = [customer.id];
-    let p = 2;
+    let query = `SELECT * FROM invoices
+      WHERE (customer_id = $1
+        OR LOWER(COALESCE(customer_name, '')) = LOWER($2)
+        OR (LOWER(COALESCE(customer_email, '')) = LOWER($3) AND $3 <> ''))
+        AND (external_source = 'copilotcrm' OR external_invoice_id IS NOT NULL)`;
+    const customerName = customer.name || [customer.first_name, customer.last_name].filter(Boolean).join(' ');
+    const params = [customer.id, customerName, customer.email || ''];
+    let p = 4;
     if (from) { query += ` AND created_at >= $${p++}`; params.push(from); }
-    if (to) { query += ` AND created_at <= $${p++}`; params.push(to); }
+    if (to) { query += ` AND created_at < ($${p++}::date + INTERVAL '1 day')`; params.push(to); }
     if (status) { query += ` AND status = $${p++}`; params.push(status); }
     query += ' ORDER BY created_at DESC';
     const invResult = await pool.query(query, params);
-    const dateRange = from || to ? `${from || 'All'} to ${to || 'Present'}` : '';
-    const pdfResult = await generateStatementPDF(customer, invResult.rows, dateRange);
+    const defaultPaymentFrom = new Date();
+    defaultPaymentFrom.setUTCDate(defaultPaymentFrom.getUTCDate() - 90);
+    const paymentFrom = from || defaultPaymentFrom.toISOString().slice(0, 10);
+    const paymentParams = [customer.id, customerName, customer.email || ''];
+    let paymentQuery = `SELECT p.*, i.invoice_number
+      FROM payments p
+      LEFT JOIN invoices i ON i.id = p.invoice_id
+      WHERE (p.customer_id = $1
+        OR i.customer_id = $1
+        OR LOWER(COALESCE(p.customer_name, '')) = LOWER($2)
+        OR (LOWER(COALESCE(i.customer_email, '')) = LOWER($3) AND $3 <> ''))
+        AND COALESCE(p.external_source, '') = 'copilotcrm'`;
+    let pp = 4;
+    if (paymentFrom) { paymentQuery += ` AND COALESCE(p.paid_at, p.created_at) >= $${pp++}`; paymentParams.push(paymentFrom); }
+    if (to) { paymentQuery += ` AND COALESCE(p.paid_at, p.created_at) < ($${pp++}::date + INTERVAL '1 day')`; paymentParams.push(to); }
+    paymentQuery += ' ORDER BY COALESCE(p.paid_at, p.created_at) DESC LIMIT 250';
+    const paymentResult = await pool.query(paymentQuery, paymentParams);
+    const statementPayments = await enrichStatementCheckNumbers(paymentResult.rows);
+    const dateRange = `${paymentFrom} to ${to || 'Present'}`;
+    const latestSync = invResult.rows.reduce((latest, invoice) => {
+      const metadata = invoice.external_metadata && typeof invoice.external_metadata === 'object'
+        ? invoice.external_metadata
+        : {};
+      const value = metadata.detail_synced_at || invoice.imported_at || invoice.updated_at;
+      return value && (!latest || new Date(value) > new Date(latest)) ? value : latest;
+    }, null);
+    const pdfResult = await generateStatementPDF({
+      customer,
+      invoices: invResult.rows,
+      payments: statementPayments,
+      statementDate: new Date().toISOString(),
+      dateRange,
+      sourceAsOf: latestSync || new Date().toISOString(),
+    });
     if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Statement PDF generation failed' });
     const custName = (customer.name || customer.first_name || 'customer').replace(/\s+/g, '-').toLowerCase();
     res.setHeader('Content-Type', 'application/pdf');

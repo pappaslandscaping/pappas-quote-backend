@@ -4,6 +4,7 @@ const {
   extractInvoiceNumberFromDetails,
   extractInvoiceDateFromDetails,
   buildExternalPaymentKey,
+  parseCopilotPaymentDetailHtml,
 } = require('../lib/copilot-payments');
 const {
   deriveInvoiceTaxableGrossTotal,
@@ -122,6 +123,17 @@ it('builds a stable hashed external payment key when no explicit identifier exis
   });
   assert.strictEqual(first, second);
   assert.ok(first.startsWith('hash:'));
+});
+
+it('extracts a check number from a Copilot payment detail page', () => {
+  const detail = parseCopilotPaymentDetailHtml(`
+    <html><body>
+      <table><tr><td>Payment Method</td><td>Check #358</td></tr></table>
+      <div>Details $35.79 for Invoice #12178</div>
+    </body></html>
+  `);
+  assert.strictEqual(detail.method, 'Check #358');
+  assert.strictEqual(detail.check_number, '358');
 });
 
 it('computes tax portion collected with tips excluded and invoice total cap applied', () => {

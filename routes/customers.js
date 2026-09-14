@@ -8,6 +8,7 @@ const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
 const { parseCopilotPaymentDetailHtml } = require('../lib/copilot-payments');
+const { loadCopilotSettings, syncCopilotInvoices } = require('../lib/copilot-live-invoices');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
   const router = express.Router();
@@ -1068,12 +1069,44 @@ router.get('/api/customers/:id/statement-pdf', async (req, res) => {
     if (custResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Customer not found' });
     const customer = custResult.rows[0];
     const { from, to, status } = req.query;
+    const customerName = customer.name || [customer.first_name, customer.last_name].filter(Boolean).join(' ');
+
+    try {
+      const [storedSettings, tokenInfo] = await Promise.all([
+        loadCopilotSettings(pool),
+        typeof getCopilotToken === 'function' ? getCopilotToken().catch(() => null) : Promise.resolve(null),
+      ]);
+      const settings = tokenInfo?.cookieHeader
+        ? { ...storedSettings, cookies: tokenInfo.cookieHeader }
+        : storedSettings;
+      if (!settings?.cookies) throw new Error('HomeWorks connection is unavailable');
+
+      const syncResult = await syncCopilotInvoices({
+        pool,
+        settings,
+        maxPages: 10,
+        detail: true,
+        linkCustomers: true,
+        customerName,
+        customerEmail: customer.email || '',
+        copilotCustomerId: customer.customer_number || '',
+      });
+      if (syncResult.success === false) {
+        throw new Error(syncResult.errors?.[0]?.message || 'HomeWorks invoice refresh failed');
+      }
+    } catch (error) {
+      console.error(`Statement refresh failed for customer ${customer.id}:`, error);
+      return res.status(503).json({
+        success: false,
+        error: 'Could not refresh this account from HomeWorks. Please try the statement again.',
+      });
+    }
+
     let query = `SELECT * FROM invoices
       WHERE (customer_id = $1
         OR LOWER(COALESCE(customer_name, '')) = LOWER($2)
         OR (LOWER(COALESCE(customer_email, '')) = LOWER($3) AND $3 <> ''))
         AND (external_source = 'copilotcrm' OR external_invoice_id IS NOT NULL)`;
-    const customerName = customer.name || [customer.first_name, customer.last_name].filter(Boolean).join(' ');
     const params = [customer.id, customerName, customer.email || ''];
     let p = 4;
     if (from) { query += ` AND created_at >= $${p++}`; params.push(from); }

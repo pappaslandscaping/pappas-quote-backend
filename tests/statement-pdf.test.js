@@ -1,4 +1,5 @@
 const assert = require('assert');
+const test = require('node:test');
 const { PDFDocument } = require('pdf-lib');
 const { renderStatementPdf, _internal } = require('../lib/statement-pdf');
 
@@ -65,4 +66,22 @@ test('formats payment references without inventing check numbers', () => {
     _internal.paymentInvoice({ details: '$14.53 for Invoice #6202; $15.35 for Invoice #10483; $9.49 for Invoice #11501' }),
     'Invoices #6202, #10483, #11501'
   );
+});
+
+test('shows a paid invoice as payment activity when the account balance is zero', () => {
+  const activity = _internal.buildPaymentActivity([
+    {
+      id: 10,
+      invoice_number: '12083',
+      total: 184.80,
+      amount_paid: 184.80,
+      paid_at: '2026-07-10T12:00:00Z',
+      status: 'paid',
+    },
+  ], [], '2026-06-16', '2026-09-14');
+
+  assert.strictEqual(activity.length, 1);
+  assert.strictEqual(activity[0].amount, 184.80);
+  assert.strictEqual(activity[0].invoice_number, '12083');
+  assert.strictEqual(_internal.paymentInvoice(activity[0]), 'Invoice #12083');
 });

@@ -1092,7 +1092,7 @@ router.get('/api/customers/:id/statement-pdf', async (req, res) => {
         OR i.customer_id = $1
         OR LOWER(COALESCE(p.customer_name, '')) = LOWER($2)
         OR (LOWER(COALESCE(i.customer_email, '')) = LOWER($3) AND $3 <> ''))
-        AND COALESCE(p.external_source, '') = 'copilotcrm'`;
+        AND (COALESCE(p.external_source, '') = 'copilotcrm' OR p.invoice_id IS NOT NULL)`;
     let pp = 4;
     if (paymentFrom) { paymentQuery += ` AND COALESCE(p.paid_at, p.created_at) >= $${pp++}`; paymentParams.push(paymentFrom); }
     if (to) { paymentQuery += ` AND COALESCE(p.paid_at, p.created_at) < ($${pp++}::date + INTERVAL '1 day')`; paymentParams.push(to); }
@@ -1114,6 +1114,8 @@ router.get('/api/customers/:id/statement-pdf', async (req, res) => {
       statementDate: new Date().toISOString(),
       dateRange,
       sourceAsOf: latestSync || new Date().toISOString(),
+      activityFrom: paymentFrom,
+      activityTo: to || new Date().toISOString().slice(0, 10),
     });
     if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Statement PDF generation failed' });
     const custName = (customer.name || customer.first_name || 'customer').replace(/\s+/g, '-').toLowerCase();

@@ -678,7 +678,10 @@ async function loadInvoices() {
         // Billing sidebar
         let balance = 0;
         invoices.forEach(inv => {
-            if (['sent','viewed','overdue'].includes(inv.status)) balance += parseFloat(inv.total||0) - parseFloat(inv.amount_paid||0);
+            const status = String(inv.status || '').trim().toLowerCase();
+            if (['pending','partially_paid','past_due','sent','viewed','overdue'].includes(status)) {
+                balance += Math.max(parseFloat(inv.total || 0) - parseFloat(inv.amount_paid || 0), 0);
+            }
         });
         document.getElementById('currentBalance').textContent = '$' + balance.toFixed(2);
         if (balance > 0) document.getElementById('currentBalance').style.color = 'var(--red)';

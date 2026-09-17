@@ -672,17 +672,14 @@ async function loadQuotes() {
 async function loadInvoices() {
     try {
         const res = await fetch('/api/customers/' + customerId + '/invoices');
+        if (!res.ok) throw new Error('Unable to verify billing');
         const data = await res.json();
         const invoices = data.invoices || [];
 
         // Billing sidebar
-        let balance = 0;
-        invoices.forEach(inv => {
-            const status = String(inv.status || '').trim().toLowerCase();
-            if (['pending','partially_paid','past_due','sent','viewed','overdue'].includes(status)) {
-                balance += Math.max(parseFloat(inv.total || 0) - parseFloat(inv.amount_paid || 0), 0);
-            }
-        });
+        const balance = Number(data.balance);
+        if (!Number.isFinite(balance)) throw new Error('Invalid billing balance');
+        invoices.forEach(inv => { if (inv.is_sent === false) inv.status = 'Unsent - not in balance'; });
         document.getElementById('currentBalance').textContent = '$' + balance.toFixed(2);
         if (balance > 0) document.getElementById('currentBalance').style.color = 'var(--red)';
 
@@ -697,12 +694,17 @@ async function loadInvoices() {
         // Invoices tab
         document.getElementById('panel-invoices').innerHTML = invoices.length ? invoices.map(inv => {
             const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-            return `<div class="list-item" onclick="window.location.href='invoice-detail.html?id=${inv.id}'">
+            const invoiceUrl = inv.id ? 'invoice-detail.html?id=' + encodeURIComponent(inv.id) : 'https://secure.copilotcrm.com/finances/invoices/view/' + encodeURIComponent(inv.homeworks_id);
+            return `<div class="list-item" onclick="window.location.href='${invoiceUrl}'">
                 <div class="li-info"><div class="li-title">Invoice #${esc(inv.invoice_number||String(inv.id))}</div><div class="li-sub">${date}${inv.due_date ? ' &middot; Due: ' + new Date(inv.due_date).toLocaleDateString() : ''}</div></div>
                 <div class="li-right"><div class="li-amount">$${parseFloat(inv.total||0).toFixed(2)}</div><div class="li-status ${inv.status||'draft'}">${inv.status||'draft'}</div></div>
             </div>`;
         }).join('') : '<div class="empty-list">No invoices yet.</div>';
-    } catch (e) {}
+    } catch (e) {
+        document.getElementById('currentBalance').textContent = 'Unavailable';
+        document.getElementById('billingHistory').textContent = 'Unable to verify billing. Please try again.';
+        document.getElementById('panel-invoices').innerHTML = '<div class="empty-list">Unable to verify billing. Please try again.</div>';
+    }
 }
 
 // ─── Email History ─────────────────────────────────────────

@@ -1033,12 +1033,11 @@ router.get('/api/customers/:id/statement-pdf', async (req, res) => {
       .filter(invoice => !from || invoice.invoice_date >= from)
       .filter(invoice => !to || invoice.invoice_date <= to)
       .filter(invoice => !status || invoice.status === String(status).toLowerCase());
-    const defaultPaymentFrom = new Date();
-    defaultPaymentFrom.setUTCDate(defaultPaymentFrom.getUTCDate() - 90);
-    const paymentFrom = from || defaultPaymentFrom.toISOString().slice(0, 10);
+    // Do not silently hide older payments on an unfiltered account statement.
+    const paymentFrom = from || '';
     const statementPayments = billing.payments
-      .filter(payment => payment.paid_at >= paymentFrom && (!to || payment.paid_at <= to));
-    const dateRange = paymentFrom + ' to ' + (to || 'Present');
+      .filter(payment => (!paymentFrom || payment.paid_at >= paymentFrom) && (!to || payment.paid_at <= to));
+    const dateRange = from ? from + ' to ' + (to || 'Present') : to ? 'All payments through ' + to : 'All recorded payments';
     const pdfResult = await generateStatementPDF({
       customer,
       invoices: statementInvoices,

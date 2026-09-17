@@ -11,8 +11,8 @@ const records = [
   [2916343,11523,'2026-05-04','PAID',277,21.2,298.2,298.2,0,true,'2026-06-27'],
 ].map(([id,number,date,status,subtotal,tax,total,paidAmount,lateFee,isSent,dueDate]) => ({ id,number,date,status,subtotal,tax,total,paidAmount,lateFee,isSent,dueDate,isArchived:false,processingFee:0,lineItems:[{name:'Mowing (Weekly)',description:''}] }));
 const payments = [
-  {id:3304891,invoiceId:3324195,date:'2026-08-10',totalAmount:'124.8',isRefund:false},
-  {id:2925667,invoiceId:2916343,date:'2026-06-15',totalAmount:'298.2',isRefund:false},
+  {id:3304891,invoiceId:3324195,date:'2026-08-10',totalAmount:'124.8',method:'CHECK',isRefund:false},
+  {id:2925667,invoiceId:2916343,date:'2026-06-15',totalAmount:'298.2',method:'CHECK',isRefund:false},
 ];
 async function load(overrides = {}) {
   const calls = [];
@@ -100,7 +100,10 @@ test('partial payments are deducted; unsent, paid and archived invoices do not i
 });
 test('Jackie statement reconciles two open invoices and keeps unsent charges off the statement',async()=>{
   const {result} = await load();
-  const pdf = await renderStatementPdf({customer:{name:'Jackie Singleton',street:'25825 Eaton Way',city:'Bay Village',state:'OH',postal_code:'44140'},invoices:result.invoices.filter(i=>i.is_sent),payments:result.payments.filter(p=>p.paid_at>='2026-06-19'),statementDate:'2026-09-17',sourceAsOf:'2026-09-17',activityFrom:'2026-06-19',activityTo:'2026-09-17'});
+  const pdf = await renderStatementPdf({customer:{name:'Jackie Singleton',street:'25825 Eaton Way',city:'Bay Village',state:'OH',postal_code:'44140'},invoices:result.invoices.filter(i=>i.is_sent),payments:result.payments,statementDate:'2026-09-17',sourceAsOf:'2026-09-17',dateRange:'All recorded payments',activityTo:'2026-09-17'});
+  assert.equal(result.payments[1].paid_at,'2026-06-15');
+  assert.equal(result.payments[1].amount,'298.2');
+  assert.equal(result.payments[1].method,'Check');
   assert.equal(pdf.summary.balance.toFixed(2),'333.02');
   assert.equal(pdf.summary.pastDue.toFixed(2),'145.82');
   assert.equal(pdf.summary.current.toFixed(2),'187.20');
@@ -111,6 +114,7 @@ test('customer invoice and statement routes share official records without legac
   const createRoutes = require('../routes/customers');
   const originalFetch = global.fetch;
   const queries = [];
+  const statementRequests = [];
   global.fetch = async (url, options) => {
     assert.equal(url,'https://api.copilotcrm.com/graphql');
     const request = JSON.parse(options.body);
@@ -125,7 +129,8 @@ test('customer invoice and statement routes share official records without legac
   }},serverError:(res,error)=>res.status(500).json({error:error.message}),authenticateToken:(_req,_res,next)=>next(),
   upload:{single:()=> (_req,_res,next)=>next(),array:()=> (_req,_res,next)=>next()},
   getCopilotToken:async()=>({cookieHeader:'copilotApiAccessToken=test-token'}),generateStatementPDF:async(data)=>{
-    assert.equal(data.invoices.length,4); assert(!data.invoices.some(i=>i.invoice_number==='12742'));
+    assert(data.invoices.every(invoice=>invoice.is_sent === true)); assert(!data.invoices.some(i=>i.invoice_number==='12742'));
+    statementRequests.push(data);
     return renderStatementPdf(data);
   }}));
   const server = app.listen(0,'127.0.0.1');
@@ -138,6 +143,19 @@ test('customer invoice and statement routes share official records without legac
     const statement=await originalFetch(base+'/api/customers/2533/statement-pdf');
     assert.equal(statement.status,200); assert.equal(statement.headers.get('content-type'),'application/pdf');
     assert((await statement.arrayBuffer()).byteLength>5000);
+    assert.equal(statementRequests[0].payments.length,2);
+    assert.equal(statementRequests[0].payments[1].paid_at,'2026-06-15');
+    assert.equal(statementRequests[0].activityFrom,'');
+    assert.equal(statementRequests[0].dateRange,'All recorded payments');
+    assert.equal(statementRequests[0].invoices.length,4);
+    const filtered = await originalFetch(base+'/api/customers/2533/statement-pdf?from=2026-06-19');
+    assert.equal(filtered.status,200);
+    assert.equal(statementRequests[1].payments.length,1);
+    assert.equal(statementRequests[1].payments[0].paid_at,'2026-08-10');
+    const throughJune = await originalFetch(base+'/api/customers/2533/statement-pdf?to=2026-06-15');
+    assert.equal(throughJune.status,200);
+    assert.equal(statementRequests[2].payments.length,1);
+    assert.equal(statementRequests[2].payments[0].paid_at,'2026-06-15');
     assert(queries.every(sql=>!sql.includes('LOWER(customer_email)')));
   } finally {global.fetch=originalFetch; await new Promise(resolve=>server.close(resolve));}
 });

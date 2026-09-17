@@ -68,6 +68,16 @@ test('company audit counts each source account once and flags unmatched records 
   assert.equal(audit.summary.outstanding,333.02); assert.equal(audit.accounts[2].balance,null);
   assert.equal(audit.accounts[0].availableCredit,19); assert.equal(audit.accounts[0].balance,333.02);
 });
+test('physical identity distinguishes separate same-name accounts and confirms imported business name differences',()=>{
+  const directory=[
+    {id:1,fullName:'Mary Zukie',email:'old@example.com',cell:'2165548310',address:{street1:'3162 Warren Road',zip:'44111'}},
+    {id:2,fullName:'Mary  Zukie',email:'new@example.com',cell:'2165548310',address:{street1:'2066 Brown Road',zip:'44107'}},
+    {id:3,fullName:'Superior Industrial Insulation',email:'ap@example.com',cell:'4406660834',address:{street1:'3855 West 150th Street',zip:'44111'}},
+  ];
+  assert.equal(matchHomeworksCustomer({name:'Mary Zukie',email:'old@example.com',street:'2066 Brown Rd.',postal_code:'44107'},directory).id,2);
+  assert.equal(matchHomeworksCustomer({name:'Superior Industrial',mobile:'440-666-0834',street:'3855 W 150th St',postal_code:'44111'},directory).id,3);
+  assert.throws(()=>matchHomeworksCustomer({name:'Superior Industrial',mobile:'440-666-0834',street:'Different Address',postal_code:'44111'},directory),/No verified/);
+});
 test('overdue partial payments use the remaining amount and incomplete financial data fails closed',()=>{
   const rows=[{total:382.8,amount_paid:382,is_sent:true,status:'past_due'}, {total:187.8,amount_paid:157.7,is_sent:true,status:'partially_paid',days_past_due:50}];
   assert.deepEqual(summarizeBilling(rows),{balance:30.9,pastDue:30.9,current:0});

@@ -77,7 +77,7 @@ function timelineEvent({ type, id, title, detail, status, date, amount, href, so
 
 async function getCustomerRecord(pool, customerId) {
   const result = await pool.query(
-    'SELECT id, customer_number, name, first_name, last_name, email, phone, mobile, status, customer_type, notes, created_at, updated_at FROM customers WHERE id = $1',
+    'SELECT id, customer_number, name, first_name, last_name, email, phone, mobile, street, postal_code, status, customer_type, notes, created_at, updated_at FROM customers WHERE id = $1',
     [customerId]
   );
   return result.rows[0] || null;

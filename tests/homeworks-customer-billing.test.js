@@ -40,7 +40,7 @@ test('blank email cannot select unrelated accounts; canonical ID scopes all bill
   assert.equal(result.invoices[3].external_metadata.late_fee,19.02);
 });
 test('ambiguous accounts and unreconciled balances fail closed',async()=>{
-  await assert.rejects(load({customers:[{id:1,fullName:'Jackie Singleton'},{id:2,fullName:'Jackie Singleton'}]}),/uniquely/);
+  await assert.rejects(load({customers:[{id:1,fullName:'Jackie Singleton'},{id:2,fullName:'Jackie Singleton'}]}),/Multiple/);
   await assert.rejects(load({customers:[{id:1,fullName:'Jackie Singleton',outstanding:559.82}]}),/reconcile/);
 });
 test('matching handles case, spacing, shared emails and duplicate names without guessing',()=>{
@@ -52,8 +52,8 @@ test('matching handles case, spacing, shared emails and duplicate names without 
   ];
   assert.equal(matchHomeworksCustomer({name:'MARY SMITH',email:'SHARED@example.com'},directory).id,10);
   assert.equal(matchHomeworksCustomer({name:'John Smith',email:'shared@example.com',customer_number:'10'},directory).id,11);
-  assert.throws(()=>matchHomeworksCustomer({email:'shared@example.com'},directory),/uniquely/);
-  assert.throws(()=>matchHomeworksCustomer({name:'Janet Whiley'},directory),/uniquely/);
+  assert.throws(()=>matchHomeworksCustomer({email:'shared@example.com'},directory),/Multiple/);
+  assert.throws(()=>matchHomeworksCustomer({name:'Janet Whiley'},directory),/Multiple/);
   assert.equal(matchHomeworksCustomer({name:'Janet Whiley',mobile:'+1 (440) 555-3333'},directory).id,13);
   assert.equal(matchHomeworksCustomer({name:'Janet Whiley',customer_number:'102'},directory).id,12);
   assert.equal(matchHomeworksCustomer({name:'Janet Whiley',customer_number:'13'},directory).id,13);

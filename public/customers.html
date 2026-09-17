@@ -518,7 +518,9 @@ async function checkCustomerBalances() {
         const reviews = data.accounts.filter(account => !account.verified);
         results.innerHTML = '<strong>Balance check complete</strong><p>' + summary.verified + ' of ' + summary.yarddeskCustomers + ' YardDesk records verified. ' + summary.needsReview + ' need account matching or billing review. ' + summary.homeworksVerified + ' of ' + summary.homeworksCustomers + ' HomeWorks balances reconcile.</p>'
             + '<p>Balances include only sent invoices, subtract recorded payments, and keep unapplied credits separate. Checked ' + esc(new Date(data.sourceAsOf).toLocaleString()) + '.</p>'
-            + (reviews.length ? '<details open><summary>Accounts needing review</summary><ul>' + reviews.map(account => '<li><a href="customer-detail.html?id=' + encodeURIComponent(account.id) + '">' + esc(account.name || String(account.id)) + '</a> — ' + esc(account.reviewReason) + '</li>').join('') + '</ul></details>' : '<p>All YardDesk customer records are verified.</p>');
+            + '<p>' + data.missingBilledAccounts.length + ' billed HomeWorks accounts have no verified YardDesk record.</p>'
+            + (data.missingBilledAccounts.length ? '<ul>' + data.missingBilledAccounts.map(account => '<li>' + esc(account.name) + ' (#' + esc(account.number || String(account.homeworksCustomerId)) + '): $' + Number(account.balance).toFixed(2) + '</li>').join('') + '</ul>' : '')
+            + (reviews.length ? '<details open><summary>Accounts needing review</summary><ul>' + reviews.map(account => '<li><a href="customer-detail.html?id=' + encodeURIComponent(account.id) + '">' + esc(account.name || String(account.id)) + '</a> — ' + esc(account.reviewReason) + '<br><small>Record #' + esc(account.reviewIdentity?.number || String(account.id)) + ' · ' + esc(account.reviewIdentity?.email || 'No email') + ' · ' + esc(account.reviewIdentity?.phone || 'No phone') + '</small></li>').join('') + '</ul></details>' : '<p>All YardDesk customer records are verified.</p>');
     } catch (error) {
         results.textContent = error.message;
     } finally {

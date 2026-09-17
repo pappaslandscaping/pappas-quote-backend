@@ -112,17 +112,27 @@ function createPool() {
   };
 }
 
-test('builds read-only Customer 360 from local data sources', async () => {
-  const customer360 = await getCustomer360({ pool: createPool(), customerId: 7 });
+test('builds read-only Customer 360 with verified HomeWorks billing and local office overlays', async () => {
+  const customer360 = await getCustomer360({ pool: createPool(), customerId: 7, billingProvider: async () => ({ balance: 200,
+    invoices: [{homeworks_id:13,invoice_number:'INV-13',total:300,amount_paid:100,status:'partially_paid',is_sent:true,created_at:'2026-05-11'}],
+    payments: [{id:14,invoice_number:'INV-13',amount:100,method:'card',paid_at:'2026-05-12'}] }) });
 
   assert.strictEqual(customer360.customer.name, 'Ada Customer');
   assert.strictEqual(customer360.summary.quote_count, 1);
   assert.strictEqual(customer360.summary.job_count, 1);
   assert.strictEqual(customer360.summary.invoice_count, 1);
   assert.strictEqual(customer360.summary.open_invoice_balance, 200);
+  assert.strictEqual(customer360.sources.invoices.source, 'official_homeworks_graphql');
   assert.strictEqual(customer360.summary.payment_count, 1);
   assert.strictEqual(customer360.ai.mode, 'draft_only');
   assert.ok(customer360.ai.blocked_actions.includes('send_email'));
   assert.ok(customer360.timeline.some((event) => event.type === 'communication'));
   assert.ok(customer360.timeline.some((event) => event.detail.includes('mowing: Weekly mowing')));
+});
+
+test('Customer 360 never reports stale local balances when HomeWorks billing is unavailable', async () => {
+  const customer360 = await getCustomer360({ pool: createPool(), customerId: 7, billingProvider: async () => {throw new Error('Unavailable');} });
+  assert.strictEqual(customer360.summary.open_invoice_balance, null);
+  assert.strictEqual(customer360.records.invoices.length, 0);
+  assert.strictEqual(customer360.sources.invoices.status, 'error');
 });

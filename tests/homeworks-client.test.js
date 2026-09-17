@@ -146,70 +146,44 @@ describe('official HomeWorks API client', () => {
 
     expect(summary).toMatchObject({
       source: 'official_homeworks_graphql',
-      financials: { outstanding: 185, pastDue: 30, collectedThisMonth: 75.5 },
-      counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 3, pastDueInvoices: 1, paymentsThisMonth: 1 },
+      financials: { outstanding: 150, pastDue: 20, collectedThisMonth: 75.5 },
+      counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 2, pastDueInvoices: 1, paymentsThisMonth: 1 },
     });
   });
 
-  test('fetches the business summary from known official GraphQL fields', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
-    });
-    fetchImpl.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
-    }).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: { payments: [{ id: 3, date: '2026-09-10', totalAmount: '25' }] } }),
-    }).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: {
-        outstanding: [{ _sum: { total: '85', paidAmount: '5' }, _count: { id: 2 } }],
-        pastDue: [{ _sum: { total: '15', paidAmount: '5' }, _count: { id: 1 } }],
-      } }),
-    });
-    const summary = await fetchHomeWorksBusinessSummary({
-      accessToken: 'token',
-      fetchImpl,
-      now: new Date('2026-09-10T20:00:00Z'),
-    });
-    expect(summary.financials).toMatchObject({
-      outstanding: 80,
-      pastDue: 10,
-      collectedThisMonth: 25,
-      balanceBasis: 'homeworks_invoice_report',
-    });
-    const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
-    expect(request.operationName).toBe('YardDeskCustomerSummary');
-    expect(request.query).toContain('customers(take: 5000');
-    const paymentRequest = JSON.parse(fetchImpl.mock.calls[1][1].body);
-    expect(paymentRequest.operationName).toBe('YardDeskMonthlyPayments');
-    expect(paymentRequest.variables).toEqual({ monthStart: '2026-09-01' });
-    const invoiceRequest = JSON.parse(fetchImpl.mock.calls[2][1].body);
-    expect(invoiceRequest.operationName).toBe('YardDeskInvoiceAccountStanding');
-    expect(invoiceRequest.query).toContain('invoiceReport(where: { status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] } })');
-  });
-
-  test('keeps authoritative balances available when the optional payments query fails', async () => {
+  test('fetches company balances from sent invoice records after payments, not aggregate original charges', async () => {
     const fetchImpl = jest.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ errors: [{ message: 'Payment filter unavailable' }] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ errors: [{ message: 'Invoice report unavailable' }] }),
-      });
-    const summary = await fetchHomeWorksBusinessSummary({
-      accessToken: 'token',
-      fetchImpl,
-      now: new Date('2026-09-10T20:00:00Z'),
-    });
-    expect(summary.financials).toMatchObject({ outstanding: 80, pastDue: 10, collectedThisMonth: null });
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{customers:[{id:1,fullName:'Example',outstanding:'80',credit:'0'}]}})})
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{invoices:[
+        {id:11,customerId:1,status:'PAST_DUE',total:'15',paidAmount:'5',isSent:true,daysPastDue:4},
+        {id:12,customerId:1,status:'PENDING',total:'70',paidAmount:'0',isSent:true},
+        {id:13,customerId:1,status:'PENDING',total:'200',paidAmount:'0',isSent:false},
+      ]}})})
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{payments:[{id:3,date:'2026-09-10',totalAmount:'25'}]}})});
+    const summary = await fetchHomeWorksBusinessSummary({ accessToken:'token',fetchImpl,now:new Date('2026-09-10T20:00:00Z') });
+    expect(summary.financials).toMatchObject({ outstanding:80,pastDue:10,collectedThisMonth:25,balanceBasis:'homeworks_sent_invoice_balances' });
+    expect(summary.counts).toMatchObject({customers:1,outstandingInvoices:2,pastDueInvoices:1});
+    const operations=fetchImpl.mock.calls.map(call=>JSON.parse(call[1].body));
+    expect(operations[0].operationName).toBe('CustomerBillingDirectory');
+    expect(operations[1].operationName).toBe('CompanyOpenBillingRecords');
+    expect(operations[1].query).toContain('isSent');
+    expect(operations[2].variables).toEqual({monthStart:'2026-09-01'});
+    expect(operations.every(operation=>!operation.query.includes('invoiceReport'))).toBe(true);
+  });
+
+  test('keeps reconciled billing available if optional monthly payments fail', async () => {
+    const fetchImpl=jest.fn()
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{customers:[{id:1,outstanding:'80',credit:'0'}]}})})
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{invoices:[{id:1,customerId:1,total:'80',paidAmount:'0',status:'PENDING',isSent:true}]}})})
+      .mockResolvedValueOnce({ok:true,json:async()=>({errors:[{message:'Payments unavailable'}]})});
+    const summary=await fetchHomeWorksBusinessSummary({accessToken:'token',fetchImpl,now:new Date('2026-09-10T20:00:00Z')});
+    expect(summary.financials).toMatchObject({outstanding:80,pastDue:0,collectedThisMonth:null});
+  });
+
+  test('does not fall back to unverified totals if the sent invoice audit fails', async () => {
+    const fetchImpl=jest.fn()
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{customers:[{id:1,outstanding:'80',credit:'0'}]}})})
+      .mockResolvedValueOnce({ok:true,json:async()=>({data:{invoices:[]}})});
+    await expect(fetchHomeWorksBusinessSummary({accessToken:'token',fetchImpl})).rejects.toThrow('do not reconcile');
   });
 });

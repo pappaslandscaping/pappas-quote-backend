@@ -256,6 +256,7 @@
             </div>
             <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
                 <a href="properties.html" class="btn btn-secondary">Properties</a>
+                <button class="btn btn-secondary" id="balanceAuditButton" onclick="checkCustomerBalances()">Check balances</button>
                 <a href="new-customer.html" class="btn btn-primary">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Client
@@ -263,6 +264,7 @@
             </div>
         </div>
 
+        <div id="balanceAuditResults" role="status" style="display:none;margin-bottom:20px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md)"></div>
         <!-- Pipeline Tabs -->
         <div style="display:flex;gap:4px;margin-bottom:var(--space-5);background:var(--surface);border-radius:var(--radius-md);padding:4px;border:1px solid var(--line);width:fit-content">
             <button class="pipeline-tab active" onclick="setPipelineTab('')" id="tabAll">All</button>
@@ -499,6 +501,28 @@ async function loadCustomers(){
     } catch(e) {
         console.error(e);
         document.getElementById('loadingState').innerHTML='<p>Failed to load</p>';
+    }
+}
+
+async function checkCustomerBalances() {
+    const button = document.getElementById('balanceAuditButton');
+    const results = document.getElementById('balanceAuditResults');
+    button.disabled = true;
+    results.style.display = 'block';
+    results.textContent = 'Checking all customer balances against HomeWorks...';
+    try {
+        const response = await fetch('/api/customers/balance-audit');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to verify balances.');
+        const summary = data.summary;
+        const reviews = data.accounts.filter(account => !account.verified);
+        results.innerHTML = '<strong>Balance check complete</strong><p>' + summary.verified + ' of ' + summary.yarddeskCustomers + ' YardDesk records verified. ' + summary.needsReview + ' need account matching or billing review. ' + summary.homeworksVerified + ' of ' + summary.homeworksCustomers + ' HomeWorks balances reconcile.</p>'
+            + '<p>Balances include only sent invoices, subtract recorded payments, and keep unapplied credits separate. Checked ' + esc(new Date(data.sourceAsOf).toLocaleString()) + '.</p>'
+            + (reviews.length ? '<details open><summary>Accounts needing review</summary><ul>' + reviews.map(account => '<li><a href="customer-detail.html?id=' + encodeURIComponent(account.id) + '">' + esc(account.name || String(account.id)) + '</a> — ' + esc(account.reviewReason) + '</li>').join('') + '</ul></details>' : '<p>All YardDesk customer records are verified.</p>');
+    } catch (error) {
+        results.textContent = error.message;
+    } finally {
+        button.disabled = false;
     }
 }
 

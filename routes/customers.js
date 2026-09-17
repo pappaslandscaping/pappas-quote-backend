@@ -7,7 +7,7 @@
 const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
-const { loadHomeworksCustomerBilling } = require('../lib/homeworks-customer-billing');
+const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances } = require('../lib/homeworks-customer-billing');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
   const router = express.Router();
@@ -532,6 +532,17 @@ router.get('/api/customers/search', async (req, res) => {
   }
 });
 
+router.get('/api/customers/balance-audit', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM customers ORDER BY id');
+    const audit = await auditHomeworksCustomerBalances({ customers: result.rows, getCopilotToken });
+    res.json({ success: true, ...audit });
+  } catch (error) {
+    console.error('Customer balance audit failed:', error.message);
+    res.status(503).json({ success: false, error: 'Could not verify all customer balances with HomeWorks. Please try again.' });
+  }
+});
+
 router.get('/api/customers/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
@@ -851,7 +862,7 @@ router.get('/api/customers/:id/properties', async (req, res) => {
 
 router.get('/api/customers/:id/360', async (req, res) => {
   try {
-    const customer360 = await getCustomer360({ pool, customerId: req.params.id });
+    const customer360 = await getCustomer360({ pool, customerId: req.params.id, getCopilotToken });
     if (!customer360) {
       return res.status(404).json({ success: false, error: 'Customer not found' });
     }

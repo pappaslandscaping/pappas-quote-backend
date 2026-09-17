@@ -1,3 +1,5 @@
+const { loadHomeworksCustomerBilling } = require('../../lib/homeworks-customer-billing');
+
 function customerDisplayName(customer = {}) {
   return (
     customer.name ||
@@ -146,53 +148,35 @@ async function getCustomerJobs(pool, customer) {
   };
 }
 
-async function getCustomerInvoices(pool, customer) {
-  const name = customerDisplayName(customer);
-  const { rows, error } = await safeQuery(
-    pool,
-    `SELECT id, invoice_number, customer_name, customer_email, total, amount_paid, status, due_date, paid_at, created_at
-     FROM invoices
-     WHERE customer_id = $1
-        OR LOWER(COALESCE(customer_name, '')) = LOWER($2)
-        OR (LOWER(COALESCE(customer_email, '')) = LOWER($3) AND $3 <> '')
-     ORDER BY COALESCE(created_at, due_date) DESC
-     LIMIT 50`,
-    [customer.id, name, customer.email || '']
-  );
+async function getCustomerInvoices(_pool, _customer, billing) {
+  const rows = billing?.invoices || [];
 
   return {
     rows,
-    source: sourceState(rows, error),
+    verifiedBalance: billing ? billing.balance : null,
+    source: { status: billing ? statusFor(rows) : 'error', source: 'official_homeworks_graphql', error: billing ? null : 'Unable to verify billing with HomeWorks.' },
     events: rows.map((invoice) =>
       timelineEvent({
         type: 'invoice',
-        id: invoice.id,
+        id: invoice.homeworks_id,
         title: `Invoice #${invoice.invoice_number || invoice.id}`,
         detail: invoice.due_date ? `Due ${new Date(invoice.due_date).toISOString().slice(0, 10)}` : 'Invoice created',
         status: invoice.status,
         date: eventDate(invoice, ['paid_at', 'created_at', 'due_date']),
         amount: invoice.total,
-        href: `/invoices/${invoice.id}`,
+        href: `https://secure.copilotcrm.com/finances/invoices/view/${invoice.homeworks_id}`,
+        source: 'official_homeworks_graphql',
       })
     ),
   };
 }
 
-async function getCustomerPayments(pool, customer) {
-  const { rows, error } = await safeQuery(
-    pool,
-    `SELECT p.id, p.invoice_id, p.amount, p.method, p.status, p.paid_at, p.created_at, i.invoice_number
-     FROM payments p
-     LEFT JOIN invoices i ON i.id = p.invoice_id
-     WHERE p.customer_id = $1 OR i.customer_id = $1
-     ORDER BY COALESCE(p.paid_at, p.created_at) DESC
-     LIMIT 50`,
-    [customer.id]
-  );
+async function getCustomerPayments(_pool, _customer, billing) {
+  const rows = billing?.payments || [];
 
   return {
     rows,
-    source: sourceState(rows, error),
+    source: { status: billing ? statusFor(rows) : 'error', source: 'official_homeworks_graphql', error: billing ? null : 'Unable to verify billing with HomeWorks.' },
     events: rows.map((payment) =>
       timelineEvent({
         type: 'payment',
@@ -203,6 +187,7 @@ async function getCustomerPayments(pool, customer) {
         date: eventDate(payment, ['paid_at', 'created_at']),
         amount: payment.amount,
         href: payment.invoice_id ? `/invoices/${payment.invoice_id}` : null,
+        source: 'official_homeworks_graphql',
       })
     ),
   };
@@ -317,9 +302,7 @@ async function getCustomerNotes(pool, customer) {
 }
 
 function buildSummary({ quotes, jobs, invoices, payments, communications, notes }) {
-  const openInvoiceBalance = invoices.rows
-    .filter((invoice) => !['paid', 'void', 'cancelled'].includes(String(invoice.status || '').toLowerCase()))
-    .reduce((sum, invoice) => sum + Math.max(0, asNumber(invoice.total) - asNumber(invoice.amount_paid)), 0);
+  const openInvoiceBalance = invoices.verifiedBalance;
   const signedQuotes = quotes.rows.filter((quote) =>
     ['signed', 'accepted', 'approved'].includes(String(quote.status || '').toLowerCase())
   ).length;
@@ -340,15 +323,16 @@ function buildSummary({ quotes, jobs, invoices, payments, communications, notes 
   };
 }
 
-async function getCustomer360({ pool, customerId }) {
+async function getCustomer360({ pool, customerId, getCopilotToken, billingProvider = loadHomeworksCustomerBilling }) {
   const customer = await getCustomerRecord(pool, customerId);
   if (!customer) return null;
+  const billingPromise = billingProvider({ customer, getCopilotToken }).catch(() => null);
 
   const [quotes, jobs, invoices, payments, communications, notes] = await Promise.all([
     getCustomerQuotes(pool, customer),
     getCustomerJobs(pool, customer),
-    getCustomerInvoices(pool, customer),
-    getCustomerPayments(pool, customer),
+    billingPromise.then(billing => getCustomerInvoices(pool, customer, billing)),
+    billingPromise.then(billing => getCustomerPayments(pool, customer, billing)),
     getCustomerCommunications(pool, customer),
     getCustomerNotes(pool, customer),
   ]);

@@ -204,7 +204,7 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payme
   const invoicesAvailable = Array.isArray(invoices);
   const activeInvoices = (invoices || []).filter((invoice) => invoice?.isDeleted !== true && invoice?.isArchived !== true);
   const outstandingInvoices = activeInvoices.filter((invoice) => (
-    ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
+    invoice?.isSent === true && ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
   ));
   const pastDueInvoices = outstandingInvoices.filter((invoice) => (
     String(invoice?.status || '').toUpperCase() === 'PAST_DUE'
@@ -215,8 +215,8 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payme
 
   const customerOutstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
   const customerPastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
-  const invoiceOutstanding = outstandingInvoices.reduce((sum, invoice) => sum + parseMoney(invoice?.total), 0);
-  const invoicePastDue = pastDueInvoices.reduce((sum, invoice) => sum + parseMoney(invoice?.total), 0);
+  const invoiceOutstanding = outstandingInvoices.reduce((sum, invoice) => sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount)), 0);
+  const invoicePastDue = pastDueInvoices.reduce((sum, invoice) => sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount)), 0);
   const outstanding = invoicesAvailable ? invoiceOutstanding : customerOutstanding;
   const pastDue = invoicesAvailable ? invoicePastDue : customerPastDue;
   const collectedThisMonth = paymentsAvailable
@@ -245,81 +245,33 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payme
 
 async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessToken, now = new Date() }) {
   const token = accessToken || await getHomeWorksAccessToken(pool);
-  const customerData = await queryHomeWorksGraphql({
-    pool,
-    accessToken: token,
-    fetchImpl,
-    operationName: 'YardDeskCustomerSummary',
-    query: `query YardDeskCustomerSummary {
-      customers(take: 5000, where: { isDeleted: false }) {
-        id outstanding pastDue
-      }
-    }`,
-  });
-
+  const { auditHomeworksCustomerBalances } = require('../../lib/homeworks-customer-billing');
+  const audit = await auditHomeworksCustomerBalances({ customers: [], accessToken: token, fetchImpl });
+  if (audit.summary.homeworksNeedsReview) throw new Error('HomeWorks customer balances do not reconcile with sent invoices.');
   const monthStart = `${getMonthKey(now)}-01`;
   let payments = null;
-  let accountStanding = null;
   try {
-    const paymentData = await queryHomeWorksGraphql({
-      pool,
-      accessToken: token,
-      fetchImpl,
-      operationName: 'YardDeskMonthlyPayments',
+    const data = await queryHomeWorksGraphql({
+      accessToken: token, fetchImpl, operationName: 'YardDeskMonthlyPayments',
       query: `query YardDeskMonthlyPayments($monthStart: Date!) {
-        payments(take: 5000, orderBy: [{ date: desc }, { id: desc }], where: { date: { gte: $monthStart } }) {
-          id date totalAmount method methodDisplayName
-        }
+        payments(take: 10000, where: { isDeleted: false, date: { gte: $monthStart } }) { id date totalAmount isRefund }
       }`,
       variables: { monthStart },
     });
-    payments = paymentData.payments || [];
-  } catch (_error) {
-    payments = null;
-  }
-
-  try {
-    const invoiceData = await queryHomeWorksGraphql({
-      pool,
-      accessToken: token,
-      fetchImpl,
-      operationName: 'YardDeskInvoiceAccountStanding',
-      query: `query YardDeskInvoiceAccountStanding {
-        outstanding: invoiceReport(where: { status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] } }) {
-          _sum { total paidAmount }
-          _count { id }
-        }
-        pastDue: invoiceReport(where: { status: { equals: PAST_DUE } }) {
-          _sum { total paidAmount }
-          _count { id }
-        }
-      }`,
-    });
-    const outstanding = invoiceData.outstanding?.[0] || {};
-    const pastDue = invoiceData.pastDue?.[0] || {};
-    accountStanding = {
-      outstanding: Math.max(0, parseMoney(outstanding._sum?.total) - parseMoney(outstanding._sum?.paidAmount)),
-      pastDue: Math.max(0, parseMoney(pastDue._sum?.total) - parseMoney(pastDue._sum?.paidAmount)),
-      outstandingInvoices: Number(outstanding._count?.id || 0),
-      pastDueInvoices: Number(pastDue._count?.id || 0),
-    };
-  } catch (_error) {
-    accountStanding = null;
-  }
-
-  const summary = summarizeHomeWorksBusinessData({
-    customers: customerData.customers || [],
-    payments,
-    now,
-  });
-  if (accountStanding) {
-    summary.financials.outstanding = Number(accountStanding.outstanding.toFixed(2));
-    summary.financials.pastDue = Number(accountStanding.pastDue.toFixed(2));
-    summary.financials.balanceBasis = 'homeworks_invoice_report';
-    summary.counts.outstandingInvoices = accountStanding.outstandingInvoices;
-    summary.counts.pastDueInvoices = accountStanding.pastDueInvoices;
-  }
-  return summary;
+    if (!Array.isArray(data.payments) || data.payments.length >= 10000) throw new Error('Incomplete payment history.');
+    payments = data.payments;
+  } catch (_error) {}
+  const monthPayments = payments?.filter(payment => String(payment.date).slice(0, 7) === getMonthKey(now));
+  return {
+    source: 'official_homeworks_graphql', asOf: audit.sourceAsOf,
+    financials: {
+      outstanding: audit.summary.outstanding, pastDue: audit.summary.pastDue,
+      collectedThisMonth: monthPayments ? Number(monthPayments.reduce((sum, payment) => sum + (payment.isRefund ? -Math.abs(parseMoney(payment.totalAmount)) : parseMoney(payment.totalAmount)), 0).toFixed(2)) : null,
+      currency: 'USD', balanceBasis: 'homeworks_sent_invoice_balances',
+    },
+    counts: { customers: audit.summary.homeworksCustomers, customersPastDue: audit.summary.customersPastDue,
+      outstandingInvoices: audit.summary.outstandingInvoices, pastDueInvoices: audit.summary.pastDueInvoices, paymentsThisMonth: monthPayments?.length ?? null },
+  };
 }
 
 module.exports = {

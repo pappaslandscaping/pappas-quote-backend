@@ -455,7 +455,8 @@ function render() {
                     <div class="sc-body" id="billingHistory">
                         <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">Loading...</div>
                     </div>
-                    <div class="billing-footer"><span>Current balance</span><span class="amount" id="currentBalance">$0.00</span></div>
+                    <div class="billing-footer"><span>Current balance</span><span class="amount" id="currentBalance">Verifying...</span></div>
+                    <div id="availableCredit" style="display:none;padding:10px 16px;font-size:12px;color:var(--gray-500)"></div>
                 </div>
 
                 <!-- Referrals -->
@@ -681,6 +682,10 @@ async function loadInvoices() {
         if (!Number.isFinite(balance)) throw new Error('Invalid billing balance');
         invoices.forEach(inv => { if (inv.is_sent === false) inv.status = 'Unsent - not in balance'; });
         document.getElementById('currentBalance').textContent = '$' + balance.toFixed(2);
+        document.getElementById('currentBalance').title = 'Verified HomeWorks sent-invoice balance, after recorded payments. Available unapplied credit: $' + Number(data.availableCredit || 0).toFixed(2);
+        const credit = document.getElementById('availableCredit');
+        credit.style.display = Number(data.availableCredit) > 0 ? 'block' : 'none';
+        credit.textContent = 'Available unapplied credit: $' + Number(data.availableCredit || 0).toFixed(2) + ' (not deducted from invoices)';
         if (balance > 0) document.getElementById('currentBalance').style.color = 'var(--red)';
 
         const recent = invoices.slice(0, 3);
@@ -702,6 +707,7 @@ async function loadInvoices() {
         }).join('') : '<div class="empty-list">No invoices yet.</div>';
     } catch (e) {
         document.getElementById('currentBalance').textContent = 'Unavailable';
+        document.getElementById('availableCredit').style.display = 'none';
         document.getElementById('billingHistory').textContent = 'Unable to verify billing. Please try again.';
         document.getElementById('panel-invoices').innerHTML = '<div class="empty-list">Unable to verify billing. Please try again.</div>';
     }

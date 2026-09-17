@@ -696,7 +696,7 @@ async function loadInvoices() {
             const date = inv.created_at ? new Date(String(inv.invoice_date || inv.created_at).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
             const invoiceUrl = inv.id ? 'invoice-detail.html?id=' + encodeURIComponent(inv.id) : 'https://secure.copilotcrm.com/finances/invoices/view/' + encodeURIComponent(inv.homeworks_id);
             return `<div class="list-item" onclick="window.location.href='${invoiceUrl}'">
-                <div class="li-info"><div class="li-title">Invoice #${esc(inv.invoice_number||String(inv.id))}</div><div class="li-sub">${date}${inv.due_date ? ' &middot; Due: ' + new Date(inv.due_date).toLocaleDateString() : ''}</div></div>
+                <div class="li-info"><div class="li-title">Invoice #${esc(inv.invoice_number||String(inv.id))}</div><div class="li-sub">${date}${inv.due_date ? ' &middot; Due: ' + new Date(String(inv.due_date).slice(0, 10) + 'T12:00:00').toLocaleDateString() : ''}</div></div>
                 <div class="li-right"><div class="li-amount">$${parseFloat(inv.total||0).toFixed(2)}</div><div class="li-status ${inv.status||'draft'}">${inv.status||'draft'}</div></div>
             </div>`;
         }).join('') : '<div class="empty-list">No invoices yet.</div>';

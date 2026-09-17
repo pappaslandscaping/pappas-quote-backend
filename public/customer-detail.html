@@ -686,14 +686,14 @@ async function loadInvoices() {
         const recent = invoices.slice(0, 3);
         document.getElementById('billingHistory').innerHTML = recent.length ? recent.map(inv => `
             <div class="sc-row">
-                <div><div style="font-size:13px;font-weight:600">${esc(inv.invoice_number||'')}</div><div style="font-size:11px;color:var(--gray-400)">${inv.created_at ? new Date(inv.created_at).toLocaleDateString() : ''}</div></div>
+                <div><div style="font-size:13px;font-weight:600">${esc(inv.invoice_number||'')}</div><div style="font-size:11px;color:var(--gray-400)">${inv.created_at ? new Date(String(inv.invoice_date || inv.created_at).slice(0, 10) + 'T12:00:00').toLocaleDateString() : ''}</div></div>
                 <div style="text-align:right"><div style="font-size:13px;font-weight:700">$${parseFloat(inv.total||0).toFixed(2)}</div><div class="li-status ${inv.status||'draft'}" style="font-size:9px">${inv.status||'draft'}</div></div>
             </div>
         `).join('') : '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">No billing history</div>';
 
         // Invoices tab
         document.getElementById('panel-invoices').innerHTML = invoices.length ? invoices.map(inv => {
-            const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            const date = inv.created_at ? new Date(String(inv.invoice_date || inv.created_at).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
             const invoiceUrl = inv.id ? 'invoice-detail.html?id=' + encodeURIComponent(inv.id) : 'https://secure.copilotcrm.com/finances/invoices/view/' + encodeURIComponent(inv.homeworks_id);
             return `<div class="list-item" onclick="window.location.href='${invoiceUrl}'">
                 <div class="li-info"><div class="li-title">Invoice #${esc(inv.invoice_number||String(inv.id))}</div><div class="li-sub">${date}${inv.due_date ? ' &middot; Due: ' + new Date(inv.due_date).toLocaleDateString() : ''}</div></div>

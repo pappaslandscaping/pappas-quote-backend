@@ -8,6 +8,7 @@ const express = require('express');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
 const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
+const { refreshHomeworksMailInvoices, resolveHomeworksMailFinancials } = require('../lib/homeworks-mail-invoices');
 const { validate, schemas } = require('../lib/validate');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 const {
@@ -714,6 +715,7 @@ function latestMailServiceDate(lineItems = []) {
 }
 
 function resolveMailInvoiceDate({ row = {}, metadata = {}, lineItems = [] } = {}) {
+  if (metadata.homeworks_financials) return metadata.invoice_date || row.created_at;
   return latestMailServiceDate(lineItems)
     || metadata.invoice_date
     || metadata.invoice_date_raw
@@ -913,6 +915,9 @@ function mailLineItemTaxAmount(item) {
 }
 
 function deriveMailFinancials({ subtotal, tax_amount, total, amount_paid, lineItems, metadata }) {
+  if (metadata?.homeworks_financials) {
+    return resolveHomeworksMailFinancials({ subtotal, tax_amount, total, amount_paid, metadata }, parseMailMoney, roundMailMoney);
+  }
   const items = Array.isArray(lineItems) ? lineItems : [];
   const rowSubtotal = parseMailMoney(subtotal);
   const rowTax = parseMailMoney(tax_amount);
@@ -1167,71 +1172,20 @@ async function attachMailPriorBalances(rows) {
   return enriched;
 }
 
-async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
+async function refreshMailInvoiceRows(rows) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
-  const copilotRows = list.filter((row) => row.external_source === 'copilotcrm' || row.external_invoice_id);
-  copilotRows.forEach((row) => {
-    logMailDebug('refreshMailInvoiceRows:before-settings', row, {
-      details: {
-        copilotRowCount: copilotRows.length,
-      },
-    });
-  });
-  if (!copilotRows.length) return attachMailPriorBalances(list);
-
-  let settings = null;
-  try {
-    settings = await loadCopilotSettings(pool);
-  } catch (error) {
-    if (!tolerateErrors) throw error;
-    console.error('Mail invoice refresh: failed loading Copilot settings:', error);
-    return attachMailPriorBalances(list);
-  }
-
-  copilotRows.forEach((row) => {
-    logMailDebug('refreshMailInvoiceRows:settings-loaded', row, {
-      details: {
-        hasCookies: Boolean(settings?.cookies),
-      },
-    });
-  });
-
-  if (!settings?.cookies) return attachMailPriorBalances(list);
-
-  const byId = new Map(list.map((row) => [row.id, row]));
-  for (const row of copilotRows) {
-    try {
-      logMailDebug('refreshMailInvoiceRows:before-refresh', row, {
-        details: {
-          willCallRefresh: true,
-        },
-      });
-      const refreshed = await refreshCopilotInvoiceSnapshot({
-        pool,
-        settings,
-        invoiceRow: row,
-        linkCustomers: true,
-      });
-      if (refreshed?.row?.id) {
-        byId.set(refreshed.row.id, refreshed.row);
-        if (refreshed.settings?.cookies) settings = refreshed.settings;
-        logMailDebug('refreshMailInvoiceRows:after-refresh', refreshed.row, {
-          details: {
-            refreshed: refreshed.refreshed,
-            action: refreshed.action || null,
-            rereadBeforeRender: true,
-          },
-        });
-      }
-    } catch (error) {
-      if (!tolerateErrors) throw error;
-      console.error(`Mail invoice refresh failed for invoice ${row.invoice_number || row.id}:`, error);
-    }
-  }
-
-  return attachMailPriorBalances(list.map((row) => byId.get(row.id) || row));
+  const liveRows = list.filter(row => row.external_source === 'copilotcrm' || row.external_invoice_id);
+  if (!liveRows.length) return attachMailPriorBalances(list);
+  // Never scrape invoice HTML or write charges while preparing mail inserts.
+  const tokenInfo = typeof getCopilotToken === 'function' ? await getCopilotToken() : null;
+  const match = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
+  if (!match) throw new Error('Connect HomeWorks before printing live invoices.');
+  const token = decodeURIComponent(match[1]);
+  const refreshed = await refreshHomeworksMailInvoices(liveRows,
+    (name, query, variables) => queryCopilotGraphql(token, name, query, variables));
+  const byId = new Map(refreshed.map(row => [row.id, row]));
+  return attachMailCustomerMatches(list.map(row => byId.get(row.id) || row));
 }
-
 async function loadInvoicesForMailBatch({ invoiceIds, status, search, mailed = 'unmailed', limit = 200 } = {}) {
   await ensureMailWorkflowSchema();
 
@@ -5806,6 +5760,7 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
     attachMailCustomerMatches,
     buildInvoiceListQuery,
     buildMailInvoicePayload,
+    refreshMailInvoiceRows,
     firstUsableMailCustomerName,
     formatMailDate,
     latestMailServiceDate,

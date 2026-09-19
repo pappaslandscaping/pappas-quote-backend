@@ -46,6 +46,18 @@ jobs:
           console.log('AUDIT_METADATA=' + JSON.stringify(audit.metadata || {}));
           console.log('AUDIT_VULNERABILITIES=' + JSON.stringify(rows));
           NODE
+      - name: Report outdated direct dependencies
+        shell: bash
+        run: |
+          npm outdated --json > outdated.json || true
+          node -e "const fs=require('fs'); const d=JSON.parse(fs.readFileSync('outdated.json','utf8')||'{}'); console.log('OUTDATED_DIRECT='+JSON.stringify(d))"
+      - name: Report vulnerable dependency chains
+        shell: bash
+        run: |
+          npm ls body-parser csv-parse express-rate-limit nodemailer pdfjs-dist tar canvas @mapbox/node-pre-gyp intuit-oauth query-string axios form-data follow-redirects qs ip-address undici js-yaml postcss browserslist nanoid brace-expansion --all > dependency-tree.txt || true
+          echo "DEPENDENCY_TREE_BEGIN"
+          cat dependency-tree.txt
+          echo "DEPENDENCY_TREE_END"
       - name: Report non-breaking audit-fix plan
         shell: bash
         run: |

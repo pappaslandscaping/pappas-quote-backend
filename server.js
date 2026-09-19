@@ -15114,21 +15114,25 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
           }
         }
 
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
-        const twilioHeaders = {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
-        };
-
-        // Send each message part sequentially to preserve order
+        // These are internal owner/team alerts, not customer communications.
+        // Keep all customer-facing routes guarded, but allow the briefing to
+        // use the separate unguarded app client for the configured owner phones.
         const allResults = [];
-        for (const phone of phones) {
-          for (const msg of smsMessages) {
-            const body = new URLSearchParams({ To: phone, From: twilioFrom, Body: msg });
-            try {
-              allResults.push({ error_code: 'CLIENT_COMMUNICATIONS_DISABLED', message: CLIENT_COMMUNICATIONS_DISABLED_MESSAGE });
-            } catch (e) {
-              allResults.push({ error_code: true, message: e.message });
+        if (!twilioAppMessagingClient) {
+          allResults.push({ error_code: 'TWILIO_NOT_CONFIGURED', message: 'Twilio app messaging client is not configured' });
+        } else {
+          for (const phone of phones) {
+            for (const msg of smsMessages) {
+              try {
+                const sent = await twilioAppMessagingClient.messages.create({
+                  To: phone,
+                  From: twilioFrom,
+                  Body: msg,
+                });
+                allResults.push({ error_code: sent.errorCode || null, message: sent.errorMessage || null });
+              } catch (e) {
+                allResults.push({ error_code: e.code || true, message: e.message });
+              }
             }
           }
         }

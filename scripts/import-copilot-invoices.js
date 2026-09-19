@@ -223,7 +223,7 @@ function mergeDetailIdentityFromListRow(detail, row) {
 //   - line_items only overwrites when the import actually carries items
 //   - notes / terms only overwrite when import carries non-empty values
 async function upsert(pool, v) {
-  // 1) Try external id match
+  // 1) Try external id match.
   let existing = null;
   if (v.external_invoice_id) {
     const r = await pool.query(
@@ -232,14 +232,30 @@ async function upsert(pool, v) {
     );
     if (r.rows.length) existing = r.rows[0].id;
   }
-  // 2) Fall back to invoice_number
-  if (!existing && v.invoice_number) {
+
+  // 2) Always inspect the canonical invoice-number owner, even when the
+  // external-id row already exists. Legacy duplicate imports can leave two
+  // rows where one owns the Copilot external id and another owns the public
+  // invoice number. Reassigning that number during UPDATE would violate the
+  // invoices_invoice_number_key constraint and abort the entire sync.
+  let invoiceNumberOwner = null;
+  if (v.invoice_number) {
     const r = await pool.query(
       'SELECT id FROM invoices WHERE invoice_number = $1',
       [v.invoice_number]
     );
-    if (r.rows.length) existing = r.rows[0].id;
+    if (r.rows.length) invoiceNumberOwner = r.rows[0].id;
+    if (!existing && invoiceNumberOwner) existing = invoiceNumberOwner;
   }
+
+  const invoiceNumberConflict = Boolean(
+    existing && invoiceNumberOwner && Number(invoiceNumberOwner) !== Number(existing)
+  );
+  const safeInvoiceNumber = invoiceNumberConflict ? null : v.invoice_number;
+  const safeMetadata = {
+    ...(v.metadata || {}),
+    ...(invoiceNumberConflict ? { invoice_number_conflict: v.invoice_number } : {}),
+  };
 
   if (existing) {
     const setParts = [
@@ -284,12 +300,12 @@ async function upsert(pool, v) {
       `updated_at        = CURRENT_TIMESTAMP`,
     ];
     const params = [
-      SOURCE, v.external_invoice_id, v.invoice_number,
+      SOURCE, v.external_invoice_id, safeInvoiceNumber,
       v.customer_id, v.customer_name, v.customer_email, v.customer_address,
       v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
       v.due_date, v.paid_at, v.created_at,
       v.notes, v.terms, v.sent_status, JSON.stringify(v.line_items || []),
-      JSON.stringify(v.metadata || {}),
+      JSON.stringify(safeMetadata),
       existing,
     ];
     await pool.query(`UPDATE invoices SET ${setParts.join(', ')} WHERE id = $${params.length}`, params);

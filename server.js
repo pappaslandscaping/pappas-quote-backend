@@ -555,8 +555,23 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
+
+// Reject common secret/config probes before static files or the SPA catch-all.
+// This keeps nonexistent .env/.git/phpinfo paths from returning the app shell
+// with HTTP 200 and prevents dotfiles from ever being served.
+app.use((req, res, next) => {
+  let requestPath = req.path || '';
+  try { requestPath = decodeURIComponent(requestPath); } catch (_error) { /* use raw path */ }
+  const sensitiveProbe = /(^|\/)\.(?:env(?:\.[^/]*)?|git(?:\/|$)|svn(?:\/|$)|hg(?:\/|$))/i.test(requestPath)
+    || /\/(?:phpinfo\.php|wp-config\.php|composer\.(?:json|lock))(?:\/|$)/i.test(requestPath);
+  if (sensitiveProbe) {
+    return res.status(404).type('text/plain').send('Not found');
+  }
+  next();
+});
+
 app.use(express.static('public', {
-  dotfiles: 'allow',
+  dotfiles: 'deny',
   setHeaders: (res, path) => {
     if (path.endsWith('.html') || path.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -11121,11 +11136,25 @@ app.get('/api/dashboard/today-summary', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({
-  status: 'ok',
-  timestamp: new Date().toISOString(),
-  appContactResolverVersion: APP_CONTACT_RESOLVER_VERSION,
-}));
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({
+      status: 'ok',
+      database: 'ok',
+      timestamp: new Date().toISOString(),
+      appContactResolverVersion: APP_CONTACT_RESOLVER_VERSION,
+    });
+  } catch (error) {
+    console.error('Health check database error:', error.message);
+    res.status(503).json({
+      status: 'degraded',
+      database: 'error',
+      timestamp: new Date().toISOString(),
+      appContactResolverVersion: APP_CONTACT_RESOLVER_VERSION,
+    });
+  }
+});
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
 
 // ═══════════════════════════════════════════════════════════
@@ -15085,21 +15114,25 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
           }
         }
 
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
-        const twilioHeaders = {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
-        };
-
-        // Send each message part sequentially to preserve order
+        // These are internal owner/team alerts, not customer communications.
+        // Keep all customer-facing routes guarded, but allow the briefing to
+        // use the separate unguarded app client for the configured owner phones.
         const allResults = [];
-        for (const phone of phones) {
-          for (const msg of smsMessages) {
-            const body = new URLSearchParams({ To: phone, From: twilioFrom, Body: msg });
-            try {
-              allResults.push({ error_code: 'CLIENT_COMMUNICATIONS_DISABLED', message: CLIENT_COMMUNICATIONS_DISABLED_MESSAGE });
-            } catch (e) {
-              allResults.push({ error_code: true, message: e.message });
+        if (!twilioAppMessagingClient) {
+          allResults.push({ error_code: 'TWILIO_NOT_CONFIGURED', message: 'Twilio app messaging client is not configured' });
+        } else {
+          for (const phone of phones) {
+            for (const msg of smsMessages) {
+              try {
+                const sent = await twilioAppMessagingClient.messages.create({
+                  To: phone,
+                  From: twilioFrom,
+                  Body: msg,
+                });
+                allResults.push({ error_code: sent.errorCode || null, message: sent.errorMessage || null });
+              } catch (e) {
+                allResults.push({ error_code: e.code || true, message: e.message });
+              }
             }
           }
         }

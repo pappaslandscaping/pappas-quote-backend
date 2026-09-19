@@ -18,4 +18,14 @@ describe('TwilioConnect app message sending', () => {
     expect(routeSource).toContain('twilioAppMessagingClient.messages.create(messageOptions)');
     expect(routeSource).not.toContain('twilioClient.messages.create(messageOptions)');
   });
+
+  test('allows internal morning briefing SMS through the unguarded app client only', () => {
+    const briefingStart = serverSource.indexOf("app.post('/api/morning-briefing'");
+    expect(briefingStart).toBeGreaterThan(-1);
+    const briefingEnd = serverSource.indexOf('POST-SERVICE NOTIFICATION EMAIL', briefingStart);
+    expect(briefingEnd).toBeGreaterThan(briefingStart);
+    const briefingSource = serverSource.slice(briefingStart, briefingEnd);
+    expect(briefingSource).toContain('twilioAppMessagingClient.messages.create');
+    expect(briefingSource).not.toContain("CLIENT_COMMUNICATIONS_DISABLED'");
+  });
 });

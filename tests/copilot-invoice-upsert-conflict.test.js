@@ -44,13 +44,15 @@ describe('Copilot invoice upsert duplicate protection', () => {
       metadata: { source: 'test' },
     });
 
-    expect(result).toEqual({ id: 10, inserted: false });
+    expect(result).toEqual({ id: 20, inserted: false });
     expect(updateSql).toContain('UPDATE invoices SET');
-    expect(updateParams[2]).toBeNull();
-    expect(updateParams[20]).toBe(10);
+    expect(updateParams[1]).toBeNull();
+    expect(updateParams[2]).toBe('12178');
+    expect(updateParams[20]).toBe(20);
 
     const metadata = JSON.parse(updateParams[19]);
     expect(metadata.source).toBe('test');
-    expect(metadata.invoice_number_conflict).toBe('12178');
+    expect(metadata.external_invoice_id_conflict).toBe('copilot-abc');
+    expect(metadata.external_invoice_id_owner).toBe(10);
   });
 });

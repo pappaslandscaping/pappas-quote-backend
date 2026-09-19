@@ -9,6 +9,7 @@ const { createOAuthClient, getQBClient, qbApiGet } = require('../services/quickb
 
 module.exports = function createQuickbooksRoutes({ pool, serverError, nextCustomerNumber }) {
   const router = express.Router();
+  const MAX_OAUTH_CALLBACK_URL_LENGTH = 2048;
 
 // ═══════════════════════════════════════════════════════════
 // QUICKBOOKS INTEGRATION (One-Way Sync: QB → Pappas)
@@ -52,6 +53,15 @@ router.get('/api/quickbooks/auth', (req, res) => {
 // GET /api/quickbooks/callback - Handle OAuth callback
 router.get('/api/quickbooks/callback', async (req, res) => {
   try {
+    // intuit-oauth currently depends on query-string 6.x, whose URI decoder
+    // has an upstream malformed-percent DoS advisory with no CommonJS-safe
+    // patched dependency path. Bound the callback before handing it to the
+    // vendor parser so attacker-controlled input cannot grow enough to trigger
+    // pathological decode work.
+    if (String(req.originalUrl || '').length > MAX_OAUTH_CALLBACK_URL_LENGTH) {
+      return res.status(414).send('QuickBooks callback URL is too long.');
+    }
+
     const oauthClient = createOAuthClient();
     // Build the full callback URL using the registered redirect URI for token exchange
     const redirectUri = process.env.QB_REDIRECT_URI || (req.protocol + '://' + req.get('host') + '/api/quickbooks/callback');

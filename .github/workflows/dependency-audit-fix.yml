@@ -1,0 +1,41 @@
+name: Safe dependency audit repair
+
+on:
+  push:
+    branches: [fix/dependency-audit-2026-09-19]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dependency-audit-2026-09-19
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Audit before repair
+        run: npm audit --omit=dev || true
+      - name: Apply non-breaking lockfile audit fixes
+        if: ${{ !contains(github.event.head_commit.message, 'Apply safe npm audit fixes') }}
+        run: npm audit fix --package-lock-only --omit=dev || true
+      - name: Commit lockfile changes
+        if: ${{ !contains(github.event.head_commit.message, 'Apply safe npm audit fixes') }}
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "No safe lockfile-only audit fixes available."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Apply safe npm audit fixes"
+          git push origin HEAD:fix/dependency-audit-2026-09-19
+      - name: Audit after repair
+        run: npm audit --omit=dev || true

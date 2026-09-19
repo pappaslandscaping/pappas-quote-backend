@@ -248,13 +248,27 @@ async function upsert(pool, v) {
     if (!existing && invoiceNumberOwner) existing = invoiceNumberOwner;
   }
 
+  const externalIdOwner = existing;
   const invoiceNumberConflict = Boolean(
-    existing && invoiceNumberOwner && Number(invoiceNumberOwner) !== Number(existing)
+    externalIdOwner && invoiceNumberOwner && Number(invoiceNumberOwner) !== Number(externalIdOwner)
   );
-  const safeInvoiceNumber = invoiceNumberConflict ? null : v.invoice_number;
+
+  // The public invoice number is the authoritative identity used throughout
+  // statements, payment matching, and customer-facing screens. If a legacy
+  // shadow row owns the Copilot external ID while a different row owns the
+  // invoice number, update the invoice-number owner and leave the conflicting
+  // external ID on the shadow row for later dedupe review. This keeps billing
+  // truth current without deleting or re-keying records automatically.
+  if (invoiceNumberConflict) existing = invoiceNumberOwner;
+
+  const safeExternalInvoiceId = invoiceNumberConflict ? null : v.external_invoice_id;
+  const safeInvoiceNumber = v.invoice_number;
   const safeMetadata = {
     ...(v.metadata || {}),
-    ...(invoiceNumberConflict ? { invoice_number_conflict: v.invoice_number } : {}),
+    ...(invoiceNumberConflict ? {
+      external_invoice_id_conflict: v.external_invoice_id,
+      external_invoice_id_owner: externalIdOwner,
+    } : {}),
   };
 
   if (existing) {
@@ -300,7 +314,7 @@ async function upsert(pool, v) {
       `updated_at        = CURRENT_TIMESTAMP`,
     ];
     const params = [
-      SOURCE, v.external_invoice_id, safeInvoiceNumber,
+      SOURCE, safeExternalInvoiceId, safeInvoiceNumber,
       v.customer_id, v.customer_name, v.customer_email, v.customer_address,
       v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
       v.due_date, v.paid_at, v.created_at,

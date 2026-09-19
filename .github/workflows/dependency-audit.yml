@@ -1,0 +1,63 @@
+name: Dependency audit report
+
+on:
+  push:
+    branches: [audit/dependencies-2026-09-19]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Report dependency vulnerabilities
+        shell: bash
+        run: |
+          npm audit --json > audit.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          const audit = JSON.parse(fs.readFileSync('audit.json', 'utf8'));
+          const vulnerabilities = audit.vulnerabilities || {};
+          const rows = Object.entries(vulnerabilities).map(([name, value]) => ({
+            name,
+            severity: value.severity,
+            direct: value.isDirect,
+            via: (value.via || []).map((item) => typeof item === 'string' ? item : {
+              source: item.source,
+              name: item.name,
+              title: item.title,
+              severity: item.severity,
+              range: item.range,
+            }),
+            effects: value.effects || [],
+            range: value.range,
+            nodes: value.nodes || [],
+            fixAvailable: value.fixAvailable,
+          }));
+          console.log('AUDIT_METADATA=' + JSON.stringify(audit.metadata || {}));
+          console.log('AUDIT_VULNERABILITIES=' + JSON.stringify(rows));
+          NODE
+      - name: Report non-breaking audit-fix plan
+        shell: bash
+        run: |
+          npm audit fix --package-lock-only --dry-run --json > audit-fix-plan.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('audit-fix-plan.json', 'utf8'));
+          console.log('AUDIT_FIX_PLAN=' + JSON.stringify({
+            added: data.added,
+            removed: data.removed,
+            changed: data.changed,
+            audited: data.audited,
+            metadata: data.metadata,
+          }));
+          NODE

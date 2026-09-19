@@ -4,8 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const express = require('express');
-const OAuthClient = require('intuit-oauth');
-const { createOAuthClient, getQBClient, qbApiGet } = require('../services/quickbooks/client');
+const { QB_SCOPES, createOAuthClient, getQBClient, qbApiGet } = require('../services/quickbooks/client');
 
 module.exports = function createQuickbooksRoutes({ pool, serverError, nextCustomerNumber }) {
   const router = express.Router();
@@ -40,7 +39,7 @@ router.get('/api/quickbooks/auth', (req, res) => {
   const origin = req.query.origin || (req.protocol + '://' + req.get('host'));
   const oauthClient = createOAuthClient();
   const authUri = oauthClient.authorizeUri({
-    scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
+    scope: [QB_SCOPES.Accounting, QB_SCOPES.OpenId],
     state: 'origin:' + origin
   });
   console.log('🔑 QB Auth - redirect_uri:', process.env.QB_REDIRECT_URI);

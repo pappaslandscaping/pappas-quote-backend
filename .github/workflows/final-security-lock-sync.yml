@@ -1,0 +1,47 @@
+name: Final dependency lock sync
+
+on:
+  push:
+    branches: [security/dependency-remediation-2026-09-19]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/dependency-remediation-2026-09-19
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Regenerate lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Audit final dependency graph
+        shell: bash
+        run: |
+          npm audit --json > audit-final.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          const audit = JSON.parse(fs.readFileSync('audit-final.json','utf8'));
+          console.log('AUDIT_FINAL_METADATA=' + JSON.stringify(audit.metadata || {}));
+          const rows = Object.entries(audit.vulnerabilities || {}).map(([name,v]) => ({
+            name, severity:v.severity, direct:v.isDirect, range:v.range, fixAvailable:v.fixAvailable,
+            via:(v.via||[]).map(x=>typeof x==='string'?x:{name:x.name,title:x.title,severity:x.severity,range:x.range})
+          }));
+          console.log('AUDIT_FINAL_VULNERABILITIES=' + JSON.stringify(rows));
+          NODE
+      - name: Commit lockfile and remove this one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git rm .github/workflows/final-security-lock-sync.yml
+          git commit -m "Regenerate lockfile after final security remediation"
+          git push origin HEAD:security/dependency-remediation-2026-09-19

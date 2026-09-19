@@ -29,7 +29,15 @@ jobs:
       - name: Run portable backend unit suite
         run: >-
           npx jest --runInBand
-          --testPathIgnorePatterns='tests/(quote-flow|cron-automation|invoice-webhook|square-payment|customer-portal|renderTemplate|broadcast-targeting-preview-route|app-mms-media)\.test\.js'
+          --testPathIgnorePatterns='tests/(quote-flow|cron-automation|invoice-webhook|square-payment|customer-portal|renderTemplate|broadcast-targeting-preview-route|app-mms-media|homeworks-customer-billing|homeworks-mail-invoices|statement-pdf|copilot-invoice-customer-match)\\.test\\.js'
+      - name: Run Node test-runner suites
+        run: >-
+          node --test
+          tests/homeworks-customer-billing.test.js
+          tests/statement-pdf.test.js
+          tests/copilot-invoice-customer-match.test.js
+      - name: Run standalone HomeWorks mail invoice regression
+        run: node tests/homeworks-mail-invoices.test.js
       - name: Test broadcast preview targeting
         run: >-
           npx jest --runInBand tests/broadcast-targeting-preview-route.test.js

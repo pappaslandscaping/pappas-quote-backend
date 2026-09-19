@@ -19,23 +19,24 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - name: Audit before repair
-        run: npm audit --omit=dev || true
-      - name: Apply non-breaking lockfile audit fixes
-        if: ${{ !contains(github.event.head_commit.message, 'Apply safe npm audit fixes') }}
+      - name: Synchronize lockfile for reviewed package changes
+        if: ${{ !contains(github.event.head_commit.message, 'Apply reviewed dependency fixes') }}
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Apply additional non-breaking audit fixes
+        if: ${{ !contains(github.event.head_commit.message, 'Apply reviewed dependency fixes') }}
         run: npm audit fix --package-lock-only --omit=dev || true
-      - name: Commit lockfile changes
-        if: ${{ !contains(github.event.head_commit.message, 'Apply safe npm audit fixes') }}
+      - name: Commit reviewed lockfile changes
+        if: ${{ !contains(github.event.head_commit.message, 'Apply reviewed dependency fixes') }}
         run: |
           if git diff --quiet -- package-lock.json; then
-            echo "No safe lockfile-only audit fixes available."
-            exit 0
+            echo "Lockfile is already synchronized."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "Apply reviewed dependency fixes"
+            git push origin HEAD:fix/dependency-audit-2026-09-19
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "Apply safe npm audit fixes"
-          git push origin HEAD:fix/dependency-audit-2026-09-19
-      - name: Audit after repair
+      - run: npm ci
+      - name: Production dependency audit
         run: npm audit --omit=dev || true

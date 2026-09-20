@@ -15125,9 +15125,9 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
             for (const msg of smsMessages) {
               try {
                 const sent = await twilioAppMessagingClient.messages.create({
-                  To: phone,
-                  From: twilioFrom,
-                  Body: msg,
+                  to: phone,
+                  from: twilioFrom,
+                  body: msg,
                 });
                 allResults.push({ error_code: sent.errorCode || null, message: sent.errorMessage || null });
               } catch (e) {

@@ -26,6 +26,12 @@ describe('TwilioConnect app message sending', () => {
     expect(briefingEnd).toBeGreaterThan(briefingStart);
     const briefingSource = serverSource.slice(briefingStart, briefingEnd);
     expect(briefingSource).toContain('twilioAppMessagingClient.messages.create');
+    expect(briefingSource).toContain('to: phone');
+    expect(briefingSource).toContain('from: twilioFrom');
+    expect(briefingSource).toContain('body: msg');
+    expect(briefingSource).not.toContain('To: phone');
+    expect(briefingSource).not.toContain('From: twilioFrom');
+    expect(briefingSource).not.toContain('Body: msg');
     expect(briefingSource).not.toContain("CLIENT_COMMUNICATIONS_DISABLED'");
   });
 });

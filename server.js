@@ -35,7 +35,9 @@ const {
   ensureVoicemailSyncState,
   getVoicemailSyncStatus,
   syncVoicemailToHomeWorks,
+  voicemailSourceId,
 } = require('./services/homeworks/voicemail-sync');
+const { captureNewVoicemails, ensureVoicemailIntakeTables, getVoicemailIntakeStartedAt, getVoicemailIntakeStatus } = require('./services/homeworks/voicemail-intake');
 const {
   normalizeStoredInvoiceStatus,
   isOutstandingInvoice,
@@ -5109,6 +5111,7 @@ async function createCallsTable() {
 }
 createCallsTable();
 ensureVoicemailSyncState(pool).catch((error) => console.error('HomeWorks voicemail sync initialization failed:', error.message));
+ensureVoicemailIntakeTables(pool).catch((error) => console.error('Voicemail intake initialization failed:', error.message));
 
 async function ensureCallsTableColumns() {
   try {
@@ -12188,6 +12191,34 @@ app.all('/api/voice/twiml', (req, res) => {
 
 const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
 
+let voicemailIntakeRunning = false;
+async function scanNewVoicemails() {
+  if (voicemailIntakeRunning) return;
+  voicemailIntakeRunning = true;
+  try {
+    const feedResults = await Promise.allSettled(['voicemail', 'handled', 'archived'].map(async (status) => {
+      const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=${status}&limit=1000`, { signal: AbortSignal.timeout(15000) });
+      if (!response.ok) throw new Error(`Voicemail feed ${status} returned ${response.status}`);
+      const payload = await response.json();
+      return Array.isArray(payload.calls) ? payload.calls : [];
+    }));
+    const feeds = feedResults.filter((result) => result.status === 'fulfilled').map((result) => result.value);
+    for (const result of feedResults) {
+      if (result.status === 'rejected') console.error('Voicemail intake feed failed; will retry:', result.reason?.message || result.reason);
+    }
+    if (!feeds.length) return;
+    const distinct = [...new Map(feeds.flat().map((voicemail) => [voicemailSourceId(voicemail), voicemail])).values()];
+    const result = await captureNewVoicemails({ pool, voicemails: distinct });
+    if (result.captured || result.retried || result.failed) console.log('Voicemail intake:', result);
+  } catch (error) {
+    console.error('Voicemail intake scan failed; will retry:', error.message);
+  } finally {
+    voicemailIntakeRunning = false;
+  }
+}
+setTimeout(scanNewVoicemails, 30000).unref?.();
+setInterval(scanNewVoicemails, 2 * 60 * 1000).unref?.();
+
 function getRecordingSid(recordingUrl) {
   const match = String(recordingUrl || '').match(/Recordings\/(RE[a-zA-Z0-9]+)/);
   return match ? match[1] : null;
@@ -12268,20 +12299,17 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Webhook fetch failed');
     const data = await response.json();
+    const intakeStartedAt = await getVoicemailIntakeStartedAt(pool);
     const voicemails = await Promise.all((data.calls || []).map(async (c) => {
       const matchedCustomer = c.customer_name ? null : await lookupAppCustomerByPhone(c.from_number || '');
       const audioUrl = getRecordingProxyUrl(c.recording_url);
-      const homeWorksSync = await syncVoicemailToHomeWorks({
-        pool,
-        getCopilotToken,
-        voicemail: c,
-        automatic: true,
-        recordingUrl: audioUrl,
-      }).catch(async (error) => {
-        console.error('HomeWorks voicemail Call Note sync error:', error.message);
-        return await getVoicemailSyncStatus(pool, String(c.twilio_sid || `voicemail-${c.id}`)).catch(() => null)
-          || { status: 'failed', error: error.message };
-      });
+      const sourceId = voicemailSourceId(c);
+      const [homeWorksSync, intake] = await Promise.all([
+        getVoicemailSyncStatus(pool, sourceId),
+        getVoicemailIntakeStatus(pool, sourceId),
+      ]);
+      const voicemailTime = new Date(c.created_at);
+      const awaitingIntake = intakeStartedAt && Number.isFinite(voicemailTime.getTime()) && voicemailTime >= new Date(intakeStartedAt);
       return {
         id: c.id,
         phoneNumber: c.from_number || '',
@@ -12293,8 +12321,10 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
         listened: c.read || false,
         status: c.status || 'voicemail',
         customerId: homeWorksSync?.customerId || matchedCustomer?.id || c.customer_id || null,
-        homeWorksSyncStatus: homeWorksSync?.status || 'not_tracked',
+        homeWorksSyncStatus: homeWorksSync?.status || 'not_saved',
         homeWorksSyncError: homeWorksSync?.error || null,
+        intakeStatus: intake?.status || (awaitingIntake ? 'capture_pending' : 'not_queued'),
+        intakeError: intake?.error || null,
       };
     }));
     const filteredVoicemails = searchTerm

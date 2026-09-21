@@ -3070,6 +3070,13 @@ app.use(createTrustedAssistantRoutes({
   pool, authenticateToken, serverError, generateAppAiText,
 }));
 
+const { createCommunicationPreviewRoutes } = require('./routes/app-ai-communication-preview');
+app.use(createCommunicationPreviewRoutes({
+  pool, authenticateToken, serverError,
+  fetchVoicemail: fetchWebhookVoicemailById,
+  generateJson: generateWritingJsonWithTextFallback,
+}));
+
 // ═══════════════════════════════════════════════════════════
 // INVOICES & PAYMENTS — routes/invoices.js
 // ═══════════════════════════════════════════════════════════

@@ -3065,6 +3065,11 @@ const appHomeWorksRoutes = require('./routes/app-homeworks')({
 });
 app.use(appHomeWorksRoutes);
 
+const { createTrustedAssistantRoutes } = require('./routes/app-ai-trusted');
+app.use(createTrustedAssistantRoutes({
+  pool, authenticateToken, serverError, generateAppAiText,
+}));
+
 // ═══════════════════════════════════════════════════════════
 // INVOICES & PAYMENTS — routes/invoices.js
 // ═══════════════════════════════════════════════════════════

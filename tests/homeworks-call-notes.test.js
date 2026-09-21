@@ -1,9 +1,26 @@
 const {
   buildCommunicationCallNote,
+  parseHomeWorksCallNotesHtml,
   saveHomeWorksCallNote,
 } = require('../services/homeworks/call-notes');
 
 describe('HomeWorks Call Notes integration', () => {
+  test('parses recent call notes from the HomeWorks customer timeline', () => {
+    const notes = parseHomeWorksCallNotesHtml(`
+      <ul id="custom_timeline_communicat_tab">
+        <li>
+          <div class="text-primary"><a href="/customers/details/42"><strong><u>Sep 21, 2026</u></strong></a> by <a href="/resources/employees/edit/9">Theresa Pappas</a></div>
+          <div class="text-dark">Twilio Connect · Text received<br>Message:<br>Hello there</div>
+        </li>
+      </ul>
+    `);
+    expect(notes).toEqual([expect.objectContaining({
+      date: 'Sep 21, 2026',
+      author: 'Theresa Pappas',
+      body: 'Twilio Connect · Text received\nMessage:\nHello there',
+    })]);
+  });
+
   test('formats an inbound text as a readable communication journal entry', () => {
     const note = buildCommunicationCallNote({
       kind: 'text',

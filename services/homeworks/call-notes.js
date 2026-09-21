@@ -1,4 +1,6 @@
+const cheerio = require('cheerio');
 const { fetchMobileCustomerSnapshot, normalizePhone } = require('./mobile-app');
+const { stripHtml } = require('./client');
 
 const COPILOT_WEB_BASE = 'https://secure.copilotcrm.com';
 
@@ -36,6 +38,42 @@ function formatDuration(seconds) {
   const remainder = total % 60;
   if (!minutes) return `${remainder}s`;
   return `${minutes}m ${remainder}s`;
+}
+
+function parseHomeWorksCallNotesHtml(html, limit = 5) {
+  const $ = cheerio.load(String(html || ''));
+  const notes = [];
+  $('#custom_timeline_communicat_tab li').each((index, element) => {
+    if (notes.length >= limit) return false;
+    const item = $(element);
+    const body = stripHtml(item.find('.text-dark').first().html());
+    if (!body) return undefined;
+    const date = item.find('a[href*="/customers/details/"]').first().text().replace(/\s+/g, ' ').trim();
+    const author = item.find('a[href*="/resources/employees/edit/"]').first().text().replace(/\s+/g, ' ').trim();
+    notes.push({
+      id: `${date || 'note'}-${index}-${body.slice(0, 32)}`,
+      date,
+      author,
+      body,
+    });
+    return undefined;
+  });
+  return notes;
+}
+
+async function fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId, fetchImpl = fetch, limit = 5 }) {
+  const numericCustomerId = Number(customerId);
+  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) return [];
+  const tokenInfo = await getCopilotToken(pool);
+  if (!tokenInfo?.cookieHeader) throw new Error('HomeWorks web session is not configured');
+  const response = await fetchImpl(`${COPILOT_WEB_BASE}/customers/details/${numericCustomerId}`, {
+    headers: {
+      Cookie: tokenInfo.cookieHeader,
+      Accept: 'text/html,application/xhtml+xml',
+    },
+  });
+  if (!response.ok) throw new Error(`HomeWorks customer page returned ${response.status}`);
+  return parseHomeWorksCallNotesHtml(await response.text(), limit);
 }
 
 function buildCommunicationCallNote({
@@ -189,7 +227,9 @@ async function syncCommunicationToHomeWorks({
 
 module.exports = {
   buildCommunicationCallNote,
+  fetchHomeWorksCallNotes,
   formatEasternTimestamp,
+  parseHomeWorksCallNotesHtml,
   saveHomeWorksCallNote,
   syncCommunicationToHomeWorks,
 };

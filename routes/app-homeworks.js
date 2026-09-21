@@ -6,7 +6,7 @@ const {
   fetchMobileToday,
   normalizePhone,
 } = require('../services/homeworks/mobile-app');
-const { saveHomeWorksCallNote } = require('../services/homeworks/call-notes');
+const { fetchHomeWorksCallNotes, saveHomeWorksCallNote } = require('../services/homeworks/call-notes');
 
 function isDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
@@ -57,12 +57,16 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       if (!phone && !customerId) return res.status(400).json({ success: false, error: 'phone or customerId is required' });
       const snapshot = await fetchMobileCustomerSnapshot({ pool, phone, customerId });
       if (!snapshot) return res.status(404).json({ success: false, error: 'HomeWorks customer not found' });
-      const localCommunications = await loadLocalCommunications(pool, snapshot.customer.phone || phone);
+      const [localCommunications, callNotes] = await Promise.all([
+        loadLocalCommunications(pool, snapshot.customer.phone || phone),
+        fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId: snapshot.customer.id }).catch(() => []),
+      ]);
       res.json({
         success: true,
         ...snapshot,
         twilioMessages: localCommunications.messages,
         calls: localCommunications.calls,
+        callNotes,
         communicationWriteSupport: {
           generalSms: true,
           generalCalls: true,

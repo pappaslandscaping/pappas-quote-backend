@@ -1,6 +1,7 @@
 const {
   formatPropertyAddress,
   queryHomeWorksGraphql,
+  stripHtml,
 } = require('./client');
 
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').slice(-10);
@@ -24,6 +25,7 @@ function mapCustomer(customer) {
     email: customer.email || '',
     status: customer.status,
     tags: customer.tags || [],
+    customerNotes: stripHtml(customer.description),
     address: formatPropertyAddress({ address: customer.address }),
     outstanding: money(customer.outstanding),
     pastDue: money(customer.pastDue),
@@ -69,7 +71,7 @@ async function fetchMobileCustomers({ pool, accessToken, fetchImpl = fetch, sear
     operationName: 'TwilioConnectCustomers',
     query: `query TwilioConnectCustomers($where: CustomerFilter, $take: SafeInt!) {
       customers(where: $where, take: $take, orderBy: [{ fullName: asc }, { id: asc }]) {
-        id fullName firstName lastName email phone cell status tags outstanding pastDue
+        id fullName firstName lastName email phone cell status tags description outstanding pastDue
         address { street1 street2 city state zip country }
       }
     }`,
@@ -149,7 +151,7 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
     operationName: 'TwilioConnectCustomerSnapshot',
     query: `query TwilioConnectCustomerSnapshot($where: CustomerFilter) {
       customers(where: $where, take: 10, orderBy: [{ updatedAt: desc }, { id: desc }]) {
-        id fullName firstName lastName email phone cell status tags outstanding pastDue portalKey
+        id fullName firstName lastName email phone cell status tags description outstanding pastDue portalKey
         address { street1 street2 city state zip country }
         properties(take: 25, where: { isActive: true }, orderBy: [{ name: asc }]) {
           id name notes size lastServiceDate

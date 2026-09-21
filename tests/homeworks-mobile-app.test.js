@@ -60,7 +60,10 @@ describe('TwilioConnect HomeWorks data', () => {
         properties: [],
         events: [{ id: 20, title: 'Mowing', startDate: '2026-09-21', status: 'OPEN', total: '55', property: {}, timeEntryTotals: { runningTimers: 1 } }],
         estimates: [],
-        invoices: [{ id: 30, number: 12001, status: 'PAST_DUE', total: '100', paidAmount: '20', daysPastDue: 5, isSent: true }],
+        invoices: [
+          { id: 30, number: 12001, status: 'PAST_DUE', total: '100', paidAmount: '20', daysPastDue: 5, isSent: true },
+          { id: 31, number: 12000, status: 'PAID', total: '215.35', paidAmount: '215.35', daysPastDue: 21, isSent: true },
+        ],
         payments: [],
       }] }))
       .mockResolvedValueOnce(response({ smsMessages: [{ id: 40, text: 'Hello', direction: 'IN' }] }));
@@ -73,6 +76,7 @@ describe('TwilioConnect HomeWorks data', () => {
     expect(snapshot.customer.id).toBe(10);
     expect(snapshot.jobs[0]).toMatchObject({ title: 'Mowing', runningTimers: 1 });
     expect(snapshot.invoices[0]).toMatchObject({ balance: 80, portalUrl: expect.stringContaining('/30/portal-key') });
+    expect(snapshot.invoices[1]).toMatchObject({ total: 215.35, balance: 0, daysPastDue: 0, status: 'PAID' });
     expect(snapshot.homeWorksMessages).toHaveLength(1);
   });
 

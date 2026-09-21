@@ -98,16 +98,21 @@ function mapEvent(event) {
 }
 
 function mapInvoice(invoice, portalKey) {
+  const total = money(invoice.total);
+  const paidAmount = money(invoice.paidAmount);
+  const balance = Math.max(0, total - paidAmount);
+  const isPaid = String(invoice.status || '').toUpperCase() === 'PAID' || balance === 0;
+
   return {
     id: invoice.id,
     number: invoice.number,
     date: invoice.date,
     dueDate: invoice.dueDate,
     status: invoice.status,
-    total: money(invoice.total),
-    paidAmount: money(invoice.paidAmount),
-    balance: Math.max(0, money(invoice.total) - money(invoice.paidAmount)),
-    daysPastDue: Number(invoice.daysPastDue || 0),
+    total,
+    paidAmount,
+    balance,
+    daysPastDue: isPaid ? 0 : Number(invoice.daysPastDue || 0),
     isSent: Boolean(invoice.isSent),
     sentAt: invoice.sentAt,
     portalUrl: portalKey

@@ -39,6 +39,27 @@ describe('HomeWorks Call Notes integration', () => {
     expect(note).toContain('Twilio ID: SM123');
   });
 
+  test('formats a voicemail with its duration, transcription, and recording link', () => {
+    const note = buildCommunicationCallNote({
+      kind: 'voicemail',
+      direction: 'inbound',
+      occurredAt: '2026-09-21T14:10:00.000Z',
+      from: '+12165012439',
+      to: '+12165551212',
+      duration: 74,
+      transcription: 'Please call me about the fall cleanup.',
+      recordingUrl: 'https://example.test/api/recordings/RE123',
+      status: 'voicemail',
+      sourceId: 'CA123',
+    });
+
+    expect(note).toContain('Twilio Connect · Voicemail received');
+    expect(note).toContain('Duration: 1m 14s');
+    expect(note).toContain('Please call me about the fall cleanup.');
+    expect(note).toContain('Recording: https://example.test/api/recordings/RE123');
+    expect(note).toContain('Twilio ID: CA123');
+  });
+
   test('saves to the legacy customer Call Notes endpoint with the matched customer id', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,

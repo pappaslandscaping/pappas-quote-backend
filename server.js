@@ -32,6 +32,11 @@ const {
 const { fetchLiveCopilotScheduleDate } = require('./services/copilot/live-jobs');
 const { syncCommunicationToHomeWorks } = require('./services/homeworks/call-notes');
 const {
+  ensureVoicemailSyncState,
+  getVoicemailSyncStatus,
+  syncVoicemailToHomeWorks,
+} = require('./services/homeworks/voicemail-sync');
+const {
   normalizeStoredInvoiceStatus,
   isOutstandingInvoice,
 } = require('./lib/invoice-status');
@@ -5103,6 +5108,7 @@ async function createCallsTable() {
   }
 }
 createCallsTable();
+ensureVoicemailSyncState(pool).catch((error) => console.error('HomeWorks voicemail sync initialization failed:', error.message));
 
 async function ensureCallsTableColumns() {
   try {
@@ -12192,6 +12198,16 @@ function getRecordingProxyUrl(recordingUrl) {
   return sid ? `${WEBHOOK_BASE}/api/recordings/${sid}` : recordingUrl || null;
 }
 
+async function fetchWebhookVoicemailById(id) {
+  const feeds = await Promise.all(['voicemail', 'handled', 'archived'].map(async (status) => {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=${status}&limit=1000`);
+    if (!response.ok) return [];
+    const payload = await response.json().catch(() => ({}));
+    return payload.calls || [];
+  }));
+  return feeds.flat().find((call) => String(call.id) === String(id)) || null;
+}
+
 // Stream Twilio recordings through YardDesk so browsers and the mobile app
 // never need Twilio credentials and always receive a playable audio response.
 app.get('/api/recordings/:sid', async (req, res) => {
@@ -12254,6 +12270,18 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
     const data = await response.json();
     const voicemails = await Promise.all((data.calls || []).map(async (c) => {
       const matchedCustomer = c.customer_name ? null : await lookupAppCustomerByPhone(c.from_number || '');
+      const audioUrl = getRecordingProxyUrl(c.recording_url);
+      const homeWorksSync = await syncVoicemailToHomeWorks({
+        pool,
+        getCopilotToken,
+        voicemail: c,
+        automatic: true,
+        recordingUrl: audioUrl,
+      }).catch(async (error) => {
+        console.error('HomeWorks voicemail Call Note sync error:', error.message);
+        return await getVoicemailSyncStatus(pool, String(c.twilio_sid || `voicemail-${c.id}`)).catch(() => null)
+          || { status: 'failed', error: error.message };
+      });
       return {
         id: c.id,
         phoneNumber: c.from_number || '',
@@ -12261,9 +12289,12 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
         duration: c.duration ? parseInt(c.duration) : 0,
         transcription: c.transcription || null,
         timestamp: c.created_at || '',
-        audioUrl: getRecordingProxyUrl(c.recording_url),
+        audioUrl,
         listened: c.read || false,
         status: c.status || 'voicemail',
+        customerId: homeWorksSync?.customerId || matchedCustomer?.id || c.customer_id || null,
+        homeWorksSyncStatus: homeWorksSync?.status || 'not_tracked',
+        homeWorksSyncError: homeWorksSync?.error || null,
       };
     }));
     const filteredVoicemails = searchTerm
@@ -12277,6 +12308,27 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Voicemails proxy error:', err);
     res.status(500).json({ error: 'Failed to fetch voicemails' });
+  }
+});
+
+app.post('/api/app/voicemails/:id/homeworks', authenticateToken, async (req, res) => {
+  try {
+    const voicemail = await fetchWebhookVoicemailById(req.params.id);
+    if (!voicemail) return res.status(404).json({ success: false, error: 'Voicemail not found' });
+    const result = await syncVoicemailToHomeWorks({
+      pool,
+      getCopilotToken,
+      voicemail,
+      automatic: false,
+      recordingUrl: getRecordingProxyUrl(voicemail.recording_url),
+    });
+    if (result.status === 'skipped_no_customer') {
+      return res.status(409).json({ ...result, error: 'No matching HomeWorks customer. Match this number first.' });
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('HomeWorks voicemail manual sync error:', error);
+    serverError(res, error, 'Failed to save voicemail in HomeWorks');
   }
 });
 

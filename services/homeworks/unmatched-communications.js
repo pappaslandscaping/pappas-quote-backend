@@ -18,7 +18,7 @@ async function listUnmatchedCommunications(pool, limit = 100) {
       COALESCE(m.created_at, c.created_at, sync.created_at) AS occurred_at
     FROM homeworks_communication_sync sync
     LEFT JOIN messages m ON sync.source_type = 'sms' AND sync.source_id = m.twilio_sid
-    LEFT JOIN calls c ON sync.source_type = 'call' AND sync.source_id = c.twilio_sid
+    LEFT JOIN calls c ON sync.source_type IN ('call', 'voicemail') AND sync.source_id = c.twilio_sid
     WHERE sync.status IN ('skipped_no_customer', 'failed')
     ORDER BY COALESCE(m.created_at, c.created_at, sync.created_at) DESC
     LIMIT $1
@@ -35,20 +35,20 @@ async function loadSourceCommunication(pool, sourceType, sourceId) {
     const row = result.rows[0];
     return row && { kind: 'text', sourceId: row.twilio_sid, occurredAt: row.created_at, from: row.from_number, to: row.to_number, ...row };
   }
-  if (sourceType === 'call') {
+  if (sourceType === 'call' || sourceType === 'voicemail') {
     const result = await pool.query(`
-      SELECT twilio_sid, direction, from_number, to_number, status, duration, transcription, created_at
+      SELECT twilio_sid, direction, from_number, to_number, status, duration, recording_url, transcription, created_at
       FROM calls WHERE twilio_sid = $1 LIMIT 1
     `, [sourceId]);
     const row = result.rows[0];
-    return row && { kind: 'call', sourceId: row.twilio_sid, occurredAt: row.created_at, from: row.from_number, to: row.to_number, ...row };
+    return row && { kind: sourceType === 'voicemail' ? 'voicemail' : 'call', sourceId: row.twilio_sid, occurredAt: row.created_at, from: row.from_number, to: row.to_number, recordingUrl: row.recording_url, ...row };
   }
   return null;
 }
 
 async function matchCommunication({ pool, getCopilotToken, sourceType, sourceId, customerId, customerName, fetchImpl = fetch }) {
   const numericCustomerId = Number(customerId);
-  if (!['sms', 'call'].includes(sourceType)) throw new Error('Communication type must be sms or call');
+  if (!['sms', 'call', 'voicemail'].includes(sourceType)) throw new Error('Communication type must be sms, call, or voicemail');
   if (!sourceId) throw new Error('Communication ID is required');
   if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) throw new Error('A valid HomeWorks customer is required');
   await Promise.all([ensureSyncTable(pool), ensureMatchTable(pool)]);

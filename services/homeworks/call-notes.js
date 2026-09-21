@@ -86,10 +86,11 @@ function buildCommunicationCallNote({
   status,
   duration,
   transcription,
+  recordingUrl,
   sourceId,
   employee,
 }) {
-  const normalizedKind = kind === 'call' ? 'Call' : 'Text';
+  const normalizedKind = kind === 'voicemail' ? 'Voicemail' : kind === 'call' ? 'Call' : 'Text';
   const normalizedDirection = String(direction || '').toLowerCase().includes('inbound') ? 'received' : 'sent';
   const lines = [
     `Twilio Connect · ${normalizedKind} ${normalizedDirection}`,
@@ -99,9 +100,10 @@ function buildCommunicationCallNote({
   if (from) lines.push(`From: ${from}`);
   if (to) lines.push(`To: ${to}`);
   if (status) lines.push(`Status: ${status}`);
-  if (kind === 'call' && duration != null) lines.push(`Duration: ${formatDuration(duration)}`);
+  if ((kind === 'call' || kind === 'voicemail') && duration != null) lines.push(`Duration: ${formatDuration(duration)}`);
   if (body) lines.push('', 'Message:', String(body).trim());
   if (transcription) lines.push('', 'Transcription:', String(transcription).trim());
+  if (recordingUrl) lines.push('', `Recording: ${recordingUrl}`);
   if (sourceId) lines.push('', `Twilio ID: ${sourceId}`);
   return lines.join('\n');
 }

@@ -81,12 +81,15 @@ describe('TwilioConnect HomeWorks data', () => {
       events: [
         { id: 1, title: 'Mowing', startDate: '2026-09-21', status: 'OPEN', total: '50', property: {}, customer: { fullName: 'A' }, users: [], timeEntryTotals: { runningTimers: 1 } },
         { id: 2, title: 'Cleanup', startDate: '2026-09-21', status: 'CLOSED', total: '100', property: {}, customer: { fullName: 'B' }, users: [], timeEntryTotals: { runningTimers: 0 } },
+        { id: 6, title: 'Cancelled Visit', startDate: '2026-09-21', status: 'CANCELLED', total: '250', property: {}, customer: { fullName: 'D' }, users: [], timeEntryTotals: { runningTimers: 1 } },
+        { id: 7, title: 'Canceled Visit', startDate: '2026-09-21', status: 'CANCELED', total: '300', property: {}, customer: { fullName: 'E' }, users: [], timeEntryTotals: { runningTimers: 1 } },
       ],
       routes: [{ id: 3, routeStopCount: 2 }],
       estimateLineItems: [{ id: 4, name: 'Aeration', price: '75', quantity: '1', property: {}, estimate: { id: 5, number: 1005, customerId: 7, customer: { fullName: 'C' } } }],
     }));
     const today = await fetchMobileToday({ accessToken: 'token', fetchImpl, date: '2026-09-21' });
     expect(today.summary).toMatchObject({ total: 2, open: 1, completed: 1, activeTimers: 1, scheduledRevenue: 150 });
+    expect(today.jobs.map((job) => job.id)).toEqual([1, 2]);
     expect(today.unscheduledAcceptedServices[0]).toMatchObject({ name: 'Aeration', customerName: 'C' });
   });
 });

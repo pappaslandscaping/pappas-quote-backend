@@ -9,6 +9,8 @@ const money = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const isCancelledStatus = (status) => ['CANCELLED', 'CANCELED'].includes(String(status || '').toUpperCase());
+
 function customerPhone(customer) {
   return customer?.cell || customer?.phone || '';
 }
@@ -234,16 +236,18 @@ async function fetchMobileToday({ pool, accessToken, fetchImpl = fetch, date }) 
     variables: { date },
   });
 
-  const jobs = (data.events || []).map((event) => ({
-    ...mapEvent(event),
-    customerId: event.customerId,
-    customerName: event.customer?.fullName || 'Unknown Customer',
-    customerPhone: customerPhone(event.customer),
-    stopOrder: event.sortOrder,
-    employees: (event.users || []).map((user) => [user.firstName, user.lastName].filter(Boolean).join(' ')),
-    runningTimerSeconds: Number(event.timeEntryTotals?.runningTimerSeconds || 0),
-    trackedSeconds: Number(event.timeEntryTotals?.pastTimeEntrySeconds || 0),
-  }));
+  const jobs = (data.events || [])
+    .filter((event) => !isCancelledStatus(event.status))
+    .map((event) => ({
+      ...mapEvent(event),
+      customerId: event.customerId,
+      customerName: event.customer?.fullName || 'Unknown Customer',
+      customerPhone: customerPhone(event.customer),
+      stopOrder: event.sortOrder,
+      employees: (event.users || []).map((user) => [user.firstName, user.lastName].filter(Boolean).join(' ')),
+      runningTimerSeconds: Number(event.timeEntryTotals?.runningTimerSeconds || 0),
+      trackedSeconds: Number(event.timeEntryTotals?.pastTimeEntrySeconds || 0),
+    }));
   const count = (status) => jobs.filter((job) => job.status === status).length;
 
   return {
@@ -255,7 +259,6 @@ async function fetchMobileToday({ pool, accessToken, fetchImpl = fetch, date }) 
       open: count('OPEN'),
       completed: count('CLOSED'),
       skipped: count('SKIPPED'),
-      cancelled: count('CANCELLED'),
       activeTimers: jobs.reduce((sum, job) => sum + job.runningTimers, 0),
       scheduledRevenue: Number(jobs.reduce((sum, job) => sum + job.total, 0).toFixed(2)),
     },

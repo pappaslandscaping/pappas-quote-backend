@@ -5,6 +5,7 @@ describe('TwilioConnect customer communication timeline', () => {
     const pool = {
       query: jest.fn()
         .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: 1, homeworks_sync_status: 'synced' }] })
         .mockResolvedValueOnce({ rows: [{ id: 2, homeworks_sync_status: 'failed' }] }),
     };
@@ -13,9 +14,9 @@ describe('TwilioConnect customer communication timeline', () => {
 
     expect(result.messages[0].homeworks_sync_status).toBe('synced');
     expect(result.calls[0].homeworks_sync_status).toBe('failed');
-    expect(pool.query.mock.calls[1][0]).toContain("sync.source_type = 'sms'");
-    expect(pool.query.mock.calls[2][0]).toContain("sync.source_type = 'call'");
-    expect(pool.query.mock.calls[1][1]).toEqual(['2165012439']);
+    expect(pool.query.mock.calls[2][0]).toContain("sync.source_type = 'sms'");
+    expect(pool.query.mock.calls[3][0]).toContain("sync.source_type = 'call'");
+    expect(pool.query.mock.calls[2][1]).toEqual([['2165012439']]);
   });
 
   test('does not query when the customer has no usable phone number', async () => {

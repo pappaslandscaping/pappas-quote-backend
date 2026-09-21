@@ -7,15 +7,23 @@ const {
   normalizePhone,
 } = require('../services/homeworks/mobile-app');
 const { ensureSyncTable, fetchHomeWorksCallNotes, saveHomeWorksCallNote } = require('../services/homeworks/call-notes');
+const {
+  createLeadForPhone,
+  ensureMatchTable,
+  listUnmatchedCommunications,
+  matchCommunication,
+} = require('../services/homeworks/unmatched-communications');
 
 function isDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 }
 
-async function loadLocalCommunications(pool, phone) {
+async function loadLocalCommunications(pool, phone, customerId) {
   const normalized = normalizePhone(phone);
   if (!normalized) return { messages: [], calls: [] };
-  await ensureSyncTable(pool);
+  await Promise.all([ensureSyncTable(pool), ensureMatchTable(pool)]);
+  const aliases = customerId ? await pool.query(`SELECT normalized_phone FROM homeworks_phone_matches WHERE homeworks_customer_id = $1`, [Number(customerId)]).catch(() => ({ rows: [] })) : { rows: [] };
+  const phoneKeys = [...new Set([normalized, ...aliases.rows.map((row) => normalizePhone(row.normalized_phone))].filter(Boolean))];
   const [messages, calls] = await Promise.all([
     pool.query(`
       SELECT m.id, m.twilio_sid, m.direction, m.from_number, m.to_number, m.body,
@@ -24,10 +32,10 @@ async function loadLocalCommunications(pool, phone) {
       FROM messages m
       LEFT JOIN homeworks_communication_sync sync
         ON sync.source_type = 'sms' AND sync.source_id = m.twilio_sid
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
-         OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $1
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+         OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
       ORDER BY m.created_at DESC LIMIT 100
-    `, [normalized]).catch(() => ({ rows: [] })),
+    `, [phoneKeys]).catch(() => ({ rows: [] })),
     pool.query(`
       SELECT c.id, c.twilio_sid, c.direction, c.from_number, c.to_number,
         c.status, c.duration, c.transcription, c.created_at,
@@ -35,10 +43,10 @@ async function loadLocalCommunications(pool, phone) {
       FROM calls c
       LEFT JOIN homeworks_communication_sync sync
         ON sync.source_type = 'call' AND sync.source_id = c.twilio_sid
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
-         OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $1
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+         OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
       ORDER BY c.created_at DESC LIMIT 100
-    `, [normalized]).catch(() => ({ rows: [] })),
+    `, [phoneKeys]).catch(() => ({ rows: [] })),
   ]);
   return { messages: messages.rows, calls: calls.rows };
 }
@@ -66,7 +74,7 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       const snapshot = await fetchMobileCustomerSnapshot({ pool, phone, customerId });
       if (!snapshot) return res.status(404).json({ success: false, error: 'HomeWorks customer not found' });
       const [localCommunications, callNotes] = await Promise.all([
-        loadLocalCommunications(pool, snapshot.customer.phone || phone),
+        loadLocalCommunications(pool, snapshot.customer.phone || phone, snapshot.customer.id),
         fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId: snapshot.customer.id }).catch(() => []),
       ]);
       res.json({
@@ -107,6 +115,38 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       res.json({ ...result, destination: 'customer_call_notes' });
     } catch (error) {
       serverError(res, error, 'Failed to save HomeWorks Call Note');
+    }
+  });
+
+  router.get('/api/app/homeworks/unmatched-communications', authenticateToken, async (req, res) => {
+    try {
+      const communications = await listUnmatchedCommunications(pool, req.query.limit);
+      res.json({ success: true, communications });
+    } catch (error) {
+      serverError(res, error, 'Failed to load unmatched communications');
+    }
+  });
+
+  router.post('/api/app/homeworks/unmatched-communications/:sourceType/:sourceId/match', authenticateToken, async (req, res) => {
+    try {
+      const result = await matchCommunication({ pool, getCopilotToken, sourceType: req.params.sourceType, sourceId: req.params.sourceId, customerId: req.body.customerId, customerName: req.body.customerName });
+      res.json(result);
+    } catch (error) {
+      serverError(res, error, 'Failed to match communication');
+    }
+  });
+
+  router.post('/api/app/homeworks/unmatched-communications/:sourceType/:sourceId/create-lead', authenticateToken, async (req, res) => {
+    try {
+      const customer = await createLeadForPhone({ pool, fullName: req.body.fullName, phone: req.body.phone });
+      try {
+        const result = await matchCommunication({ pool, getCopilotToken, sourceType: req.params.sourceType, sourceId: req.params.sourceId, customerId: customer.id, customerName: customer.fullName });
+        res.status(201).json({ ...result, customer, created: true });
+      } catch (matchError) {
+        res.status(207).json({ success: false, created: true, customer, error: `Lead created, but the communication still needs matching: ${matchError.message}` });
+      }
+    } catch (error) {
+      serverError(res, error, 'Failed to create and match HomeWorks lead');
     }
   });
 

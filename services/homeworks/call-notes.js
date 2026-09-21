@@ -175,6 +175,18 @@ async function ensureSyncTable(pool) {
   `);
 }
 
+async function ensureMatchTable(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS homeworks_phone_matches (
+      normalized_phone VARCHAR(20) PRIMARY KEY,
+      homeworks_customer_id BIGINT NOT NULL,
+      customer_name TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
 async function syncCommunicationToHomeWorks({
   pool,
   getCopilotToken,
@@ -187,7 +199,7 @@ async function syncCommunicationToHomeWorks({
   if (!sourceId) throw new Error('sourceId is required for HomeWorks communication sync');
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) return { success: false, status: 'skipped_no_phone' };
-  await ensureSyncTable(pool);
+  await Promise.all([ensureSyncTable(pool), ensureMatchTable(pool)]);
 
   const claimed = await pool.query(`
     INSERT INTO homeworks_communication_sync (source_type, source_id, customer_phone, status)
@@ -200,7 +212,9 @@ async function syncCommunicationToHomeWorks({
   if (!claimed.rows[0]) return { success: true, status: 'already_processed' };
 
   try {
-    const snapshot = await fetchMobileCustomerSnapshot({ pool, phone: normalizedPhone });
+    const matched = await pool.query(`SELECT homeworks_customer_id FROM homeworks_phone_matches WHERE normalized_phone = $1 LIMIT 1`, [normalizedPhone]);
+    const matchedCustomerId = matched.rows[0]?.homeworks_customer_id;
+    const snapshot = await fetchMobileCustomerSnapshot({ pool, ...(matchedCustomerId ? { customerId: matchedCustomerId } : { phone: normalizedPhone }) });
     if (!snapshot?.customer?.id) {
       await pool.query(`UPDATE homeworks_communication_sync SET status = 'skipped_no_customer', error = $2 WHERE id = $1`, [claimed.rows[0].id, 'No matching HomeWorks customer']);
       return { success: false, status: 'skipped_no_customer' };
@@ -227,6 +241,7 @@ async function syncCommunicationToHomeWorks({
 
 module.exports = {
   buildCommunicationCallNote,
+  ensureMatchTable,
   ensureSyncTable,
   fetchHomeWorksCallNotes,
   formatEasternTimestamp,

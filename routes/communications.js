@@ -25,6 +25,7 @@ const {
   reviewAddressServiceArea,
   extractAddressLead,
 } = require('../lib/service-area-auto-reply');
+const { syncCommunicationToHomeWorks } = require('../services/homeworks/call-notes');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -598,7 +599,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, authenticateToken, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, lookupCustomerByPhone, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, authenticateToken, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, lookupCustomerByPhone, getCopilotToken, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
   const router = express.Router();
   const fetchFn = fetchImpl || global.fetch;
 
@@ -1864,6 +1865,27 @@ router.post('/api/sms/webhook', async (req, res) => {
       ON CONFLICT (twilio_sid) DO NOTHING
       RETURNING id
     `, [MessageSid, From, To, Body, mediaUrls, customerId]);
+
+    if (inboundMessageResult.rows[0]?.id && MessageSid && typeof getCopilotToken === 'function') {
+      setImmediate(() => {
+        syncCommunicationToHomeWorks({
+          pool,
+          getCopilotToken,
+          sourceType: 'sms',
+          sourceId: MessageSid,
+          phone: From,
+          communication: {
+            kind: 'text',
+            direction: 'inbound',
+            occurredAt: new Date(),
+            from: From,
+            to: To,
+            body: Body,
+            status: 'received',
+          },
+        }).catch((syncError) => console.error('HomeWorks inbound SMS Call Note sync error:', syncError.message));
+      });
+    }
 
     console.log(`📨 Incoming SMS from ${customerName} (${From}): ${Body?.substring(0, 50)}...`);
 

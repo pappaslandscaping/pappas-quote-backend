@@ -9,6 +9,7 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
 const { CLIENT_COMMUNICATIONS_DISABLED_MESSAGE } = require('./lib/client-communications');
+const { formatMorningBriefing, normalizeInboxSummary, splitSmsMessage } = require('./lib/morning-briefing-format');
 const OAuthClient = require('intuit-oauth');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
@@ -29,6 +30,7 @@ const {
   parseCopilotRouteHtml,
 } = require('./services/copilot/client');
 const { fetchLiveCopilotScheduleDate } = require('./services/copilot/live-jobs');
+const { syncCommunicationToHomeWorks } = require('./services/homeworks/call-notes');
 const {
   normalizeStoredInvoiceStatus,
   isOutstandingInvoice,
@@ -3050,6 +3052,12 @@ const homeWorksRoutes = require('./routes/homeworks')({
 });
 app.use(homeWorksRoutes);
 
+// HomeWorks-backed mobile surfaces for TwilioConnect.
+const appHomeWorksRoutes = require('./routes/app-homeworks')({
+  pool, authenticateToken, serverError, getCopilotToken,
+});
+app.use(appHomeWorksRoutes);
+
 // ═══════════════════════════════════════════════════════════
 // INVOICES & PAYMENTS — routes/invoices.js
 // ═══════════════════════════════════════════════════════════
@@ -3084,6 +3092,7 @@ const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
   authenticateToken, twilioClient: twilioAppMessagingClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
   lookupCustomerByPhone: lookupAppCustomerByPhone,
+  getCopilotToken,
   RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink,
 });
 app.use(communicationRoutes);
@@ -4918,7 +4927,7 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
 });
 
 // Status callback (no auth - called by Twilio)
-app.post('/api/app/calls/status-callback', (req, res) => {
+app.post('/api/app/calls/status-callback', async (req, res) => {
   const {
     CallSid,
     ParentCallSid,
@@ -4944,6 +4953,49 @@ app.post('/api/app/calls/status-callback', (req, res) => {
     answeredBy: AnsweredBy,
     sipResponseCode: SipResponseCode,
   });
+
+  const finalStatus = String(DialCallStatus || CallStatus || '').toLowerCase();
+  const finalCallStatuses = new Set(['completed', 'busy', 'no-answer', 'failed', 'canceled']);
+  const normalizedDirection = String(Direction || '').toLowerCase().includes('inbound') ? 'inbound' : 'outbound';
+  const remotePhone = normalizedDirection === 'inbound' ? From : To;
+  const syncSourceId = CallSid;
+
+  try {
+    if (CallSid && From && To) {
+      await pool.query(`
+        INSERT INTO calls (twilio_sid, direction, from_number, to_number, status, duration, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+        ON CONFLICT (twilio_sid) DO UPDATE SET
+          direction = EXCLUDED.direction,
+          from_number = EXCLUDED.from_number,
+          to_number = EXCLUDED.to_number,
+          status = EXCLUDED.status,
+          duration = EXCLUDED.duration,
+          updated_at = CURRENT_TIMESTAMP
+      `, [CallSid, normalizedDirection, From, To, finalStatus || CallStatus || 'unknown', Number.parseInt(CallDuration, 10) || 0]);
+    }
+
+    if (syncSourceId && finalCallStatuses.has(finalStatus) && remotePhone && !String(remotePhone).startsWith('client:')) {
+      await syncCommunicationToHomeWorks({
+        pool,
+        getCopilotToken,
+        sourceType: 'call',
+        sourceId: syncSourceId,
+        phone: remotePhone,
+        communication: {
+          kind: 'call',
+          direction: normalizedDirection,
+          occurredAt: new Date(),
+          from: From,
+          to: To,
+          status: finalStatus,
+          duration: Number.parseInt(CallDuration, 10) || 0,
+        },
+      });
+    }
+  } catch (syncError) {
+    console.error('HomeWorks call Call Note sync error:', syncError.message);
+  }
   res.sendStatus(200);
 });
 
@@ -6977,11 +7029,36 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
       matchedCustomer?.id || null
     ]);
 
+    let homeWorksSync = { success: false, status: 'not_attempted' };
+    try {
+      homeWorksSync = await syncCommunicationToHomeWorks({
+        pool,
+        getCopilotToken,
+        sourceType: 'sms',
+        sourceId: twilioMessage.sid,
+        phone: formattedTo,
+        communication: {
+          kind: 'text',
+          direction: 'outbound',
+          occurredAt: new Date(),
+          from: sendFromNumber,
+          to: formattedTo,
+          body: messageBody,
+          status: twilioMessage.status,
+          employee: req.user?.name || req.user?.email || null,
+        },
+      });
+    } catch (syncError) {
+      homeWorksSync = { success: false, status: 'failed', error: syncError.message };
+      console.error('HomeWorks outbound SMS Call Note sync error:', syncError.message);
+    }
+
     console.log(`📤 Sent ${mediaUrls?.length ? 'MMS' : 'SMS'} from ${sendFromNumber} to ${formattedTo}: ${messageBody.substring(0, 50)}...`);
 
     res.json({ 
       success: true, 
       sid: twilioMessage.sid,
+      homeWorksSync,
       message: {
         id: twilioMessage.sid,
         direction: 'outbound',
@@ -14806,7 +14883,6 @@ app.post('/api/telegram/send', authenticateToken, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 async function assembleMorningBriefing() {
-  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
   const sections = {};
   const errors = [];
@@ -14814,37 +14890,56 @@ async function assembleMorningBriefing() {
 
   // ── Section 1: Today's Jobs by Crew ──
   try {
+    let scheduleRefreshError = null;
+    try {
+      await fetchLiveCopilotScheduleDate({
+        poolClient: pool,
+        syncDate: todayDate,
+        timeoutMs: 12000,
+      });
+      stats.scheduleSource = 'official_homeworks_graphql';
+    } catch (refreshError) {
+      scheduleRefreshError = refreshError;
+      stats.scheduleSource = 'saved';
+      console.error('Morning briefing — live HomeWorks schedule refresh error:', refreshError);
+    }
+
     const jobsResult = await pool.query(
       `SELECT
          COALESCE(source_crew_name, 'Unassigned') AS crew_name,
-         source_employees_text AS employees,
          COUNT(*) AS job_count
        FROM copilot_live_jobs
        WHERE service_date = $1
          AND source_deleted_at IS NULL
-       GROUP BY COALESCE(source_crew_name, 'Unassigned'), source_employees_text
+       GROUP BY COALESCE(source_crew_name, 'Unassigned')
        ORDER BY COALESCE(source_crew_name, 'Unassigned')`,
       [todayDate]
     );
     const crews = jobsResult.rows;
     if (crews.length === 0) {
-      sections.jobs = `📋 TODAY'S JOBS (${today})\nNo jobs synced for today. Run the Copilot sync first or check the schedule.`;
+      if (scheduleRefreshError) {
+        sections.jobs = `📋 Today’s schedule\n⚠️ Couldn’t load today’s jobs from HomeWorks. Check the connection before relying on this briefing.`;
+        errors.push('jobs');
+      } else {
+        sections.jobs = `📋 Today’s schedule\nNo jobs scheduled today`;
+      }
     } else {
       const totalJobs = crews.reduce((sum, c) => sum + parseInt(c.job_count), 0);
       stats.totalJobs = totalJobs;
       stats.crewCount = crews.length;
       stats.crewNames = crews.map(c => (c.crew_name || 'Unassigned').replace(/ (Mowing |Landscaping )?Crew/i, ''));
-      let jobText = `📋 TODAY'S JOBS (${today}) — ${totalJobs} total\n`;
+      let jobText = `📋 Today’s schedule\n${totalJobs} job${totalJobs === 1 ? '' : 's'} across ${crews.length} crew${crews.length === 1 ? '' : 's'}\n`;
       for (const c of crews) {
         const crew = c.crew_name || 'Unassigned';
         const count = parseInt(c.job_count);
-        jobText += `${crew}${c.employees ? ' (' + c.employees + ')' : ''} — ${count} job${count === 1 ? '' : 's'}\n`;
+        jobText += `• ${crew} — ${count} job${count === 1 ? '' : 's'}\n`;
       }
+      if (scheduleRefreshError) jobText += '⚠️ Using the last saved HomeWorks schedule\n';
       sections.jobs = jobText.trim();
     }
   } catch (err) {
     console.error('Morning briefing — jobs error:', err);
-    sections.jobs = `📋 TODAY'S JOBS\n⚠️ Error fetching jobs: ${err.message}`;
+    sections.jobs = `📋 Today’s schedule\n⚠️ Couldn’t load jobs: ${err.message}`;
     errors.push('jobs');
   }
 
@@ -14852,7 +14947,7 @@ async function assembleMorningBriefing() {
   try {
     const tokenInfo = await getCopilotToken();
     if (!tokenInfo) {
-      sections.invoices = `💰 PAST DUE INVOICES\n⚠️ No CopilotCRM cookies configured. Cannot fetch invoices.`;
+      sections.invoices = `🧾 Past due\n⚠️ HomeWorks isn’t connected, so invoices couldn’t be checked.`;
     } else {
       const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
         method: 'POST',
@@ -14867,7 +14962,7 @@ async function assembleMorningBriefing() {
       });
 
       if (!copilotRes.ok) {
-        sections.invoices = `💰 PAST DUE INVOICES\n⚠️ CopilotCRM returned HTTP ${copilotRes.status}`;
+        sections.invoices = `🧾 Past due\n⚠️ HomeWorks couldn’t load invoices (HTTP ${copilotRes.status}).`;
       } else {
         const data = await copilotRes.json();
         const $ = cheerio.load(data.html || '');
@@ -14890,7 +14985,7 @@ async function assembleMorningBriefing() {
         });
 
         if (invoices.length === 0) {
-          sections.invoices = `💰 PAST DUE INVOICES\n✅ All clear — no past due invoices!`;
+          sections.invoices = `🧾 Past due\n✓ No past-due invoices`;
         } else {
           const totalDueSum = invoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
           stats.invoiceCount = invoices.length;
@@ -14901,13 +14996,13 @@ async function assembleMorningBriefing() {
           invoices.sort((a, b) => new Date(a.date) - new Date(b.date));
           const top5 = invoices.slice(0, 5);
 
-          let invText = `💰 PAST DUE INVOICES — ${invoices.length} invoices totaling $${totalDueSum.toFixed(2)}\n\nTop 5 oldest:\n`;
+          let invText = `🧾 Past due\n${invoices.length} invoices • $${totalDueSum.toFixed(2)} total\n\nOldest 5\n`;
           for (const inv of top5) {
             const daysAgo = Math.floor((new Date() - new Date(inv.date)) / (1000 * 60 * 60 * 24));
-            invText += `  • INV-${inv.invoiceNum} | ${inv.customer} | ${inv.totalDue} | ${daysAgo} days old\n`;
+            invText += `• INV-${inv.invoiceNum} · ${inv.customer}\n  ${inv.totalDue} · ${daysAgo} days\n`;
           }
           if (invoices.length > 5) {
-            invText += `  ... and ${invoices.length - 5} more`;
+            invText += `+ ${invoices.length - 5} more`;
           }
           sections.invoices = invText.trim();
         }
@@ -14915,7 +15010,7 @@ async function assembleMorningBriefing() {
     }
   } catch (err) {
     console.error('Morning briefing — invoices error:', err);
-    sections.invoices = `💰 PAST DUE INVOICES\n⚠️ Error fetching invoices: ${err.message}`;
+    sections.invoices = `🧾 Past due\n⚠️ Couldn’t load invoices: ${err.message}`;
     errors.push('invoices');
   }
 
@@ -14929,22 +15024,22 @@ async function assembleMorningBriefing() {
       const failed = charges.data.filter(c => c.status === 'failed');
       stats.stripeFailures = failed.length;
       if (failed.length === 0) {
-        sections.stripe = `💳 STRIPE\n✅ All clear — no failed payments in the last 24 hours.`;
+        sections.stripe = `💳 Payments\n✓ No failed payments in the past 24 hours`;
       } else {
-        let stripeText = `💳 STRIPE — ${failed.length} failed payment(s) in the last 24 hours\n`;
+        let stripeText = `💳 Payments\n⚠️ ${failed.length} failed payment${failed.length === 1 ? '' : 's'} in the past 24 hours\n`;
         for (const c of failed.slice(0, 5)) {
           const amt = (c.amount / 100).toFixed(2);
           const email = c.billing_details?.email || c.receipt_email || 'unknown';
-          stripeText += `  • $${amt} — ${email} — ${c.failure_message || 'no details'}\n`;
+          stripeText += `• $${amt} · ${email}\n  ${c.failure_message || 'No details'}\n`;
         }
         sections.stripe = stripeText.trim();
       }
     } else {
-      sections.stripe = `💳 STRIPE\nNot configured yet (no STRIPE_SECRET_KEY).`;
+      sections.stripe = `💳 Payments\nStripe isn’t connected yet.`;
     }
   } catch (err) {
     console.error('Morning briefing — stripe error:', err);
-    sections.stripe = `💳 STRIPE\n⚠️ Error checking Stripe: ${err.message}`;
+    sections.stripe = `💳 Payments\n⚠️ Couldn’t check Stripe: ${err.message}`;
     errors.push('stripe');
   }
 
@@ -14968,49 +15063,48 @@ async function assembleMorningBriefing() {
         // Show each payout with arrival date and amount
         const sorted = [...payouts.data].sort((a, b) => a.arrival_date - b.arrival_date);
         const total = sorted.reduce((sum, p) => sum + p.amount, 0) / 100;
-        let depText = `💰 STRIPE DEPOSITS\n─────────────────────\n`;
+        let depText = `💵 Deposits\n`;
         for (const p of sorted) {
           const amt = (p.amount / 100).toFixed(2);
           const arrival = new Date(p.arrival_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
           const statusTag = p.status === 'paid' ? ' ✓' : p.status === 'in_transit' ? ' →' : '';
-          depText += `${arrival}: $${amt}${statusTag}\n`;
+          depText += `• ${arrival} — $${amt}${statusTag}\n`;
         }
-        depText += `Total incoming: $${total.toFixed(2)}`;
+        depText += `$${total.toFixed(2)} total incoming`;
         sections.deposit = depText;
         stats.depositAmount = total;
         stats.depositCount = sorted.length;
       } else if (pendingTotal > 0) {
-        sections.deposit = `💰 STRIPE DEPOSITS\nPending balance: $${pendingTotal.toFixed(2)} (arriving within 1-2 business days)`;
+        sections.deposit = `💵 Deposits\n$${pendingTotal.toFixed(2)} pending • expected in 1–2 business days`;
         stats.depositAmount = pendingTotal;
         stats.depositCount = 0;
       } else {
-        sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
+        sections.deposit = `💵 Deposits\nNo upcoming deposits`;
         stats.depositAmount = 0;
         stats.depositCount = 0;
       }
     } else {
-      sections.deposit = `💰 STRIPE DEPOSITS\nStripe not configured.`;
+      sections.deposit = `💵 Deposits\nStripe isn’t connected yet.`;
     }
   } catch (err) {
     console.error('Morning briefing — deposit error:', err);
-    sections.deposit = `💰 STRIPE DEPOSITS\n⚠️ Error fetching payouts: ${err.message}`;
+    sections.deposit = `💵 Deposits\n⚠️ Couldn’t load payouts: ${err.message}`;
     errors.push('deposit');
   }
 
   // ── Assemble briefing ──
-  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.deposit}\n\n${sections.invoices}\n\n${sections.stripe}`;
-  return { briefing, sections, errors, stats };
+  const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+  const briefing = formatMorningBriefing({ sections, dateLabel });
+  return { briefing, sections, errors, stats, dateLabel };
 }
 
 app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
   try {
-    let { briefing, sections, errors, stats } = await assembleMorningBriefing();
+    let { briefing, sections, errors, stats, dateLabel } = await assembleMorningBriefing();
 
     // Append Gmail summary if provided
     const gmailText = req.body.gmailText || null;
-    if (gmailText) {
-      briefing += '\n\n' + gmailText;
-    }
+    if (gmailText) briefing = formatMorningBriefing({ sections, dateLabel, gmailText });
 
     // Send to Telegram — split into multiple messages if too long
     let telegramSent = false;
@@ -15033,10 +15127,11 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
         };
 
         // If briefing is long and we have gmailText, send as two messages
-        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.deposit}\n\n${sections.invoices}\n\n${sections.stripe}`;
-        if (gmailText && mainBriefing.length + gmailText.length > 4000) {
+        const mainBriefing = formatMorningBriefing({ sections, dateLabel });
+        if (briefing.length > 4000) {
+          const importantInbox = normalizeInboxSummary(gmailText);
           const tgData1 = await sendTg(mainBriefing);
-          const tgData2 = await sendTg(gmailText);
+          const tgData2 = importantInbox ? await sendTg(importantInbox) : { ok: true };
           if (tgData1.ok && tgData2.ok) {
             telegramSent = true;
           } else {
@@ -15070,49 +15165,9 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       const phones = [process.env.THERESA_PHONE_NUMBER, process.env.TIM_PHONE_NUMBER].filter(Boolean);
 
       if (twilioSid && twilioAuth && twilioFrom && phones.length > 0) {
-        const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-
-        // Build full SMS briefing
-        const smsParts = [];
-        let sms1 = `Good morning! Pappas & Co. daily briefing (${today}):\n\n`;
-        sms1 += sections.jobs + '\n\n';
-        sms1 += sections.deposit;
-        smsParts.push(sms1);
-
-        // Part 2: Invoices
-        let sms2 = sections.invoices;
-        smsParts.push(sms2);
-
-        // Part 3: Stripe + email
-        let sms3 = sections.stripe;
         const gmailSmsText = req.body.gmailText || '';
-        if (gmailSmsText) {
-          sms3 += '\n\n' + gmailSmsText;
-        }
-        smsParts.push(sms3);
-
-        // Filter out empty parts and split any that exceed 1600 chars (Twilio limit)
-        const smsMessages = [];
-        for (const part of smsParts) {
-          const trimmed = part.trim();
-          if (!trimmed) continue;
-          if (trimmed.length <= 1600) {
-            smsMessages.push(trimmed);
-          } else {
-            // Split on newlines at ~1500 char boundaries
-            let remaining = trimmed;
-            while (remaining.length > 0) {
-              if (remaining.length <= 1600) {
-                smsMessages.push(remaining);
-                break;
-              }
-              let splitIdx = remaining.lastIndexOf('\n', 1500);
-              if (splitIdx < 500) splitIdx = 1500;
-              smsMessages.push(remaining.substring(0, splitIdx).trim());
-              remaining = remaining.substring(splitIdx).trim();
-            }
-          }
-        }
+        const smsBriefing = formatMorningBriefing({ sections, dateLabel, gmailText: gmailSmsText });
+        const smsMessages = splitSmsMessage(smsBriefing);
 
         // These are internal owner/team alerts, not customer communications.
         // Keep all customer-facing routes guarded, but allow the briefing to

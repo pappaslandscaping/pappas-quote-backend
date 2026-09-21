@@ -227,6 +227,7 @@ async function syncCommunicationToHomeWorks({
 
 module.exports = {
   buildCommunicationCallNote,
+  ensureSyncTable,
   fetchHomeWorksCallNotes,
   formatEasternTimestamp,
   parseHomeWorksCallNotesHtml,

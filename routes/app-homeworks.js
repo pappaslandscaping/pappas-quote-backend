@@ -6,7 +6,7 @@ const {
   fetchMobileToday,
   normalizePhone,
 } = require('../services/homeworks/mobile-app');
-const { fetchHomeWorksCallNotes, saveHomeWorksCallNote } = require('../services/homeworks/call-notes');
+const { ensureSyncTable, fetchHomeWorksCallNotes, saveHomeWorksCallNote } = require('../services/homeworks/call-notes');
 
 function isDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
@@ -15,21 +15,29 @@ function isDate(value) {
 async function loadLocalCommunications(pool, phone) {
   const normalized = normalizePhone(phone);
   if (!normalized) return { messages: [], calls: [] };
+  await ensureSyncTable(pool);
   const [messages, calls] = await Promise.all([
     pool.query(`
-      SELECT id, direction, from_number, to_number, body, status, read, created_at
-      FROM messages
+      SELECT m.id, m.twilio_sid, m.direction, m.from_number, m.to_number, m.body,
+        m.status, m.read, m.created_at,
+        sync.status AS homeworks_sync_status, sync.error AS homeworks_sync_error
+      FROM messages m
+      LEFT JOIN homeworks_communication_sync sync
+        ON sync.source_type = 'sms' AND sync.source_id = m.twilio_sid
       WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
          OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $1
-      ORDER BY created_at DESC LIMIT 100
+      ORDER BY m.created_at DESC LIMIT 100
     `, [normalized]).catch(() => ({ rows: [] })),
     pool.query(`
-      SELECT id, direction, from_number, to_number,
-        status, duration, transcription, created_at
-      FROM calls
+      SELECT c.id, c.twilio_sid, c.direction, c.from_number, c.to_number,
+        c.status, c.duration, c.transcription, c.created_at,
+        sync.status AS homeworks_sync_status, sync.error AS homeworks_sync_error
+      FROM calls c
+      LEFT JOIN homeworks_communication_sync sync
+        ON sync.source_type = 'call' AND sync.source_id = c.twilio_sid
       WHERE RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
          OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $1
-      ORDER BY created_at DESC LIMIT 100
+      ORDER BY c.created_at DESC LIMIT 100
     `, [normalized]).catch(() => ({ rows: [] })),
   ]);
   return { messages: messages.rows, calls: calls.rows };
@@ -142,3 +150,4 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
 }
 
 module.exports = createAppHomeWorksRoutes;
+module.exports.loadLocalCommunications = loadLocalCommunications;

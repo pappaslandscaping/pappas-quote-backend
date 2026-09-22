@@ -18,6 +18,73 @@ function isDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 }
 
+const homeWorksDate = (value) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(value);
+
+async function previewMessageVisitSkip({ pool, messageId, phone }) {
+  const id = Number(messageId);
+  const normalized = normalizePhone(phone);
+  if (!Number.isSafeInteger(id) || id <= 0 || normalized.length !== 10) {
+    return { status: 400, error: 'Valid message and phone are required' };
+  }
+  const messageResult = await pool.query(`
+    SELECT id, twilio_sid, body, from_number, created_at FROM messages
+    WHERE id = $1 AND direction = 'inbound'
+      AND RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $2
+  `, [id, normalized]);
+  const message = messageResult.rows[0];
+  if (!message) return { status: 404, error: 'Incoming text not found in this conversation' };
+
+  const matched = await pool.query(`
+    SELECT homeworks_customer_id, customer_name FROM homeworks_phone_matches
+    WHERE normalized_phone = $1 LIMIT 1
+  `, [normalized]).catch(() => ({ rows: [] }));
+  let customer = matched.rows[0] && {
+    id: Number(matched.rows[0].homeworks_customer_id), name: matched.rows[0].customer_name,
+  };
+  if (!customer) {
+    const lookup = await queryHomeWorksGraphql({
+      pool, operationName: 'TwilioConnectSkipCustomerLookup',
+      query: `query TwilioConnectSkipCustomerLookup {
+        customers(where: { isDeleted: false }, take: 5000) { id fullName phone cell }
+      }`,
+    });
+    const matches = (lookup.customers || []).filter((row) =>
+      [row.cell, row.phone].some((value) => normalizePhone(value) === normalized));
+    if (matches.length > 1) return { status: 409, error: 'This number matches multiple HomeWorks customers. Match it before skipping a visit.' };
+    if (matches.length === 1) customer = { id: matches[0].id, name: matches[0].fullName };
+  }
+  if (!customer?.id) return { status: 404, error: 'No matching HomeWorks customer found' };
+  const today = homeWorksDate(new Date());
+  const through = homeWorksDate(new Date(Date.now() + 48 * 60 * 60 * 1000));
+  const data = await queryHomeWorksGraphql({
+    pool,
+    operationName: 'TwilioConnectSkipCandidates',
+    query: `query TwilioConnectSkipCandidates($customerId: SafeInt!, $from: Date!, $through: Date!) {
+      events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: OPEN },
+        isDeleted: false, startDate: { gte: $from, lte: $through } },
+        take: 200, orderBy: [{ startDate: asc }, { id: asc }]) {
+        id title startDate startTime status recurringEventId customerId
+        property { id name address { street1 city state zip } }
+      }
+    }`,
+    variables: { customerId: Number(customer.id), from: today, through },
+  });
+  const visits = (data.events || []).map((event) => ({
+    id: event.id, title: event.title, date: event.startDate, time: event.startTime,
+    recurring: Boolean(event.recurringEventId),
+    property: event.property?.name || '',
+    address: [event.property?.address?.street1, event.property?.address?.city,
+      event.property?.address?.state, event.property?.address?.zip].filter(Boolean).join(', '),
+  }));
+  return {
+    status: 200, customer,
+    message: { id: message.id, body: message.body, receivedAt: message.created_at },
+    visits, window: { from: today, through },
+  };
+}
+
 async function loadLocalCommunications(pool, phone, customerId) {
   const normalized = normalizePhone(phone);
   if (!normalized) return { messages: [], calls: [] };
@@ -161,6 +228,53 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
     }
   });
 
+  router.get('/api/app/homeworks/visit-skip-preview', authenticateToken, async (req, res) => {
+    try {
+      const result = await previewMessageVisitSkip({ pool, messageId: req.query.messageId, phone: req.query.phone });
+      res.status(result.status).json(result);
+    } catch (error) {
+      serverError(res, error, 'Failed to find matching HomeWorks visits');
+    }
+  });
+
+  router.post('/api/app/homeworks/visit-skip', authenticateToken, async (req, res) => {
+    try {
+      const eventId = Number(req.body.eventId);
+      if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ success: false, error: 'Valid eventId is required' });
+      }
+      const preview = await previewMessageVisitSkip({ pool, messageId: req.body.messageId, phone: req.body.phone });
+      if (preview.status !== 200) return res.status(preview.status).json({ success: false, error: preview.error });
+      const visit = preview.visits.find((candidate) => candidate.id === eventId);
+      if (!visit) return res.status(409).json({ success: false, error: 'This visit is no longer open in the review window. Refresh and review again.' });
+      const reason = `Customer requested skip by text: ${String(preview.message.body || '').slice(0, 1000)}`;
+      const result = await queryHomeWorksGraphql({
+        pool, operationName: 'TwilioConnectSkipVisit',
+        query: `mutation TwilioConnectSkipVisit($eventId: SafeInt!, $reason: String!) {
+          skipEvent(eventId: $eventId, skippedReason: $reason) { id status skippedReason startDate }
+        }`,
+        variables: { eventId, reason },
+      });
+      if (result.skipEvent?.status !== 'SKIPPED') throw new Error('HomeWorks did not confirm the visit was skipped');
+      let noteSaved = false;
+      try {
+        const note = await queryHomeWorksGraphql({
+          pool, operationName: 'TwilioConnectSkipDispatchNote',
+          query: `mutation TwilioConnectSkipDispatchNote($eventId: SafeInt!, $input: DispatchNoteInput!) {
+            createEventDispatchNote(eventId: $eventId, input: $input) { id }
+          }`,
+          variables: { eventId, input: { message: `Customer text ${preview.message.id}: ${String(preview.message.body || '').slice(0, 1700)}`, date: new Date().toISOString() } },
+        });
+        noteSaved = Boolean(note.createEventDispatchNote?.id);
+      } catch (noteError) {
+        console.warn('Visit skipped, but dispatch note failed:', noteError.message);
+      }
+      res.json({ success: true, visit: result.skipEvent, customer: preview.customer, noteSaved, source: 'official_homeworks_graphql' });
+    } catch (error) {
+      serverError(res, error, 'Failed to skip HomeWorks visit');
+    }
+  });
+
   router.post('/api/app/homeworks/events/:eventId/communication-note', authenticateToken, async (req, res) => {
     try {
       const eventId = Number(req.params.eventId);
@@ -192,3 +306,4 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
 
 module.exports = createAppHomeWorksRoutes;
 module.exports.loadLocalCommunications = loadLocalCommunications;
+module.exports.previewMessageVisitSkip = previewMessageVisitSkip;

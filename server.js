@@ -635,6 +635,13 @@ const publicApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const siteChatCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { success: false, error: 'Too many chat requests. Please call us at (440) 886-7318.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -646,6 +653,10 @@ const paymentLimiter = rateLimit({
 // Apply rate limiters to public-facing routes
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/quotes', publicApiLimiter);
+app.use('/api/site-chat', (req, res, next) => {
+  if (req.method !== 'POST') return next();
+  return req.path === '/' ? siteChatCreateLimiter(req, res, next) : publicApiLimiter(req, res, next);
+});
 app.use('/api/sign', publicApiLimiter);
 app.use('/api/pay', paymentLimiter);
 
@@ -692,6 +703,8 @@ const PUBLIC_ROUTE_EXACT = new Set([
 
 // Routes that are public only for specific HTTP methods
 const PUBLIC_ROUTE_METHODS = {
+  'OPTIONS /api/site-chat': true,
+  'POST /api/site-chat': true,
   'OPTIONS /api/quotes': true,           // Browser CORS preflight for the public quote form
   'POST /api/quotes': true,              // Public quote request form
   'POST /api/campaigns/submissions': true, // Public campaign form
@@ -699,6 +712,7 @@ const PUBLIC_ROUTE_METHODS = {
 };
 
 function isPublicRoute(method, path) {
+  if (/^\/api\/site-chat\/[a-f0-9-]{36}(?:\/(?:messages|handoff))?$/.test(path) && ['GET', 'POST', 'OPTIONS'].includes(method)) return true;
   // Exact match
   if (PUBLIC_ROUTE_EXACT.has(path)) return true;
 
@@ -3078,6 +3092,16 @@ const appHomeWorksRoutes = require('./routes/app-homeworks')({
   pool, authenticateToken, serverError, getCopilotToken,
 });
 app.use(appHomeWorksRoutes);
+
+const createSiteChatRoutes = require('./routes/site-chat');
+app.use(createSiteChatRoutes({
+  pool,
+  twilioClient: twilioAppMessagingClient,
+  fromNumber: TWILIO_PHONE_NUMBER,
+  ownerNumber: process.env.THERESA_PHONE_NUMBER,
+  verifyRecaptcha,
+  recaptchaRequired: Boolean(RECAPTCHA_SECRET_KEY),
+}));
 
 const { createTrustedAssistantRoutes } = require('./routes/app-ai-trusted');
 app.use(createTrustedAssistantRoutes({

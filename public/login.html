@@ -396,6 +396,8 @@
             const eyeOffIcon = document.getElementById('eyeOffIcon');
             const forgotLink = document.getElementById('forgotLink');
             const forgotMessage = document.getElementById('forgotMessage');
+            const nextPage = new URLSearchParams(window.location.search).get('next') || '';
+            const loginDestination = /^live-chat\.html(?:\?chat=[a-f0-9-]{36})?$/.test(nextPage) ? nextPage : 'index.html';
 
             // ------------------------------------------------------------------
             // Check if already logged in on page load
@@ -409,7 +411,7 @@
                         headers: { 'Authorization': 'Bearer ' + token }
                     });
                     if (res.ok) {
-                        window.location.href = 'index.html';
+                        window.location.href = loginDestination;
                     } else {
                         // Token is invalid — clear stale data
                         localStorage.removeItem('adminToken');
@@ -504,7 +506,7 @@
                         }
 
                         // Redirect to dashboard
-                        window.location.href = 'index.html';
+                        window.location.href = loginDestination;
                     } else {
                         showError(data.error || data.message || 'Invalid email or password.');
                     }

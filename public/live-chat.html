@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Chat — YardDesk</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .chat-page { max-width: 1100px; margin: 0 auto; padding: 28px 20px; color: #263b37; }
+    .chat-page h1 { margin: 0 0 6px; font-size: 25px; }
+    .chat-page p { margin: 0 0 18px; color: #66766c; }
+    .chat-layout { display: grid; grid-template-columns: 300px 1fr; min-height: 560px; border: 1px solid #dce4d9; border-radius: 12px; overflow: hidden; background: white; }
+    .chat-list { border-right: 1px solid #dce4d9; overflow: auto; max-height: 70vh; }
+    .chat-list button { display: block; width: 100%; padding: 15px; border: 0; border-bottom: 1px solid #e8eee5; background: white; text-align: left; color: #263b37; cursor: pointer; }
+    .chat-list button:hover, .chat-list button.selected { background: #eff5e9; }
+    .chat-list strong, .chat-list span { display: block; }
+    .chat-list small { color: #61736a; }
+    .chat-detail { display: flex; flex-direction: column; min-width: 0; }
+    .chat-detail header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #e8eee5; }
+    .chat-detail header strong, .chat-detail header small { display: block; }
+    .chat-detail header small { margin-top: 3px; color: #61736a; }
+    .chat-messages { flex: 1; min-height: 300px; max-height: 55vh; overflow: auto; padding: 18px; background: #fbfcf9; }
+    .chat-bubble { max-width: 80%; width: fit-content; margin: 0 0 12px; padding: 10px 13px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: #e9f0e4; }
+    .chat-bubble.staff { margin-left: auto; background: #2e403d; color: white; }
+    .chat-bubble small { display: block; margin-top: 4px; opacity: .72; }
+    .chat-reply { display: flex; gap: 8px; padding: 14px; border-top: 1px solid #e8eee5; }
+    .chat-reply input { flex: 1; min-width: 0; padding: 11px; border: 1px solid #bbc9bb; border-radius: 8px; }
+    .chat-reply button, .chat-detail header button { border: 0; border-radius: 8px; background: #2e403d; color: white; padding: 10px 14px; cursor: pointer; }
+    .chat-detail header button { background: #e8eee5; color: #263b37; }
+    .chat-error { color: #a32c2c !important; padding: 8px 0; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    @media (max-width: 700px) { .chat-layout { grid-template-columns: 1fr; } .chat-list { max-height: 190px; border-right: 0; border-bottom: 1px solid #dce4d9; } }
+  </style>
+</head>
+<body>
+  <main class="main" id="main"><div class="chat-page">
+    <h1>Website Chat</h1>
+    <p>All visitor chats appear here, including those answered by the AI. Text alerts arrive Monday–Friday 9 AM–6 PM and Saturday 9 AM–4 PM Eastern. Sunday is quiet. Keep this page open to see replies arrive.</p>
+    <p id="chat-error" class="chat-error" role="alert" hidden></p>
+    <div class="chat-layout">
+      <div id="chat-list" class="chat-list" aria-label="Website conversations"></div>
+      <section class="chat-detail" aria-label="Selected conversation">
+        <header><div><strong id="chat-name">Select a conversation</strong><small id="chat-contact"></small></div><button type="button" id="chat-close" hidden>Close chat</button></header>
+        <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+        <form id="chat-reply" class="chat-reply" hidden><label for="chat-message" class="sr-only">Reply to visitor</label><input id="chat-message" maxlength="1200" placeholder="Reply to the visitor..." required><button type="submit">Send</button></form>
+      </section>
+    </div>
+  </div></main>
+  <script src="shell.js"></script>
+  <script>
+  (function () {
+    var list = document.getElementById('chat-list');
+    var messages = document.getElementById('chat-messages');
+    var reply = document.getElementById('chat-reply');
+    var error = document.getElementById('chat-error');
+    var selected = new URLSearchParams(location.search).get('chat');
+    if (selected && !/^[a-f0-9-]{36}$/.test(selected)) selected = null;
+    function showError(value) { error.textContent = value || ''; error.hidden = !value; }
+    async function request(url, options) {
+      var response = await fetch(url, options);
+      var data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not load chats.');
+      return data;
+    }
+    async function refreshList() {
+      try {
+        var data = await request('/api/site-chat-staff');
+        list.replaceChildren();
+        if (!data.chats.length) list.textContent = 'No website chats yet.';
+        data.chats.forEach(function (chat) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = chat.id === selected ? 'selected' : '';
+          var title = document.createElement('strong'); title.textContent = chat.visitor_name + (chat.mode === 'assistant' ? ' · AI chat' : ' · Team chat') + (chat.status === 'closed' ? ' · Closed' : '');
+          var excerpt = document.createElement('span'); excerpt.textContent = chat.last_message || '';
+          var time = document.createElement('small'); time.textContent = new Date(chat.updated_at).toLocaleString();
+          button.append(title, excerpt, time);
+          button.onclick = function () { selected = chat.id; history.replaceState(null, '', '?chat=' + selected); refreshList(); refreshDetail(); };
+          list.appendChild(button);
+        });
+        showError('');
+      } catch (e) { showError(e.message); }
+    }
+    async function refreshDetail() {
+      if (!selected) return;
+      try {
+        var data = await request('/api/site-chat-staff/' + selected);
+        document.getElementById('chat-name').textContent = data.chat.visitor_name + (data.chat.mode === 'assistant' ? ' · AI chat' : ' · Team chat') + (data.chat.status === 'closed' ? ' · Closed' : '');
+        document.getElementById('chat-contact').textContent = data.chat.visitor_contact || 'No callback contact provided';
+        document.getElementById('chat-close').hidden = data.chat.status !== 'open';
+        reply.hidden = data.chat.status !== 'open';
+        var oldLast = messages.lastElementChild && messages.lastElementChild.dataset.id;
+        messages.replaceChildren();
+        data.messages.forEach(function (item) {
+          var bubble = document.createElement('div'); bubble.className = 'chat-bubble ' + item.sender; bubble.dataset.id = item.id;
+          bubble.textContent = item.body;
+          var label = item.sender === 'staff' ? 'You' : item.sender === 'assistant' ? 'AI assistant' : 'Visitor';
+          var stamp = document.createElement('small'); stamp.textContent = label + ' · ' + new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          bubble.appendChild(stamp); messages.appendChild(bubble);
+        });
+        if (!oldLast || (messages.lastElementChild && messages.lastElementChild.dataset.id !== oldLast)) messages.scrollTop = messages.scrollHeight;
+        showError('');
+      } catch (e) { showError(e.message); }
+    }
+    reply.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var input = document.getElementById('chat-message');
+      var message = input.value.trim(); if (!selected || !message) return;
+      try {
+        await request('/api/site-chat-staff/' + selected + '/messages', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: message }) });
+        input.value = ''; await refreshDetail(); await refreshList();
+      } catch (e) { showError(e.message); }
+    });
+    document.getElementById('chat-close').onclick = async function () {
+      try { await request('/api/site-chat-staff/' + selected + '/close', { method: 'POST' }); await refreshDetail(); await refreshList(); }
+      catch (e) { showError(e.message); }
+    };
+    refreshList(); refreshDetail();
+    setInterval(function () { if (!document.hidden) { refreshList(); refreshDetail(); } }, 5000);
+  })();
+  </script>
+</body>
+</html>

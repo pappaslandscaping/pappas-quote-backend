@@ -22,6 +22,8 @@ describe('CORS options', () => {
     expect(isCorsOriginAllowed('https://pappaslandscaping.com', env)).toBe(true);
     expect(isCorsOriginAllowed('https://www.pappaslandscaping.com', env)).toBe(true);
     expect(isCorsOriginAllowed('https://magenta-gelato-064a50.netlify.app', env)).toBe(true);
+    expect(isCorsOriginAllowed('https://deploy-preview-5--magenta-gelato-064a50.netlify.app', env)).toBe(true);
+    expect(isCorsOriginAllowed('https://deploy-preview-5--different-site.netlify.app', env)).toBe(false);
     expect(isCorsOriginAllowed('https://evil.example.com', env)).toBe(false);
     expect(isCorsOriginAllowed('http://localhost:3001', env)).toBe(false);
   });

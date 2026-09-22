@@ -59,8 +59,9 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       const customers = await fetchMobileCustomers({
         pool,
         search: String(req.query.search || ''),
+        summary: req.query.summary === '1',
       });
-      res.json({ success: true, customers, source: 'official_homeworks_graphql', asOf: new Date().toISOString() });
+      res.json({ success: true, customers, summary: req.query.summary === '1', source: 'official_homeworks_graphql', asOf: new Date().toISOString() });
     } catch (error) {
       serverError(res, error, 'Failed to load HomeWorks customers');
     }

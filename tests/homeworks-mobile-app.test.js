@@ -39,6 +39,20 @@ describe('TwilioConnect HomeWorks data', () => {
     })]);
   });
 
+  test('loads the complete contact directory without assuming missing balances are zero', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response({
+      customers: [{ id: 92, fullName: 'Alex Green', cell: '216-555-1212', email: 'alex@example.com' }],
+    }));
+    const customers = await fetchMobileCustomers({ accessToken: 'token', fetchImpl, summary: true });
+    const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(request.query).toContain('id fullName firstName lastName email phone cell');
+    expect(request.query).not.toContain('outstanding pastDue');
+    expect(request.variables.take).toBe(1500);
+    expect(customers[0]).toMatchObject({ id: 92, name: 'Alex Green', phone: '216-555-1212' });
+    expect(customers[0].pastDue).toBeUndefined();
+    expect(customers[0].outstanding).toBeUndefined();
+  });
+
   test('builds a customer snapshot by exact normalized phone match', async () => {
     const fetchImpl = jest.fn()
       .mockResolvedValueOnce(response({ customers: [

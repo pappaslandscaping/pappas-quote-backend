@@ -27,8 +27,8 @@ function mapCustomer(customer) {
     tags: customer.tags || [],
     customerNotes: stripHtml(customer.description),
     address: formatPropertyAddress({ address: customer.address }),
-    outstanding: money(customer.outstanding),
-    pastDue: money(customer.pastDue),
+    outstanding: customer.outstanding == null ? undefined : money(customer.outstanding),
+    pastDue: customer.pastDue == null ? undefined : money(customer.pastDue),
     source: 'official_homeworks_graphql',
   };
 }
@@ -63,7 +63,7 @@ function customerWhere({ customerId, phone, search }) {
   };
 }
 
-async function fetchMobileCustomers({ pool, accessToken, fetchImpl = fetch, search = '', take = 1500 }) {
+async function fetchMobileCustomers({ pool, accessToken, fetchImpl = fetch, search = '', take = 1500, summary = false }) {
   const data = await queryHomeWorksGraphql({
     pool,
     accessToken,
@@ -71,8 +71,9 @@ async function fetchMobileCustomers({ pool, accessToken, fetchImpl = fetch, sear
     operationName: 'TwilioConnectCustomers',
     query: `query TwilioConnectCustomers($where: CustomerFilter, $take: SafeInt!) {
       customers(where: $where, take: $take, orderBy: [{ fullName: asc }, { id: asc }]) {
-        id fullName firstName lastName email phone cell status tags description outstanding pastDue
-        address { street1 street2 city state zip country }
+        id fullName firstName lastName email phone cell
+        ${summary ? '' : `status tags description outstanding pastDue
+        address { street1 street2 city state zip country }`}
       }
     }`,
     variables: { where: customerWhere({ search }), take },

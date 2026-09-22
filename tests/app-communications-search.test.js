@@ -26,6 +26,10 @@ describe('TwilioConnect app communication search and history', () => {
     expect(source).toContain('c.name ILIKE');
     expect(source).toContain('LIMIT $');
     expect(source).not.toContain('LIMIT 100');
+    expect(source).toContain('if (searchTerm) {\n      query += `\n        LEFT JOIN customers c');
+    expect(source).toContain('FROM homeworks_phone_matches');
+    expect(source).not.toContain('lookupAppCustomerByPhone(conv.normalized_phone)');
+    expect(source).not.toContain('UPDATE messages');
   });
 
   test('message threads return full conversation history and support search', () => {

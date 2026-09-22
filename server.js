@@ -5354,13 +5354,15 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
       matching_conversations AS (
         SELECT DISTINCT nm.normalized_phone
         FROM normalized_messages nm
+    `;
+
+    if (searchTerm) {
+      query += `
         LEFT JOIN customers c
           ON nm.customer_id = c.id
           OR RIGHT(REGEXP_REPLACE(COALESCE(c.mobile, ''), '[^0-9]', '', 'g'), 10) = nm.normalized_phone
           OR RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '', 'g'), 10) = nm.normalized_phone
-    `;
-
-    if (searchTerm) {
+      `;
       params.push(`%${searchTerm}%`);
       const searchParam = `$${params.length}`;
       query += `
@@ -5434,26 +5436,56 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
 
     const result = await pool.query(query, params);
 
-    // Enrich with customer names where missing
-    const conversations = await Promise.all(result.rows.map(async (conv) => {
-      if (!conv.customer_name) {
-        const matchedCustomer = await lookupAppCustomerByPhone(conv.normalized_phone);
-        conv.customer_name = matchedCustomer?.name || null;
-        if (matchedCustomer?.id) {
-          await pool.query(`
-            UPDATE messages
-            SET customer_id = $2
-            WHERE customer_id IS NULL
-              AND (
-                RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
-                OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
-              )
-          `, [conv.normalized_phone, matchedCustomer.id]).catch((error) => {
-            console.warn('Conversation contact backfill failed:', error.message);
-          });
-        }
+    // Keep list loading read-only. Resolve missing display names with one local
+    // lookup, rather than waiting for a remote customer search per conversation.
+    const missingPhones = [...new Set(result.rows
+      .filter((conv) => !conv.customer_name && /^\d{10}$/.test(conv.normalized_phone || ''))
+      .map((conv) => conv.normalized_phone))];
+    const localNames = new Map();
+    if (missingPhones.length) {
+      const names = await pool.query(`
+        SELECT normalized_phone, name FROM (
+          SELECT normalized_phone, name, priority, updated_at FROM (
+            SELECT normalized_phone, customer_name AS name, 0 AS priority, updated_at
+            FROM homeworks_phone_matches
+            WHERE normalized_phone = ANY($1::text[])
+            UNION ALL
+            SELECT RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10),
+              COALESCE(NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''), NULLIF(TRIM(COALESCE(name, '')), '')),
+              1, updated_at
+            FROM customers
+            WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+            UNION ALL
+            SELECT RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10),
+              COALESCE(NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''), NULLIF(TRIM(COALESCE(name, '')), '')),
+              1, updated_at
+            FROM customers
+            WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+            UNION ALL
+            SELECT RIGHT(REGEXP_REPLACE(COALESCE(customer_phone, ''), '[^0-9]', '', 'g'), 10),
+              customer_name, 2, NULL::timestamp
+            FROM sent_quotes
+            WHERE RIGHT(REGEXP_REPLACE(COALESCE(customer_phone, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+            UNION ALL
+            SELECT RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10),
+              customer_name, 2, NULL::timestamp
+            FROM scheduled_jobs
+            WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = ANY($1::text[])
+          ) candidates
+          WHERE NULLIF(TRIM(name), '') IS NOT NULL
+        ) ordered
+        ORDER BY priority, updated_at DESC NULLS LAST
+      `, [missingPhones]).catch((error) => {
+        console.warn('Conversation local name lookup failed:', error.message);
+        return { rows: [] };
+      });
+      for (const row of names.rows) {
+        if (!localNames.has(row.normalized_phone)) localNames.set(row.normalized_phone, row.name);
       }
-      return conv;
+    }
+    const conversations = result.rows.map((conv) => ({
+      ...conv,
+      customer_name: conv.customer_name || localNames.get(conv.normalized_phone) || APP_CONFIRMED_PHONE_CONTACTS[conv.normalized_phone] || null,
     }));
 
     res.json({ conversations });

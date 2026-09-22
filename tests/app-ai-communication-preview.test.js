@@ -54,3 +54,36 @@ test('rejects invalid source and does not guess when a call is not found', async
   expect(missingResponse.statusCode).toBe(404);
   expect(missing.error).toBe('Communication not found.');
 });
+
+test('requires staff notes for an after-call recap', async () => {
+  const generateJson = jest.fn();
+  const handler = handlerFor({ generateJson });
+  const response = fakeResponse();
+  await handler({ body: { sourceType: 'staff_recap', phoneNumber: '+12165550100' } }, response);
+  expect(response.statusCode).toBe(400);
+  expect(generateJson).not.toHaveBeenCalled();
+});
+
+test('drafts from staff recollection without looking up or recording a call', async () => {
+  const pool = { query: jest.fn() };
+  const generateJson = jest.fn(async () => ({ json: {
+    summary: 'Staff recalls a request for shrub trimming.', urgency: 'normal', intent: 'service request',
+    missingDetails: ['Preferred date'], suggestedAction: 'Confirm the date.',
+    callNoteDraft: 'After-call staff recap: customer asked about shrub trimming; date unconfirmed.',
+    replyDraft: null, confidence: 0.7,
+  } }));
+  const handler = handlerFor({ pool, generateJson });
+  const response = fakeResponse();
+  const result = await handler({ body: {
+    sourceType: 'staff_recap', staffNotes: 'They asked about shrub trimming. No date agreed.',
+    phoneNumber: '+12165550100', direction: 'incoming',
+  } }, response);
+  expect(response.statusCode).toBe(200);
+  expect(result.source.type).toBe('staff_recap');
+  expect(result.source.hasTranscript).toBe(false);
+  expect(result.source.hasStaffNotes).toBe(true);
+  expect(result.saved).toBe(false);
+  expect(result.sent).toBe(false);
+  expect(pool.query).not.toHaveBeenCalled();
+  expect(generateJson).toHaveBeenCalledTimes(1);
+});

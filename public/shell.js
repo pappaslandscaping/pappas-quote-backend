@@ -19,7 +19,10 @@
 
   // ── Auth Bootstrap ──────────────────────────────────────────
   var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
+  var loginUrl = window.location.pathname === '/live-chat.html'
+    ? '/login.html?next=' + encodeURIComponent('live-chat.html' + window.location.search)
+    : '/login.html';
+  if (!t) { window.location.href = loginUrl; return; }
   var _fetch = window.fetch;
   window.fetch = function(url, opts) {
     opts = opts || {};
@@ -32,7 +35,7 @@
       if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
+        window.location.href = loginUrl;
       }
       return r;
     });
@@ -63,6 +66,7 @@
       { href: 'tax-transfers.html', icon: 'reports', label: 'Tax Transfers', perm: 'reports' }
     ]},
     { label: 'Communications', items: [
+      { href: 'live-chat.html', icon: 'comms', label: 'Website Chat', perm: 'marketing' },
       { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' }
     ]},
     { label: 'Intelligence', items: [

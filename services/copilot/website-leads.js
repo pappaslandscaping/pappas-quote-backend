@@ -3,8 +3,13 @@ const {
   queryHomeWorksGraphql,
 } = require('../homeworks/client');
 const SUPPORTED_CITIES = new Set([
-  'lakewood', 'cleveland', 'bay village', 'brook park', 'rocky river',
-  'fairview park', 'parma', 'north olmsted', 'avon', 'avon lake',
+  'lakewood', 'bay village', 'brook park',
+]);
+// Keep older city names recognizable in free-form addresses so an out-of-area
+// request is not mistaken for one with an unknown city.
+const RECOGNIZED_CITIES = new Set([
+  ...SUPPORTED_CITIES, 'cleveland', 'rocky river', 'fairview park',
+  'parma', 'north olmsted', 'avon', 'avon lake', 'westlake',
   'north royalton', 'strongsville', 'berea', 'middleburg heights',
   'olmsted falls',
 ]);
@@ -44,7 +49,7 @@ function parseAddress(value, cityHint) {
   }
 
   if (!result.city) {
-    const cityNames = [...SUPPORTED_CITIES, 'westlake'].sort((a, b) => b.length - a.length);
+    const cityNames = [...RECOGNIZED_CITIES].sort((a, b) => b.length - a.length);
     const lowered = raw.toLowerCase();
     const found = cityNames.find(city => new RegExp(`(?:,|\\s)${city.replace(/ /g, '\\s+')}\\s*,?\\s*(?:oh)?\\s*\\d{0,5}$`, 'i').test(lowered));
     if (found) result.city = found.replace(/\b\w/g, char => char.toUpperCase());
@@ -60,13 +65,14 @@ function parseAddress(value, cityHint) {
 function classifyServiceArea(address, cityHint) {
   const parsed = parseAddress(address, cityHint);
   const city = String(parsed.city || '').trim().toLowerCase();
-  if (city === 'westlake') {
-    return { status: 'outside', city: parsed.city, reason: 'Westlake is outside the current service area.' };
+  if (city === 'cleveland') {
+    return { status: 'review', city: parsed.city, reason: 'Only the west side of Cleveland is served; confirm the property address before routing.' };
   }
   if (SUPPORTED_CITIES.has(city)) {
     return { status: 'inside', city: parsed.city, reason: 'Address is in the current service area.' };
   }
-  return { status: 'review', city: parsed.city, reason: city ? 'City needs a manual service-area check.' : 'City could not be confirmed from the address.' };
+  if (city) return { status: 'outside', city: parsed.city, reason: `${parsed.city} is outside the current service area.` };
+  return { status: 'review', city: parsed.city, reason: 'City could not be confirmed from the address.' };
 }
 
 function splitName(fullName) {

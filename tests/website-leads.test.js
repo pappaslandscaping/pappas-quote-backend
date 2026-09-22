@@ -22,8 +22,13 @@ describe('website lead integration helpers', () => {
     expect(matchCustomers(customers, { email: 'PERSON@example.com', phone: '' }).map(c => c.id)).toEqual([1]);
   });
 
-  test('treats Westlake city as outside without confusing Westlake Avenue in Lakewood', () => {
+  test('routes only the owner-confirmed cities automatically and holds Cleveland for review', () => {
+    expect(classifyServiceArea('123 Main St, Bay Village, OH 44140').status).toBe('inside');
+    expect(classifyServiceArea('123 Main St, Brook Park, OH 44142').status).toBe('inside');
     expect(classifyServiceArea('123 Main St, Westlake, OH 44145').status).toBe('outside');
+    expect(classifyServiceArea('123 Main St, Rocky River, OH 44116').status).toBe('outside');
+    expect(classifyServiceArea('123 Main St, Cleveland, OH 44113').status).toBe('review');
+    expect(classifyServiceArea('123 Main St, Cleveland Heights, OH 44118').status).toBe('outside');
     expect(classifyServiceArea('1283 Westlake Avenue, Lakewood, OH 44107').status).toBe('inside');
   });
 

@@ -2,6 +2,7 @@ const {
   fetchMobileCustomerSnapshot,
   fetchMobileCustomers,
   fetchMobileToday,
+  mapEstimate,
   normalizePhone,
 } = require('../services/homeworks/mobile-app');
 
@@ -10,6 +11,12 @@ const response = (data) => ({ ok: true, json: async () => ({ data }) });
 describe('TwilioConnect HomeWorks data', () => {
   test('normalizes US customer phone numbers', () => {
     expect(normalizePhone('+1 (440) 555-1212')).toBe('4405551212');
+  });
+
+  test('only exposes a customer estimate link after HomeWorks has sent the estimate', () => {
+    expect(mapEstimate({ id: 25, isSent: false }, 'portal-key').portalUrl).toBeNull();
+    expect(mapEstimate({ id: 25, isSent: true }, 'portal-key').portalUrl)
+      .toBe('https://secure.copilotcrm.com/client/estimates/view/25/portal-key');
   });
 
   test('maps the official customer directory contract', async () => {
@@ -62,6 +69,7 @@ describe('TwilioConnect HomeWorks data', () => {
       .mockResolvedValueOnce(response({ customers: [{
         id: 10,
         fullName: 'Jane Smith',
+        firstName: 'Jane',
         phone: '',
         cell: '(440) 555-1212',
         email: 'jane@example.com',
@@ -73,7 +81,9 @@ describe('TwilioConnect HomeWorks data', () => {
         address: {},
         properties: [],
         events: [{ id: 20, title: 'Mowing', startDate: '2026-09-21', status: 'OPEN', total: '55', property: {}, timeEntryTotals: { runningTimers: 1 } }],
-        estimates: [],
+        estimates: [
+          { id: 25, number: 1680, status: 'PENDING', total: '286.20', totalOwed: '286.20', isSent: true },
+        ],
         invoices: [
           { id: 30, number: 12001, status: 'PAST_DUE', total: '100', paidAmount: '20', daysPastDue: 5, isSent: true },
           { id: 31, number: 12000, status: 'PAID', total: '215.35', paidAmount: '215.35', daysPastDue: 21, isSent: true },
@@ -88,7 +98,13 @@ describe('TwilioConnect HomeWorks data', () => {
       phone: '+1 440-555-1212',
     });
     expect(snapshot.customer.id).toBe(10);
+    expect(snapshot.customer.firstName).toBe('Jane');
     expect(snapshot.jobs[0]).toMatchObject({ title: 'Mowing', runningTimers: 1 });
+    expect(snapshot.estimates[0]).toMatchObject({
+      number: 1680,
+      total: 286.2,
+      portalUrl: 'https://secure.copilotcrm.com/client/estimates/view/25/portal-key',
+    });
     expect(snapshot.invoices[0]).toMatchObject({ balance: 80, portalUrl: expect.stringContaining('/30/portal-key') });
     expect(snapshot.invoices[1]).toMatchObject({ total: 215.35, balance: 0, daysPastDue: 0, status: 'PAID' });
     expect(snapshot.homeWorksMessages).toHaveLength(1);

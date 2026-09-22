@@ -20,6 +20,7 @@ function mapCustomer(customer) {
   return {
     id: customer.id,
     name: customer.fullName || [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Unknown Customer',
+    firstName: customer.firstName || '',
     phone: customerPhone(customer),
     cell: customer.cell || '',
     email: customer.email || '',
@@ -124,6 +125,19 @@ function mapInvoice(invoice, portalKey) {
   };
 }
 
+function mapEstimate(estimate, portalKey) {
+  return {
+    ...estimate,
+    total: money(estimate.total),
+    totalOwed: money(estimate.totalOwed),
+    paidAmount: money(estimate.paidAmount),
+    depositOwed: money(estimate.depositOwed),
+    portalUrl: portalKey && estimate.isSent
+      ? `https://secure.copilotcrm.com/client/estimates/view/${estimate.id}/${portalKey}`
+      : null,
+  };
+}
+
 async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetch, customerId, phone }) {
   let resolvedCustomerId = customerId ? Number(customerId) : null;
   if (!resolvedCustomerId) {
@@ -206,7 +220,7 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
       lastServiceDate: property.lastServiceDate,
     })),
     jobs: (customer.events || []).map(mapEvent),
-    estimates: customer.estimates || [],
+    estimates: (customer.estimates || []).map((estimate) => mapEstimate(estimate, customer.portalKey)),
     invoices: (customer.invoices || []).map((invoice) => mapInvoice(invoice, customer.portalKey)),
     payments: customer.payments || [],
     homeWorksMessages: smsData.smsMessages || [],
@@ -295,5 +309,6 @@ module.exports = {
   fetchMobileCustomers,
   fetchMobileToday,
   mapCustomer,
+  mapEstimate,
   normalizePhone,
 };

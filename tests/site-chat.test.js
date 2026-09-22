@@ -4,7 +4,7 @@ const createSiteChatRoutes = require('../routes/site-chat');
 
 
 function makePool() {
-  const state = { chat: null, messages: [] };
+  const state = { chat: null, messages: [], hourlyCount: 1 };
   return {
     state,
     async query(sql, args = []) {
@@ -12,6 +12,7 @@ function makePool() {
         state.chat = { id: args[0], hash: args[1], name: args[2], contact: args[3], status: 'open' };
         return { rows: [{ id: args[0] }] };
       }
+      if (sql.includes('COUNT(*) AS count FROM site_chats')) return { rows: [{ count: state.hourlyCount }] };
       if (sql.includes('INSERT INTO site_chat_messages')) {
         const row = { id: state.messages.length + 1, sender: sql.includes("'staff'") ? 'staff' : 'visitor', body: args[1], created_at: new Date() };
         state.messages.push(row);
@@ -102,5 +103,25 @@ test('business-hours chat sends one owner text with the private inbox link', asy
     expect(sms.messages.create).toHaveBeenCalledTimes(1);
     expect(sms.messages.create.mock.calls[0][0].body).toContain('live-chat.html?chat=' + data.id);
     expect(sms.messages.create.mock.calls[0][0].body).not.toContain(data.token);
+  });
+});
+
+test('global alert cap saves the chat without sending another text', async () => {
+  const pool = makePool();
+  pool.state.hourlyCount = 13;
+  const sms = { messages: { create: jest.fn() } };
+  const router = createSiteChatRoutes({
+    pool, twilioClient: sms, fromNumber: '+14408867318', ownerNumber: '+12165550000',
+    now: () => new Date('2026-09-22T14:00:00Z')
+  });
+  await withServer(router, async (base) => {
+    const response = await fetch(base + '/api/site-chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest', contact: 'guest@example.com', message: 'Help' })
+    });
+    expect(response.status).toBe(201);
+    expect((await response.json()).alerted).toBe(false);
+    expect(sms.messages.create).not.toHaveBeenCalled();
+    expect(pool.state.chat).not.toBeNull();
   });
 });

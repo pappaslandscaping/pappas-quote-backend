@@ -45,6 +45,7 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
     const name = clean(input.name, 80);
     const contact = clean(input.contact, 160);
     const message = clean(input.message, MAX_MESSAGE);
+    if (input.website) return res.status(400).json({ success: false, error: 'Chat could not be started.' });
     if (!name || !message || String(input.message || '').length > MAX_MESSAGE) {
       return res.status(400).json({ success: false, error: 'Please enter your name and message.' });
     }
@@ -75,12 +76,15 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
       const afterHours = !isAlertHours(now());
       if (!afterHours && twilioClient && fromNumber && ownerNumber) {
         try {
-          await twilioClient.messages.create({
-            from: fromNumber,
-            to: ownerNumber,
-            body: `New website chat from ${name}. Reply in YardDesk: https://app.pappaslandscaping.com/live-chat.html?chat=${savedId}`,
-          });
-          alerted = true;
+          const hourly = await pool.query(`SELECT COUNT(*) AS count FROM site_chats WHERE created_at > NOW() - INTERVAL '1 hour'`);
+          if (Number(hourly.rows[0]?.count || 0) <= 12) {
+            await twilioClient.messages.create({
+              from: fromNumber,
+              to: ownerNumber,
+              body: `New website chat from ${name}. Reply in YardDesk: https://app.pappaslandscaping.com/live-chat.html?chat=${savedId}`,
+            });
+            alerted = true;
+          }
         } catch (error) {
           console.error('Website chat alert failed:', error);
         }

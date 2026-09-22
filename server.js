@@ -635,6 +635,13 @@ const publicApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const siteChatCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { success: false, error: 'Too many chat requests. Please call us at (440) 886-7318.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -646,7 +653,10 @@ const paymentLimiter = rateLimit({
 // Apply rate limiters to public-facing routes
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/quotes', publicApiLimiter);
-app.use('/api/site-chat', (req, res, next) => req.method === 'POST' ? publicApiLimiter(req, res, next) : next());
+app.use('/api/site-chat', (req, res, next) => {
+  if (req.method !== 'POST') return next();
+  return req.path === '/' ? siteChatCreateLimiter(req, res, next) : publicApiLimiter(req, res, next);
+});
 app.use('/api/sign', publicApiLimiter);
 app.use('/api/pay', paymentLimiter);
 

@@ -477,6 +477,20 @@ const uploadPdf = multer({
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SLOW_APP_SCREENS = new Set([
+  '/api/app/homeworks/today', '/api/app/homeworks/customer-snapshot',
+  '/api/app/homeworks/customers', '/api/app/messages/conversations',
+  '/api/app/calls/recent', '/api/app/voicemails',
+]);
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || !SLOW_APP_SCREENS.has(req.path)) return next();
+  const startedAt = process.hrtime.bigint();
+  res.once('finish', () => {
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    if (elapsedMs >= 750) console.info(`[TwilioConnect] slow ${req.path} ${res.statusCode} ${Math.round(elapsedMs)}ms`);
+  });
+  next();
+});
 
 // Trust first proxy (Railway terminates SSL at proxy, forwards X-Forwarded-For)
 // Required for express-rate-limit to read real client IPs instead of proxy IP
@@ -7111,7 +7125,7 @@ app.get('/api/app/messages/unread-count', authenticateToken, async (req, res) =>
     `);
     res.json({ count: parseInt(result.rows[0].count) });
   } catch (error) {
-    res.status(500).json({ count: 0 });
+    res.status(503).json({ error: 'Unread message count unavailable' });
   }
 });
 
@@ -12202,6 +12216,8 @@ app.all('/api/voice/twiml', (req, res) => {
 // ─── Voicemails (proxy to webhook server) ─────────────────────────────────────
 
 const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
+const { createAppVoicemailBadgeRoutes } = require('./routes/app-voicemail-badge');
+app.use(createAppVoicemailBadgeRoutes({ authenticateToken, webhookBase: WEBHOOK_BASE }));
 
 let voicemailIntakeRunning = false;
 async function scanNewVoicemails() {

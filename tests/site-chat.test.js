@@ -2,36 +2,42 @@ const express = require('express');
 const crypto = require('crypto');
 const createSiteChatRoutes = require('../routes/site-chat');
 
-
 function makePool() {
-  const state = { chat: null, messages: [], hourlyCount: 1 };
+  const state = { chat: null, messages: [], hourlyCount: 0 };
   return {
     state,
     async query(sql, args = []) {
       if (sql.includes('INSERT INTO site_chats')) {
-        state.chat = { id: args[0], hash: args[1], name: args[2], contact: args[3], status: 'open' };
+        state.chat = { id: args[0], hash: args[1], name: args[2], contact: args[3], mode: args[4], status: 'open', alerted_at: null };
         return { rows: [{ id: args[0] }] };
       }
       if (sql.includes('COUNT(*) AS count FROM site_chats')) return { rows: [{ count: state.hourlyCount }] };
       if (sql.includes('INSERT INTO site_chat_messages')) {
-        const row = { id: state.messages.length + 1, sender: sql.includes("'staff'") ? 'staff' : 'visitor', body: args[1], created_at: new Date() };
+        const sender = sql.includes("'staff'") ? 'staff' : sql.includes("'visitor'") ? 'visitor' : args[1];
+        const row = { id: state.messages.length + 1, sender, body: args[sender === args[1] ? 2 : 1], created_at: new Date() };
         state.messages.push(row);
         return { rows: [row] };
       }
       if (sql.includes('visitor_token_hash')) {
-        return { rows: state.chat && args[0] === state.chat.id && args[1] === state.chat.hash ? [{ id: state.chat.id, status: state.chat.status }] : [] };
+        return { rows: state.chat && args[0] === state.chat.id && args[1] === state.chat.hash ? [{ id: state.chat.id, status: state.chat.status, mode: state.chat.mode, alerted_at: state.chat.alerted_at }] : [] };
       }
       if (sql.includes('FROM site_chat_messages')) return { rows: state.messages };
-      if (sql.includes('UPDATE site_chats')) return { rows: [{ id: state.chat.id }] };
+      if (sql.includes('UPDATE site_chats')) {
+        if (sql.includes('alerted_at = NOW()')) state.chat.alerted_at = new Date();
+        if (sql.includes("mode = 'human'")) state.chat.mode = 'human';
+        if (sql.includes('visitor_name = $2')) { state.chat.name = args[1]; state.chat.contact = args[2]; }
+        return { rows: [{ id: state.chat.id }] };
+      }
       if (sql.includes('FROM site_chats')) return { rows: state.chat ? [state.chat] : [] };
       throw new Error('Unexpected SQL: ' + sql);
     }
   };
 }
 
-async function withServer(router, run) {
+async function withServer(router, run, staff = false) {
   const app = express();
   app.use(express.json());
+  if (staff) app.use((req, _res, next) => { req.user = { isAdmin: true, isEmployee: false }; next(); });
   app.use(router);
   const server = app.listen(0);
   try { return await run(`http://127.0.0.1:${server.address().port}`); }
@@ -124,4 +130,65 @@ test('global alert cap saves the chat without sending another text', async () =>
     expect(sms.messages.create).not.toHaveBeenCalled();
     expect(pool.state.chat).not.toBeNull();
   });
+});
+
+test('AI conversations are saved, alert once, and can hand off in the same thread', async () => {
+  const pool = makePool();
+  const sms = { messages: { create: jest.fn().mockResolvedValue({ sid: 'SMtest' }) } };
+  const router = createSiteChatRoutes({
+    pool, twilioClient: sms, fromNumber: '+14408867318', ownerNumber: '+12165550000',
+    now: () => new Date('2026-09-22T14:00:00Z')
+  });
+  await withServer(router, async (base) => {
+    const started = await fetch(base + '/api/site-chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'assistant', message: 'What does fall cleanup include?' })
+    });
+    expect(started.status).toBe(201);
+    const session = await started.json();
+    expect(session.mode).toBe('assistant');
+    expect(session.alerted).toBe(true);
+    expect(sms.messages.create).toHaveBeenCalledTimes(1);
+    const headers = { 'content-type': 'application/json', 'x-chat-token': session.token };
+    const aiReply = await fetch(base + '/api/site-chat/' + session.id + '/messages', {
+      method: 'POST', headers, body: JSON.stringify({ sender: 'assistant', message: 'We remove leaves and debris.' })
+    });
+    expect(aiReply.status).toBe(201);
+    const handedOff = await fetch(base + '/api/site-chat/' + session.id + '/handoff', {
+      method: 'POST', headers,
+      body: JSON.stringify({ name: 'Guest', contact: 'guest@example.com', message: 'Please have someone follow up.' })
+    });
+    expect(handedOff.status).toBe(200);
+    expect((await handedOff.json()).alreadyAlerted).toBe(true);
+    expect(sms.messages.create).toHaveBeenCalledTimes(1);
+    const transcript = await fetch(base + '/api/site-chat/' + session.id, { headers });
+    const body = await transcript.json();
+    expect(body.mode).toBe('human');
+    expect(body.messages.map((item) => item.sender)).toEqual(['visitor', 'assistant', 'visitor']);
+    const rejectedAi = await fetch(base + '/api/site-chat/' + session.id + '/messages', {
+      method: 'POST', headers, body: JSON.stringify({ sender: 'assistant', message: 'Should not be allowed' })
+    });
+    expect(rejectedAi.status).toBe(409);
+  });
+});
+
+test('staff can join an AI chat and future assistant messages stop', async () => {
+  const pool = makePool();
+  const router = createSiteChatRoutes({ pool, now: () => new Date('2026-09-27T16:00:00Z') });
+  await withServer(router, async (base) => {
+    const created = await fetch(base + '/api/site-chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'assistant', message: 'Can you help?' })
+    });
+    const session = await created.json();
+    const staffReply = await fetch(base + '/api/site-chat-staff/' + session.id + '/messages', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Yes, how can I help?' })
+    });
+    expect(staffReply.status).toBe(201);
+    const transcript = await fetch(base + '/api/site-chat/' + session.id, { headers: { 'x-chat-token': session.token } });
+    const data = await transcript.json();
+    expect(data.mode).toBe('human');
+    expect(data.messages.map((item) => item.sender)).toEqual(['visitor', 'staff']);
+  }, true);
 });

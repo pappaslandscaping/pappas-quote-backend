@@ -35,7 +35,7 @@
 <body>
   <main class="main" id="main"><div class="chat-page">
     <h1>Website Chat</h1>
-    <p>Visitors can leave a message any time. Text alerts arrive Monday–Friday 9 AM–6 PM and Saturday 9 AM–4 PM Eastern. Sunday is quiet. Keep this page open to see replies arrive.</p>
+    <p>All visitor chats appear here, including those answered by the AI. Text alerts arrive Monday–Friday 9 AM–6 PM and Saturday 9 AM–4 PM Eastern. Sunday is quiet. Keep this page open to see replies arrive.</p>
     <p id="chat-error" class="chat-error" role="alert" hidden></p>
     <div class="chat-layout">
       <div id="chat-list" class="chat-list" aria-label="Website conversations"></div>
@@ -71,7 +71,7 @@
           var button = document.createElement('button');
           button.type = 'button';
           button.className = chat.id === selected ? 'selected' : '';
-          var title = document.createElement('strong'); title.textContent = chat.visitor_name + (chat.status === 'closed' ? ' · Closed' : '');
+          var title = document.createElement('strong'); title.textContent = chat.visitor_name + (chat.mode === 'assistant' ? ' · AI chat' : ' · Team chat') + (chat.status === 'closed' ? ' · Closed' : '');
           var excerpt = document.createElement('span'); excerpt.textContent = chat.last_message || '';
           var time = document.createElement('small'); time.textContent = new Date(chat.updated_at).toLocaleString();
           button.append(title, excerpt, time);
@@ -85,7 +85,7 @@
       if (!selected) return;
       try {
         var data = await request('/api/site-chat-staff/' + selected);
-        document.getElementById('chat-name').textContent = data.chat.visitor_name + (data.chat.status === 'closed' ? ' · Closed' : '');
+        document.getElementById('chat-name').textContent = data.chat.visitor_name + (data.chat.mode === 'assistant' ? ' · AI chat' : ' · Team chat') + (data.chat.status === 'closed' ? ' · Closed' : '');
         document.getElementById('chat-contact').textContent = data.chat.visitor_contact || 'No callback contact provided';
         document.getElementById('chat-close').hidden = data.chat.status !== 'open';
         reply.hidden = data.chat.status !== 'open';
@@ -94,7 +94,8 @@
         data.messages.forEach(function (item) {
           var bubble = document.createElement('div'); bubble.className = 'chat-bubble ' + item.sender; bubble.dataset.id = item.id;
           bubble.textContent = item.body;
-          var stamp = document.createElement('small'); stamp.textContent = (item.sender === 'staff' ? 'You · ' : 'Visitor · ') + new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          var label = item.sender === 'staff' ? 'You' : item.sender === 'assistant' ? 'AI assistant' : 'Visitor';
+          var stamp = document.createElement('small'); stamp.textContent = label + ' · ' + new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
           bubble.appendChild(stamp); messages.appendChild(bubble);
         });
         if (!oldLast || (messages.lastElementChild && messages.lastElementChild.dataset.id !== oldLast)) messages.scrollTop = messages.scrollHeight;

@@ -712,7 +712,7 @@ const PUBLIC_ROUTE_METHODS = {
 };
 
 function isPublicRoute(method, path) {
-  if (/^\/api\/site-chat\/[a-f0-9-]{36}(?:\/messages)?$/.test(path) && ['GET', 'POST', 'OPTIONS'].includes(method)) return true;
+  if (/^\/api\/site-chat\/[a-f0-9-]{36}(?:\/(?:messages|handoff))?$/.test(path) && ['GET', 'POST', 'OPTIONS'].includes(method)) return true;
   // Exact match
   if (PUBLIC_ROUTE_EXACT.has(path)) return true;
 

@@ -78,6 +78,7 @@ const {
   reviewAddressServiceArea,
   extractAddressLead,
 } = require('./lib/service-area-auto-reply');
+const { guardAppAiReply } = require('./lib/app-ai-reply-guard');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -5613,7 +5614,9 @@ app.post('/api/app/ai/analyze-conversation', authenticateToken, async (req, res)
       }
     });
     const data = response.json;
-    const explicitZip = extractExplicitZip(data.zip || customer?.postal_code || conversation);
+    const explicitZip = extractExplicitZip(data.zip, { allowBare: true })
+      || extractExplicitZip(customer?.postal_code, { allowBare: true })
+      || extractExplicitZip(conversation);
     let serviceAreaStatus = explicitZip ? (SERVICE_AREA_ZIPS.has(explicitZip) ? 'in_area' : 'out_of_area') : 'unknown';
     if (!explicitZip && data.address) {
       const review = await reviewAddressServiceArea(data.address);
@@ -5658,7 +5661,8 @@ app.post('/api/app/ai/analyze-voicemail', authenticateToken, async (req, res) =>
       maxOutputTokens: 600
     });
     const data = response.json;
-    const explicitZip = extractExplicitZip(data.zip || transcription);
+    const explicitZip = extractExplicitZip(data.zip, { allowBare: true })
+      || extractExplicitZip(transcription);
     let serviceAreaStatus = explicitZip ? (SERVICE_AREA_ZIPS.has(explicitZip) ? 'in_area' : 'out_of_area') : 'unknown';
     if (!explicitZip && data.address) {
       const review = await reviewAddressServiceArea(data.address);
@@ -5802,7 +5806,8 @@ app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) =
     const dedupeByTypeAndPhone = (items) => Array.from(new Map(items.map((item) => [`${item.task_type}:${item.phone_number || item.title}`, item])).values());
     const taskRows = taskResult.rows;
     const messageCandidates = messageResult.rows.filter((item) => {
-      const zip = extractExplicitZip(item.metadata?.zip || item.details || '');
+      const zip = extractExplicitZip(item.metadata?.zip, { allowBare: true })
+        || extractExplicitZip(item.details || '');
       if (zip && !SERVICE_AREA_ZIPS.has(zip)) return false;
       item.metadata = { ...(item.metadata || {}), serviceAreaStatus: zip ? 'in_area' : 'needs_review', zip: zip || null };
       return true;
@@ -5871,7 +5876,7 @@ Customer name: ${contactName || 'Unknown'}
 Recent conversation:
 ${conversationContext}
 
-Write a short, friendly, professional text message reply as Tim. Keep it under 300 characters. Be helpful and personable — this is a small local business. Don't use emojis excessively. Just return the message text, nothing else.`;
+Write a short, friendly, professional text message reply as Tim. Keep it under 300 characters. Be helpful and personable — this is a small local business. Don't use emojis excessively. Do not promise an estimate, quote, visit, or callback by a specific date or time; staff must confirm availability first. Do not decide that a property is outside our service area based on an address or house number in the texts. If an earlier reply was mistaken, acknowledge the mix-up and say the team will verify the details. Just return the message text, nothing else.`;
 
     const refinementText = formatAppAiRefinements(refinements);
     const suggestion = await generateAppAiText({
@@ -5882,7 +5887,7 @@ Write a short, friendly, professional text message reply as Tim. Keep it under 3
       ].filter(Boolean).join('\n\n') || 'Draft the reply now.',
       maxOutputTokens: 256
     });
-    res.json({ success: true, suggestion });
+    res.json({ success: true, ...guardAppAiReply(suggestion) });
   } catch (error) {
     console.error('AI reply error:', error);
     serverError(res, error, 'AI reply generation failed');

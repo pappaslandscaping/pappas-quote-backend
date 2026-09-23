@@ -113,7 +113,29 @@ test('business-hours chat sends one owner text with the private inbox link', asy
     expect(data.alerted).toBe(true);
     expect(sms.messages.create).toHaveBeenCalledTimes(1);
     expect(sms.messages.create.mock.calls[0][0].body).toContain('live-chat.html?chat=' + data.id);
+    expect(sms.messages.create.mock.calls[0][0].body).toContain('Message: Help');
     expect(sms.messages.create.mock.calls[0][0].body).not.toContain(data.token);
+  });
+});
+
+test('text alert includes a short, single-line preview of the visitor message', async () => {
+  const pool = makePool();
+  const sms = { messages: { create: jest.fn().mockResolvedValue({ sid: 'SMtest' }) } };
+  const router = createSiteChatRoutes({
+    pool, twilioClient: sms, fromNumber: '+14408867318', ownerNumber: '+12165550000',
+    now: () => new Date('2026-09-22T14:00:00Z')
+  });
+  const message = 'Can you help with leaves?\n  ' + 'More details '.repeat(20);
+  await withServer(router, async (base) => {
+    const response = await fetch(base + '/api/site-chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest', contact: 'guest@example.com', message })
+    });
+    expect(response.status).toBe(201);
+    const text = sms.messages.create.mock.calls[0][0].body;
+    expect(text).toContain('Message: Can you help with leaves? More details');
+    expect(text).toContain('...\nReply in YardDesk:');
+    expect(text).not.toContain('\n  More details');
   });
 });
 

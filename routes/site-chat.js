@@ -55,16 +55,19 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
     return { chat: existing.rows[0] || null, joined: false };
   }
 
-  async function alertOwner(id, name) {
+  async function alertOwner(id, name, message) {
     const afterHours = !isAlertHours(now());
     if (afterHours || !twilioClient || !fromNumber || !ownerNumber) return { alerted: false, afterHours };
     try {
       const hourly = await pool.query(`SELECT COUNT(*) AS count FROM site_chats WHERE alerted_at > NOW() - INTERVAL '1 hour'`);
       if (Number(hourly.rows[0]?.count || 0) >= 12) return { alerted: false, afterHours };
+      const normalized = String(message || '').replace(/\s+/g, ' ').trim();
+      const characters = Array.from(normalized);
+      const preview = characters.slice(0, 120).join('') + (characters.length > 120 ? '...' : '');
       await twilioClient.messages.create({
         from: fromNumber,
         to: ownerNumber,
-        body: `New website chat from ${name}. Reply in YardDesk: https://app.pappaslandscaping.com/live-chat.html?chat=${id}`,
+        body: `New website chat from ${name}.\nMessage: ${preview}\nReply in YardDesk: https://app.pappaslandscaping.com/live-chat.html?chat=${id}`,
       });
       await pool.query(`UPDATE site_chats SET alerted_at = NOW() WHERE id = $1`, [id]);
       return { alerted: true, afterHours };
@@ -107,7 +110,7 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
         `INSERT INTO site_chat_messages (chat_id, sender, body) VALUES ($1, 'visitor', $2) RETURNING id`,
         [savedId, message]
       );
-      const alert = await alertOwner(savedId, name);
+      const alert = await alertOwner(savedId, name, message);
       return res.status(201).json({ success: true, id: savedId, token, mode, messageId: firstMessage.rows[0].id, ...alert, pollSeconds: 5 });
     } catch (error) {
       console.error('Website chat creation failed:', error);
@@ -174,7 +177,7 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
         [chat.id, name, contact]
       );
       const handoffMessage = await pool.query(`INSERT INTO site_chat_messages (chat_id, sender, body) VALUES ($1, 'visitor', $2) RETURNING id`, [chat.id, message]);
-      const alert = chat.alerted_at ? { alerted: false, afterHours: !isAlertHours(now()) } : await alertOwner(chat.id, name);
+      const alert = chat.alerted_at ? { alerted: false, afterHours: !isAlertHours(now()) } : await alertOwner(chat.id, name, message);
       return res.json({ success: true, mode: 'human', messageId: handoffMessage.rows[0].id, alreadyAlerted: Boolean(chat.alerted_at), ...alert });
     } catch (error) {
       console.error('Website chat handoff failed:', error);

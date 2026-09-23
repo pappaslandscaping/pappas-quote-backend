@@ -79,6 +79,7 @@ const {
   extractAddressLead,
 } = require('./lib/service-area-auto-reply');
 const { guardAppAiReply } = require('./lib/app-ai-reply-guard');
+const { normalizeTwilioCallDirection, isMissedInboundCall } = require('./lib/twilio-call-classification');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -4929,18 +4930,19 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
     // Fetch extra to account for client: calls that get filtered out
     const calls = await twilioClient.calls.list({ limit: Math.min(limit * 3, 200) });
     const enrichedCalls = (await Promise.all(calls.map(async (call) => {
-      const phoneNumber = call.direction === 'inbound' ? call.from : call.to;
+      const direction = normalizeTwilioCallDirection(call.direction);
+      const phoneNumber = direction === 'inbound' ? call.from : direction === 'outbound' ? call.to : null;
       // Skip calls to/from client: identities (IVR app forwarding legs)
-      if (phoneNumber.startsWith('client:') || call.from.startsWith('client:') || call.to.startsWith('client:')) return null;
+      if (!phoneNumber || String(phoneNumber).startsWith('client:') || String(call.from || '').startsWith('client:') || String(call.to || '').startsWith('client:')) return null;
       const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
       const contactName = matchedCustomer?.name || null;
-      const twilioNumber = call.direction === 'inbound' ? call.to : call.from;
-      return { id: call.sid, phoneNumber, twilioNumber, direction: call.direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
+      const twilioNumber = direction === 'inbound' ? call.to : call.from;
+      return { id: call.sid, phoneNumber, twilioNumber, direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
     }))).filter(Boolean).slice(0, limit);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayCalls = enrichedCalls.filter(c => new Date(c.timestamp) >= today).length;
-    const missedCalls = enrichedCalls.filter(c => c.status === 'no-answer' || c.status === 'busy' || c.status === 'canceled').length;
-    for (const call of enrichedCalls.filter((item) => item.direction === 'inbound' && (!item.duration || item.status !== 'completed'))) {
+    const missedCalls = enrichedCalls.filter(isMissedInboundCall).length;
+    for (const call of enrichedCalls.filter(isMissedInboundCall)) {
       await pool.query(`
         INSERT INTO app_ai_tasks (title, details, priority, task_type, source_type, source_id, phone_number, dedupe_key, metadata, created_by)
         VALUES ($1,$2,'high','callback','call',$3,$4,$5,$6::jsonb,'System') ON CONFLICT (dedupe_key) DO NOTHING
@@ -4960,7 +4962,9 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
   try {
     const calls = await twilioClient.calls.list({ limit: 100 });
     const enrichedCalls = await Promise.all(calls.map(async (call) => {
-      const phoneNumber = call.direction === 'inbound' ? call.from : call.to;
+      const direction = normalizeTwilioCallDirection(call.direction);
+      const phoneNumber = direction === 'inbound' ? call.from : direction === 'outbound' ? call.to : null;
+      if (!phoneNumber || String(phoneNumber).startsWith('client:')) return null;
       const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
       const contactName = matchedCustomer?.name || null;
       
@@ -4968,7 +4972,7 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
       return { 
         id: call.sid, 
         phoneNumber, 
-        direction: call.direction, 
+        direction,
         status: call.status, 
         duration: parseInt(call.duration) || 0, 
         timestamp: call.startTime, 
@@ -4977,7 +4981,7 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
         to_number: call.to       // The destination number
       };
     }));
-    res.json({ calls: enrichedCalls });
+    res.json({ calls: enrichedCalls.filter(Boolean) });
   } catch (error) {
     console.error('Call history error:', error);
     res.status(500).json({ message: 'Failed to fetch call history', calls: [] });
@@ -5014,8 +5018,8 @@ app.post('/api/app/calls/status-callback', async (req, res) => {
 
   const finalStatus = String(DialCallStatus || CallStatus || '').toLowerCase();
   const finalCallStatuses = new Set(['completed', 'busy', 'no-answer', 'failed', 'canceled']);
-  const normalizedDirection = String(Direction || '').toLowerCase().includes('inbound') ? 'inbound' : 'outbound';
-  const remotePhone = normalizedDirection === 'inbound' ? From : To;
+  const normalizedDirection = normalizeTwilioCallDirection(Direction);
+  const remotePhone = normalizedDirection === 'inbound' ? From : normalizedDirection === 'outbound' ? To : null;
   const syncSourceId = CallSid;
 
   try {

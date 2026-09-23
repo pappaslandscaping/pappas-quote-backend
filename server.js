@@ -3105,6 +3105,14 @@ app.use(createSiteChatRoutes({
   recaptchaRequired: Boolean(RECAPTCHA_SECRET_KEY),
 }));
 
+const { createWeeklyChatReporter } = require('./lib/site-chat-weekly-report');
+const weeklyChatReporter = createWeeklyChatReporter({
+  pool,
+  apiKey: RESEND_API_KEY,
+  from: FROM_EMAIL,
+  to: process.env.SITE_CHAT_REPORT_EMAIL || NOTIFICATION_EMAIL,
+});
+
 const { createTrustedAssistantRoutes } = require('./routes/app-ai-trusted');
 app.use(createTrustedAssistantRoutes({
   pool, authenticateToken, serverError, generateAppAiText,
@@ -15753,7 +15761,7 @@ app.get('*', (req, res) => {
 // ═══════════════════════════════════════════════════════════
 // STARTUP TABLE INITIALIZATION — delegated to lib/startup-schema.js
 // ═══════════════════════════════════════════════════════════
-runStartupTableInit(pool);
+runStartupTableInit(pool).then(() => weeklyChatReporter.startScheduler());
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

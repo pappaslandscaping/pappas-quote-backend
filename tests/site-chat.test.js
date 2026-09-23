@@ -8,21 +8,26 @@ function makePool() {
     state,
     async query(sql, args = []) {
       if (sql.includes('INSERT INTO site_chats')) {
-        state.chat = { id: args[0], hash: args[1], name: args[2], contact: args[3], mode: args[4], status: 'open', alerted_at: null };
+        state.chat = { id: args[0], hash: args[1], name: args[2], contact: args[3], mode: args[4], status: 'open', alerted_at: null, joined_by: null, joined_at: null };
         return { rows: [{ id: args[0] }] };
       }
       if (sql.includes('COUNT(*) AS count FROM site_chats')) return { rows: [{ count: state.hourlyCount }] };
       if (sql.includes('INSERT INTO site_chat_messages')) {
         const sender = sql.includes("'staff'") ? 'staff' : sql.includes("'visitor'") ? 'visitor' : args[1];
-        const row = { id: state.messages.length + 1, sender, body: args[sender === args[1] ? 2 : 1], created_at: new Date() };
+        const row = { id: state.messages.length + 1, sender, body: args[sender === args[1] ? 2 : 1], staff_name: sender === 'staff' ? args[2] : null, created_at: new Date() };
         state.messages.push(row);
         return { rows: [row] };
       }
       if (sql.includes('visitor_token_hash')) {
-        return { rows: state.chat && args[0] === state.chat.id && args[1] === state.chat.hash ? [{ id: state.chat.id, status: state.chat.status, mode: state.chat.mode, alerted_at: state.chat.alerted_at }] : [] };
+        return { rows: state.chat && args[0] === state.chat.id && args[1] === state.chat.hash ? [{ id: state.chat.id, status: state.chat.status, mode: state.chat.mode, alerted_at: state.chat.alerted_at, joined_by: state.chat.joined_by, joined_at: state.chat.joined_at }] : [] };
       }
       if (sql.includes('FROM site_chat_messages')) return { rows: state.messages };
       if (sql.includes('UPDATE site_chats')) {
+        if (sql.includes('joined_by = $2')) {
+          if (!state.chat || state.chat.status !== 'open' || state.chat.joined_at) return { rows: [] };
+          state.chat.joined_by = args[1]; state.chat.joined_at = new Date(); state.chat.mode = 'human';
+          return { rows: [state.chat] };
+        }
         if (sql.includes('alerted_at = NOW()')) state.chat.alerted_at = new Date();
         if (sql.includes("mode = 'human'")) state.chat.mode = 'human';
         if (sql.includes('visitor_name = $2')) { state.chat.name = args[1]; state.chat.contact = args[2]; }
@@ -37,7 +42,7 @@ function makePool() {
 async function withServer(router, run, staff = false) {
   const app = express();
   app.use(express.json());
-  if (staff) app.use((req, _res, next) => { req.user = { isAdmin: true, isEmployee: false }; next(); });
+  if (staff) app.use((req, _res, next) => { req.user = { isAdmin: true, isEmployee: false, name: 'Theresa Pappas' }; next(); });
   app.use(router);
   const server = app.listen(0);
   try { return await run(`http://127.0.0.1:${server.address().port}`); }
@@ -190,5 +195,31 @@ test('staff can join an AI chat and future assistant messages stop', async () =>
     const data = await transcript.json();
     expect(data.mode).toBe('human');
     expect(data.messages.map((item) => item.sender)).toEqual(['visitor', 'staff']);
+  }, true);
+});
+
+test('opening a chat records Theresa joining once and names her replies', async () => {
+  const pool = makePool();
+  const router = createSiteChatRoutes({ pool, now: () => new Date('2026-09-27T16:00:00Z') });
+  await withServer(router, async (base) => {
+    const created = await fetch(base + '/api/site-chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'assistant', message: 'Can someone help?' })
+    });
+    const session = await created.json();
+    const joined = await fetch(base + '/api/site-chat-staff/' + session.id + '/join', { method: 'POST' });
+    expect((await joined.json()).joined).toBe(true);
+    const reopened = await fetch(base + '/api/site-chat-staff/' + session.id + '/join', { method: 'POST' });
+    expect((await reopened.json()).joined).toBe(false);
+    const reply = await fetch(base + '/api/site-chat-staff/' + session.id + '/messages', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'Hi, I can help.' })
+    });
+    expect(reply.status).toBe(201);
+    const transcript = await fetch(base + '/api/site-chat/' + session.id, { headers: { 'x-chat-token': session.token } });
+    const data = await transcript.json();
+    expect(data.mode).toBe('human');
+    expect(data.joinedBy).toBe('Theresa');
+    expect(data.joinedAt).toBeTruthy();
+    expect(data.messages[1].staff_name).toBe('Theresa');
   }, true);
 });

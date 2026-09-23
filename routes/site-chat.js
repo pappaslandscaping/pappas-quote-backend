@@ -32,12 +32,27 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
       return null;
     }
     const result = await pool.query(
-      `SELECT id, status, mode, alerted_at FROM site_chats WHERE id = $1 AND visitor_token_hash = $2
+      `SELECT id, status, mode, alerted_at, joined_by, joined_at FROM site_chats WHERE id = $1 AND visitor_token_hash = $2
        AND created_at > NOW() - INTERVAL '7 days'`,
       [req.params.id, tokenHash(token)]
     );
     if (!result.rows[0]) res.status(404).json({ success: false, error: 'Chat not found' });
     return result.rows[0] || null;
+  }
+
+  function staffName(req) {
+    return clean(req.user?.name, 80).split(/\s+/)[0] || 'Team member';
+  }
+
+  async function joinStaffChat(id, name) {
+    const joined = await pool.query(
+      `UPDATE site_chats SET joined_by = $2, joined_at = NOW(), mode = 'human', updated_at = NOW()
+       WHERE id = $1 AND status = 'open' AND joined_at IS NULL
+       RETURNING id, status, joined_by, joined_at`, [id, name]
+    );
+    if (joined.rows[0]) return { chat: joined.rows[0], joined: true };
+    const existing = await pool.query(`SELECT id, status, joined_by, joined_at FROM site_chats WHERE id = $1`, [id]);
+    return { chat: existing.rows[0] || null, joined: false };
   }
 
   async function alertOwner(id, name) {
@@ -105,11 +120,11 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
       const chat = await findVisitorChat(req, res);
       if (!chat) return;
       const result = await pool.query(
-        `SELECT id, sender, body, created_at FROM site_chat_messages
+        `SELECT id, sender, body, staff_name, created_at FROM site_chat_messages
          WHERE chat_id = $1 ORDER BY id ASC LIMIT 200`, [chat.id]
       );
       res.set('Cache-Control', 'no-store');
-      return res.json({ success: true, status: chat.status, mode: chat.mode, messages: result.rows });
+      return res.json({ success: true, status: chat.status, mode: chat.mode, joinedBy: chat.joined_by, joinedAt: chat.joined_at, messages: result.rows });
     } catch (error) {
       console.error('Website chat read failed:', error);
       return res.status(500).json({ success: false, error: 'Chat unavailable.' });
@@ -175,6 +190,18 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
   }
   router.use('/api/site-chat-staff', staffOnly);
 
+  router.post('/api/site-chat-staff/:id/join', async (req, res) => {
+    if (!validId(req.params.id)) return res.status(404).json({ success: false, error: 'Chat not found' });
+    try {
+      const result = await joinStaffChat(req.params.id, staffName(req));
+      if (!result.chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+      return res.json({ success: true, joined: result.joined, joinedBy: result.chat.joined_by, joinedAt: result.chat.joined_at });
+    } catch (error) {
+      console.error('Staff chat join failed:', error);
+      return res.status(500).json({ success: false, error: 'Chat could not be opened.' });
+    }
+  });
+
   router.get('/api/site-chat-staff', async (_req, res) => {
     try {
       const result = await pool.query(
@@ -195,10 +222,10 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
   router.get('/api/site-chat-staff/:id', async (req, res) => {
     if (!validId(req.params.id)) return res.status(404).json({ success: false, error: 'Chat not found' });
     try {
-      const chat = await pool.query(`SELECT id, visitor_name, visitor_contact, mode, status FROM site_chats WHERE id = $1`, [req.params.id]);
+      const chat = await pool.query(`SELECT id, visitor_name, visitor_contact, mode, status, joined_by, joined_at FROM site_chats WHERE id = $1`, [req.params.id]);
       if (!chat.rows[0]) return res.status(404).json({ success: false, error: 'Chat not found' });
       const messages = await pool.query(
-        `SELECT id, sender, body, created_at FROM site_chat_messages WHERE chat_id = $1 ORDER BY id ASC LIMIT 200`, [req.params.id]
+        `SELECT id, sender, body, staff_name, created_at FROM site_chat_messages WHERE chat_id = $1 ORDER BY id ASC LIMIT 200`, [req.params.id]
       );
       res.set('Cache-Control', 'no-store');
       return res.json({ success: true, chat: chat.rows[0], messages: messages.rows });
@@ -215,14 +242,14 @@ function createSiteChatRoutes({ pool, twilioClient, fromNumber, ownerNumber, ver
       return res.status(400).json({ success: false, error: 'Enter a message under 1200 characters.' });
     }
     try {
-      const chat = await pool.query(`SELECT status FROM site_chats WHERE id = $1`, [req.params.id]);
-      if (!chat.rows[0]) return res.status(404).json({ success: false, error: 'Chat not found' });
-      if (chat.rows[0].status !== 'open') return res.status(409).json({ success: false, error: 'This chat is closed.' });
+      const joined = await joinStaffChat(req.params.id, staffName(req));
+      if (!joined.chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+      if (joined.chat.status === 'closed') return res.status(409).json({ success: false, error: 'This chat is closed.' });
       const result = await pool.query(
-        `INSERT INTO site_chat_messages (chat_id, sender, body) VALUES ($1, 'staff', $2)
-         RETURNING id, sender, body, created_at`, [req.params.id, body]
+        `INSERT INTO site_chat_messages (chat_id, sender, body, staff_name) VALUES ($1, 'staff', $2, $3)
+         RETURNING id, sender, body, staff_name, created_at`, [req.params.id, body, staffName(req)]
       );
-      await pool.query(`UPDATE site_chats SET mode = 'human', updated_at = NOW() WHERE id = $1`, [req.params.id]);
+      await pool.query(`UPDATE site_chats SET updated_at = NOW() WHERE id = $1`, [req.params.id]);
       return res.status(201).json({ success: true, message: result.rows[0] });
     } catch (error) {
       console.error('Staff chat send failed:', error);

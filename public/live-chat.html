@@ -23,6 +23,7 @@
     .chat-bubble { max-width: 80%; width: fit-content; margin: 0 0 12px; padding: 10px 13px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: #e9f0e4; }
     .chat-bubble.staff { margin-left: auto; background: #2e403d; color: white; }
     .chat-bubble small { display: block; margin-top: 4px; opacity: .72; }
+    .chat-join { margin: 10px 0 16px; color: #61736a; text-align: center; font-size: 13px; }
     .chat-reply { display: flex; gap: 8px; padding: 14px; border-top: 1px solid #e8eee5; }
     .chat-reply input { flex: 1; min-width: 0; padding: 11px; border: 1px solid #bbc9bb; border-radius: 8px; }
     .chat-reply button, .chat-detail header button { border: 0; border-radius: 8px; background: #2e403d; color: white; padding: 10px 14px; cursor: pointer; }
@@ -75,7 +76,7 @@
           var excerpt = document.createElement('span'); excerpt.textContent = chat.last_message || '';
           var time = document.createElement('small'); time.textContent = new Date(chat.updated_at).toLocaleString();
           button.append(title, excerpt, time);
-          button.onclick = function () { selected = chat.id; history.replaceState(null, '', '?chat=' + selected); refreshList(); refreshDetail(); };
+          button.onclick = function () { selected = chat.id; history.replaceState(null, '', '?chat=' + selected); openSelected(); };
           list.appendChild(button);
         });
         showError('');
@@ -91,16 +92,34 @@
         reply.hidden = data.chat.status !== 'open';
         var oldLast = messages.lastElementChild && messages.lastElementChild.dataset.id;
         messages.replaceChildren();
+        var joinPending = !!(data.chat.joined_by && data.chat.joined_at);
+        function showJoin() {
+          var notice = document.createElement('div');
+          notice.className = 'chat-join';
+          notice.textContent = data.chat.joined_by + ' joined the conversation';
+          notice.dataset.id = 'join-' + data.chat.joined_at;
+          messages.appendChild(notice);
+          joinPending = false;
+        }
         data.messages.forEach(function (item) {
+          if (joinPending && new Date(item.created_at) >= new Date(data.chat.joined_at)) showJoin();
           var bubble = document.createElement('div'); bubble.className = 'chat-bubble ' + item.sender; bubble.dataset.id = item.id;
           bubble.textContent = item.body;
-          var label = item.sender === 'staff' ? 'You' : item.sender === 'assistant' ? 'AI assistant' : 'Visitor';
+          var label = item.sender === 'staff' ? (item.staff_name || 'Team member') : item.sender === 'assistant' ? 'AI assistant' : 'Visitor';
           var stamp = document.createElement('small'); stamp.textContent = label + ' · ' + new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
           bubble.appendChild(stamp); messages.appendChild(bubble);
         });
+        if (joinPending) showJoin();
         if (!oldLast || (messages.lastElementChild && messages.lastElementChild.dataset.id !== oldLast)) messages.scrollTop = messages.scrollHeight;
         showError('');
       } catch (e) { showError(e.message); }
+    }
+    async function openSelected() {
+      if (!selected) return;
+      try { await request('/api/site-chat-staff/' + selected + '/join', { method: 'POST' }); }
+      catch (e) { showError(e.message); }
+      await refreshDetail();
+      await refreshList();
     }
     reply.addEventListener('submit', async function (event) {
       event.preventDefault();
@@ -115,7 +134,7 @@
       try { await request('/api/site-chat-staff/' + selected + '/close', { method: 'POST' }); await refreshDetail(); await refreshList(); }
       catch (e) { showError(e.message); }
     };
-    refreshList(); refreshDetail();
+    refreshList(); openSelected();
     setInterval(function () { if (!document.hidden) { refreshList(); refreshDetail(); } }, 5000);
   })();
   </script>

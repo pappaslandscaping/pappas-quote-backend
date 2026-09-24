@@ -13230,16 +13230,15 @@ app.post('/api/timeclock/parse-pdf', uploadPdf.single('pdf'), async (req, res) =
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
 
-    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-    const data = new Uint8Array(req.file.buffer);
-    const doc = await pdfjsLib.getDocument({ data, disableFontFace: true, useSystemFonts: true }).promise;
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: req.file.buffer, disableFontFace: true, useSystemFonts: true });
     let allText = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      allText += content.items.map(item => item.str).join(' ') + '\n';
+    try {
+      const content = await parser.getText({ pageJoiner: '' });
+      allText = content.text;
+    } finally {
+      await parser.destroy();
     }
-    doc.destroy();
 
     // Parse Jobber-style time tracking rows from extracted text
     // Format: "Mar 19, 2026   Camacho, Wilkyn   ,   7:48 am   7:05 pm   11 hrs. 17 min."

@@ -1644,7 +1644,7 @@ function generalRecipientSearchChanged() {
 }
 
 function customerTextPhone(customer) {
-    return customer.phone || customer.mobile || customer.mobile_phone || customer.cell_phone || '';
+    return [customer.mobile, customer.mobile_phone, customer.cell_phone, customer.phone].map(phone => String(phone || '').trim()).find(Boolean) || '';
 }
 
 async function findGeneralTextRecipients() {
@@ -2246,7 +2246,7 @@ async function loadCurrentCustomerContext(item) {
         const data = await res.json();
         const customers = data.customers || [];
         const phoneDigits = digitsOnly(item.from);
-        currentCustomerContext = customers.find(c => digitsOnly(c.phone || c.mobile || c.mobile_phone || c.cell_phone) === phoneDigits) || customers[0] || null;
+        return [customer.mobile, customer.mobile_phone, customer.cell_phone, customer.phone].map(phone => String(phone || '').trim()).find(Boolean) || '';
         if (currentCustomerContext && currentCustomerContext.email) {
             emailComposerState.to = currentCustomerContext.email;
         }

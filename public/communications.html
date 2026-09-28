@@ -2246,7 +2246,7 @@ async function loadCurrentCustomerContext(item) {
         const data = await res.json();
         const customers = data.customers || [];
         const phoneDigits = digitsOnly(item.from);
-        return [customer.mobile, customer.mobile_phone, customer.cell_phone, customer.phone].map(phone => String(phone || '').trim()).find(Boolean) || '';
+        
         if (currentCustomerContext && currentCustomerContext.email) {
             emailComposerState.to = currentCustomerContext.email;
         }

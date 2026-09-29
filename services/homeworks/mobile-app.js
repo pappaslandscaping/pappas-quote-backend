@@ -128,6 +128,8 @@ function mapInvoice(invoice, portalKey) {
 function mapEstimate(estimate, portalKey) {
   return {
     ...estimate,
+    hasTotal: estimate.total !== null && estimate.total !== undefined
+      && String(estimate.total).trim() !== '' && Number.isFinite(Number(estimate.total)),
     total: money(estimate.total),
     totalOwed: money(estimate.totalOwed),
     paidAmount: money(estimate.paidAmount),
@@ -135,6 +137,34 @@ function mapEstimate(estimate, portalKey) {
     portalUrl: portalKey && estimate.isSent
       ? `https://secure.copilotcrm.com/client/estimates/view/${estimate.id}/${portalKey}`
       : null,
+  };
+}
+
+async function fetchCustomerEstimatesForText({ pool, accessToken, fetchImpl = fetch, customerId }) {
+  const id = Number(customerId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('A valid HomeWorks customer is required');
+  const data = await queryHomeWorksGraphql({
+    pool,
+    accessToken,
+    fetchImpl,
+    operationName: 'YardDeskCustomerTextEstimates',
+    query: `query YardDeskCustomerTextEstimates($where: CustomerFilter) {
+      customers(where: $where, take: 1) {
+        id fullName firstName lastName phone cell portalKey
+        estimates(take: 100, orderBy: [{ date: desc }, { id: desc }]) {
+          id number date status title total totalOwed paidAmount depositOwed isSent sentEmail sentSms acceptedAt
+        }
+      }
+    }`,
+    variables: { where: customerWhere({ customerId: id }) },
+  });
+  const customer = (data.customers || []).find((row) => Number(row.id) === id);
+  if (!customer) return null;
+  return {
+    customer: mapCustomer(customer),
+    estimates: (customer.estimates || []).map((estimate) => mapEstimate(estimate, customer.portalKey)),
+    source: 'official_homeworks_graphql',
+    asOf: new Date().toISOString(),
   };
 }
 
@@ -305,6 +335,7 @@ async function fetchMobileToday({ pool, accessToken, fetchImpl = fetch, date }) 
 
 module.exports = {
   customerWhere,
+  fetchCustomerEstimatesForText,
   fetchMobileCustomerSnapshot,
   fetchMobileCustomers,
   fetchMobileToday,

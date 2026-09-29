@@ -1,6 +1,7 @@
 const express = require('express');
 const { queryHomeWorksGraphql } = require('../services/homeworks/client');
 const {
+  fetchCustomerEstimatesForText,
   fetchMobileCustomerSnapshot,
   fetchMobileCustomers,
   fetchMobileToday,
@@ -131,6 +132,20 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       res.json({ success: true, customers, summary: req.query.summary === '1', source: 'official_homeworks_graphql', asOf: new Date().toISOString() });
     } catch (error) {
       serverError(res, error, 'Failed to load HomeWorks customers');
+    }
+  });
+
+  router.get('/api/app/homeworks/customers/:customerId/text-estimates', authenticateToken, async (req, res) => {
+    try {
+      const customerId = Number(req.params.customerId);
+      if (!Number.isSafeInteger(customerId) || customerId <= 0) {
+        return res.status(400).json({ success: false, error: 'A valid HomeWorks customer is required' });
+      }
+      const result = await fetchCustomerEstimatesForText({ pool, customerId });
+      if (!result) return res.status(404).json({ success: false, error: 'HomeWorks customer not found' });
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      return serverError(res, error, 'Failed to load HomeWorks estimates');
     }
   });
 

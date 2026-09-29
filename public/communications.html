@@ -950,6 +950,13 @@
                     <label for="general-sms-recipient">Choose recipient</label>
                     <select class="email-select" id="general-sms-recipient" onchange="selectGeneralTextRecipient(this.value)"></select>
                 </div>
+                <div class="email-field" id="general-sms-estimate-wrap" style="display:none">
+                    <label for="general-sms-estimate">Choose HomeWorks estimate</label>
+                    <select class="email-select" id="general-sms-estimate" onchange="selectGeneralTextEstimate(this.value)">
+                        <option value="">Choose a sent estimate...</option>
+                    </select>
+                    <div class="email-inline-note" id="general-sms-estimate-note">Choose a HomeWorks customer to load their estimates.</div>
+                </div>
                 <div class="email-field">
                     <label for="general-sms-instructions">What do you want to say?</label>
                     <textarea class="email-textarea" id="general-sms-instructions" placeholder="For example: Let Pat know the crew will arrive around 10:30 tomorrow." oninput="generalTextChanged()"></textarea>
@@ -1164,6 +1171,10 @@ let smsTemplatesLoaded = false;
 let pendingInvoiceSmsTemplateId = '';
 let generalTextRecipients = [];
 let generalTextRecipient = null;
+let generalTextEstimates = [];
+let generalTextEstimate = null;
+let generalEstimateRequestId = 0;
+let generalRecipientRequestId = 0;
 
 // ─── Load ──────────────────────────────────────────────────────────────────
 async function loadFeed() {
@@ -1580,6 +1591,28 @@ function findSmsTemplate(templateId) {
     return smsTemplates.find(template => String(template.id) === String(templateId)) || null;
 }
 
+function selectedGeneralSmsTemplate() {
+    return findSmsTemplate(document.getElementById('general-sms-template').value);
+}
+
+function isEstimateSmsTemplate(template) {
+    return !!template && (String(template.category || '').toLowerCase() === 'estimates'
+        || /\{\{ESTIMATE_(?:NUMBER|TOTAL|LINK)\}\}/i.test(template.sms_body || ''));
+}
+
+function isTextableHomeWorksEstimate(estimate) {
+    if (!estimate?.id || !estimate.number || estimate.isSent !== true || estimate.hasTotal === false
+        || !Number.isFinite(Number(estimate.total))) return false;
+    if (['ACCEPTED', 'DECLINED', 'REJECTED', 'CANCELLED', 'CANCELED', 'EXPIRED'].includes(String(estimate.status || '').toUpperCase())) return false;
+    try {
+        const url = new URL(estimate.portalUrl);
+        return url.protocol === 'https:' && url.hostname === 'secure.copilotcrm.com'
+            && url.pathname.startsWith(`/client/estimates/view/${estimate.id}/`);
+    } catch (_) {
+        return false;
+    }
+}
+
 function renderSmsTemplate(templateBody, vars = {}) {
     const values = Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, value == null ? '' : String(value)]));
     return String(templateBody || '')
@@ -1592,7 +1625,7 @@ function basicSmsTemplateVars() {
     const name = generalTextRecipient?.name || '';
     return {
         customer_name: name,
-        customer_first_name: name.trim().split(/\s+/)[0] || '',
+        customer_first_name: generalTextRecipient?.firstName || name.trim().split(/\s+/)[0] || '',
         customer_phone: generalTextRecipient?.phone || '',
         company_name: 'Pappas & Co. Landscaping',
         company_phone: '440-886-7318',
@@ -1601,9 +1634,45 @@ function basicSmsTemplateVars() {
     };
 }
 
-async function applyGeneralSmsTemplate(templateId) {
-    const template = findSmsTemplate(templateId);
+function resetGeneralTextEstimate() {
+    generalEstimateRequestId += 1;
+    generalTextEstimates = [];
+    generalTextEstimate = null;
+    document.getElementById('general-sms-estimate').innerHTML = '<option value="">Choose a sent estimate...</option>';
+    document.getElementById('general-sms-estimate-note').textContent = 'Choose a HomeWorks customer to load their estimates.';
+}
+
+function renderGeneralTextTemplate() {
+    const template = selectedGeneralSmsTemplate();
     if (!template) return;
+    const body = document.getElementById('general-sms-body');
+    if (isEstimateSmsTemplate(template)) {
+        if (!generalTextRecipient?.homeworksId || !isTextableHomeWorksEstimate(generalTextEstimate)) {
+            body.value = '';
+            return;
+        }
+        const number = String(generalTextEstimate.number).trim();
+        body.value = renderSmsTemplate(template.sms_body, {
+            ...basicSmsTemplateVars(),
+            estimate_number: `estimate #${number}`,
+            estimate_total: Number(generalTextEstimate.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            estimate_link: generalTextEstimate.portalUrl,
+        });
+        return;
+    }
+    body.value = renderSmsTemplate(template.sms_body, basicSmsTemplateVars());
+}
+
+async function applyGeneralSmsTemplate(templateId) {
+    generalRecipientRequestId += 1;
+    const template = findSmsTemplate(templateId);
+    resetGeneralTextEstimate();
+    const estimateWrap = document.getElementById('general-sms-estimate-wrap');
+    estimateWrap.style.display = isEstimateSmsTemplate(template) ? '' : 'none';
+    if (!template) {
+        generalTextChanged();
+        return;
+    }
     const isInvoiceTemplate = String(template.category || '').toLowerCase() === 'invoices'
         || /\{\{?(?:INVOICE|CUSTOMER_ACCOUNT_BALANCE|INVOICES_LINKS)/i.test(template.sms_body || '');
     if (isInvoiceTemplate) {
@@ -1612,7 +1681,22 @@ async function applyGeneralSmsTemplate(templateId) {
         await openInvoiceTextComposer();
         return;
     }
-    document.getElementById('general-sms-body').value = renderSmsTemplate(template.sms_body, basicSmsTemplateVars());
+    if (isEstimateSmsTemplate(template)) {
+        document.getElementById('general-sms-purpose').value = 'quote';
+        document.getElementById('general-sms-body').value = '';
+        if (generalTextRecipient?.homeworksId) {
+            await loadGeneralTextEstimates();
+        } else {
+            generalTextRecipient = null;
+            document.getElementById('general-sms-results-wrap').style.display = 'none';
+            document.getElementById('general-sms-recipient-preview').innerHTML = '<strong>No recipient selected</strong>Find the customer in HomeWorks to choose an estimate.';
+            document.getElementById('general-sms-status').textContent = 'Find the HomeWorks customer, then choose the estimate to text.';
+            if (document.getElementById('general-sms-search').value.trim()) await findGeneralTextRecipients();
+        }
+        generalTextChanged();
+        return;
+    }
+    renderGeneralTextTemplate();
     document.getElementById('general-sms-status').textContent = generalTextRecipient
         ? 'Template applied. Review and edit it before sending.'
         : 'Template applied. Choose a customer to fill customer details.';
@@ -1631,15 +1715,20 @@ async function openGeneralTextComposer() {
 }
 
 function closeGeneralTextComposer() {
+    generalRecipientRequestId += 1;
+    generalEstimateRequestId += 1;
     document.getElementById('general-sms-modal').classList.remove('open');
     document.getElementById('general-sms-modal').setAttribute('aria-hidden', 'true');
 }
 
 function generalRecipientSearchChanged() {
+    generalRecipientRequestId += 1;
     generalTextRecipient = null;
     generalTextRecipients = [];
+    resetGeneralTextEstimate();
     document.getElementById('general-sms-results-wrap').style.display = 'none';
     document.getElementById('general-sms-recipient-preview').innerHTML = '<strong>No recipient selected</strong>Click Find or Use Number to confirm the recipient.';
+    if (isEstimateSmsTemplate(selectedGeneralSmsTemplate())) document.getElementById('general-sms-body').value = '';
     generalTextChanged();
 }
 
@@ -1648,15 +1737,17 @@ function customerTextPhone(customer) {
 }
 
 async function findGeneralTextRecipients() {
+    const requestId = ++generalRecipientRequestId;
     const query = document.getElementById('general-sms-search').value.trim();
     const status = document.getElementById('general-sms-status');
     if (!query) return alert('Enter a customer name or phone number.');
+    const estimateTemplate = isEstimateSmsTemplate(selectedGeneralSmsTemplate());
     const queryDigits = digitsOnly(query);
     const isStandalonePhone = queryDigits.length === 10 || (queryDigits.length === 11 && queryDigits.startsWith('1'));
 
     // A valid phone number can be used directly for a new lead or other one-time recipient.
     // It does not create or alter a customer record.
-    if (isStandalonePhone) {
+    if (isStandalonePhone && !estimateTemplate) {
         const phone = queryDigits.length === 11 ? queryDigits.slice(1) : queryDigits;
         generalTextRecipients = [{ name: 'One-time recipient', phone, isOneTime: true }];
         const select = document.getElementById('general-sms-recipient');
@@ -1670,14 +1761,26 @@ async function findGeneralTextRecipients() {
 
     status.textContent = 'Looking for the customer...';
     try {
-        const res = await fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=20`);
+        const token = localStorage.getItem('adminToken');
+        const res = await fetch(estimateTemplate
+            ? `/api/app/homeworks/customers?search=${encodeURIComponent(query)}&summary=1`
+            : `/api/customers?search=${encodeURIComponent(query)}&limit=20`, estimateTemplate ? {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            } : undefined);
         const data = await res.json();
+        if (requestId !== generalRecipientRequestId || document.getElementById('general-sms-search').value.trim() !== query) return;
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to find customers');
+        if (estimateTemplate && data.source !== 'official_homeworks_graphql') throw new Error('HomeWorks customer lookup was not verified');
         const customers = (data.customers || []).filter(customer => customerTextPhone(customer));
         generalTextRecipients = customers.map(customer => ({
+            homeworksId: estimateTemplate ? customer.id : null,
             name: customer.name || [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Customer',
+            firstName: estimateTemplate ? customer.firstName : '',
             phone: customerTextPhone(customer)
         }));
-        if (!generalTextRecipients.length) throw new Error('No customer with a phone number was found.');
+        if (!generalTextRecipients.length) throw new Error(estimateTemplate
+            ? 'No HomeWorks customer with a phone number was found.'
+            : 'No customer with a phone number was found.');
         const select = document.getElementById('general-sms-recipient');
         select.innerHTML = '<option value="">Choose a recipient...</option>' + generalTextRecipients.map((recipient, index) =>
             `<option value="${index}">${esc(recipient.name)} · ${esc(fmtPhone(recipient.phone))}</option>`
@@ -1685,19 +1788,75 @@ async function findGeneralTextRecipients() {
         document.getElementById('general-sms-results-wrap').style.display = '';
         if (generalTextRecipients.length === 1) {
             select.value = '0';
-            selectGeneralTextRecipient('0');
+            await selectGeneralTextRecipient('0');
         } else {
             status.textContent = 'Choose the correct customer and phone number.';
         }
     } catch (error) {
+        if (requestId !== generalRecipientRequestId) return;
         generalTextRecipients = [];
         generalTextRecipient = null;
+        resetGeneralTextEstimate();
         status.textContent = error.message || 'Unable to find a recipient.';
         updateGeneralTextSendState();
     }
 }
 
-function selectGeneralTextRecipient(value) {
+async function loadGeneralTextEstimates() {
+    resetGeneralTextEstimate();
+    const recipient = generalTextRecipient;
+    if (!recipient?.homeworksId) return;
+    const requestId = generalEstimateRequestId;
+    const status = document.getElementById('general-sms-status');
+    status.textContent = 'Loading sent estimates from HomeWorks...';
+    try {
+        const token = localStorage.getItem('adminToken');
+        const res = await fetch(`/api/app/homeworks/customers/${encodeURIComponent(recipient.homeworksId)}/text-estimates`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (requestId !== generalEstimateRequestId || generalTextRecipient !== recipient) return;
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load HomeWorks estimates');
+        if (data.source !== 'official_homeworks_graphql' || String(data.customer?.id) !== String(recipient.homeworksId)) {
+            throw new Error('The HomeWorks customer could not be verified');
+        }
+        const livePhone = data.customer.cell || data.customer.phone;
+        if (!livePhone) throw new Error('This HomeWorks customer has no phone number for texting');
+        recipient.phone = livePhone;
+        recipient.name = data.customer.name || recipient.name;
+        recipient.firstName = data.customer.firstName || recipient.firstName;
+        document.getElementById('general-sms-recipient-preview').innerHTML = `<strong>${esc(recipient.name)}</strong>${esc(fmtPhone(recipient.phone))}`;
+        generalTextEstimates = (data.estimates || []).filter(isTextableHomeWorksEstimate);
+        const select = document.getElementById('general-sms-estimate');
+        select.innerHTML = '<option value="">Choose a sent estimate...</option>' + generalTextEstimates.map(estimate =>
+            `<option value="${esc(estimate.id)}">#${esc(estimate.number)} · $${esc(Number(estimate.total).toFixed(2))}${estimate.title ? ` · ${esc(estimate.title)}` : ''}</option>`
+        ).join('');
+        const note = document.getElementById('general-sms-estimate-note');
+        note.textContent = generalTextEstimates.length
+            ? 'Choose the exact sent estimate. The amount and review link come from HomeWorks.'
+            : 'No sent HomeWorks estimate with a review link is available for this customer.';
+        status.textContent = generalTextEstimates.length
+            ? 'Choose the HomeWorks estimate to fill the text.'
+            : 'No sent HomeWorks estimate with a review link was found.';
+    } catch (error) {
+        if (requestId !== generalEstimateRequestId) return;
+        document.getElementById('general-sms-estimate-note').textContent = error.message || 'Unable to load HomeWorks estimates.';
+        status.textContent = error.message || 'Unable to load HomeWorks estimates.';
+    }
+    updateGeneralTextSendState();
+}
+
+function selectGeneralTextEstimate(value) {
+    generalTextEstimate = generalTextEstimates.find(estimate => String(estimate.id) === String(value)) || null;
+    renderGeneralTextTemplate();
+    document.getElementById('general-sms-status').textContent = generalTextEstimate
+        ? 'Estimate details loaded from HomeWorks. Review the recipient, amount, link, and message before sending.'
+        : 'Choose a HomeWorks estimate to fill the text.';
+    generalTextChanged();
+}
+
+async function selectGeneralTextRecipient(value) {
+    resetGeneralTextEstimate();
     generalTextRecipient = value === '' ? null : generalTextRecipients[Number(value)] || null;
     const preview = document.getElementById('general-sms-recipient-preview');
     if (generalTextRecipient) {
@@ -1708,8 +1867,11 @@ function selectGeneralTextRecipient(value) {
         preview.innerHTML = '<strong>No recipient selected</strong>Choose the correct customer and phone number.';
     }
     const selectedTemplate = findSmsTemplate(document.getElementById('general-sms-template').value);
-    if (selectedTemplate && String(selectedTemplate.category || '').toLowerCase() !== 'invoices') {
-        document.getElementById('general-sms-body').value = renderSmsTemplate(selectedTemplate.sms_body, basicSmsTemplateVars());
+    if (isEstimateSmsTemplate(selectedTemplate)) {
+        document.getElementById('general-sms-body').value = '';
+        if (generalTextRecipient?.homeworksId) await loadGeneralTextEstimates();
+    } else if (selectedTemplate && String(selectedTemplate.category || '').toLowerCase() !== 'invoices') {
+        renderGeneralTextTemplate();
     }
     generalTextChanged();
 }
@@ -1758,20 +1920,55 @@ async function draftGeneralTextWithAi() {
 function updateGeneralTextSendState() {
     const reviewed = document.getElementById('general-sms-reviewed').checked;
     const body = document.getElementById('general-sms-body').value.trim();
-    document.getElementById('general-sms-send-btn').disabled = !(generalTextRecipient && reviewed && body);
+    const requiresEstimate = isEstimateSmsTemplate(selectedGeneralSmsTemplate());
+    const estimateReady = !requiresEstimate || (generalTextRecipient?.homeworksId && isTextableHomeWorksEstimate(generalTextEstimate));
+    const hasUnfilledField = /\{\{[A-Z0-9_]+\}\}/i.test(body);
+    document.getElementById('general-sms-send-btn').disabled = !(generalTextRecipient && reviewed && body && estimateReady && !hasUnfilledField);
 }
 
 async function sendReviewedGeneralText() {
     if (!generalTextRecipient || !document.getElementById('general-sms-reviewed').checked) return;
     const body = document.getElementById('general-sms-body').value.trim();
-    if (!body) return;
-    if (!confirm(`Send this text to ${generalTextRecipient.name} at ${fmtPhone(generalTextRecipient.phone)}?`)) return;
+    const requiresEstimate = isEstimateSmsTemplate(selectedGeneralSmsTemplate());
+    if (!body || /\{\{[A-Z0-9_]+\}\}/i.test(body)) return;
+    if (requiresEstimate && (!generalTextRecipient.homeworksId || !isTextableHomeWorksEstimate(generalTextEstimate))) return;
     const button = document.getElementById('general-sms-send-btn');
     const status = document.getElementById('general-sms-status');
     button.disabled = true;
-    status.textContent = 'Sending this text...';
     try {
         const token = localStorage.getItem('adminToken');
+        if (requiresEstimate) {
+            const recipient = generalTextRecipient;
+            const selectedEstimate = generalTextEstimate;
+            status.textContent = 'Checking the latest estimate in HomeWorks...';
+            const snapshotRes = await fetch(`/api/app/homeworks/customers/${encodeURIComponent(recipient.homeworksId)}/text-estimates`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            const snapshot = await snapshotRes.json();
+            if (!snapshotRes.ok || snapshot.success === false) throw new Error(snapshot.error || 'Unable to verify the HomeWorks estimate');
+            if (snapshot.source !== 'official_homeworks_graphql' || String(snapshot.customer?.id) !== String(recipient.homeworksId)) {
+                throw new Error('The HomeWorks customer could not be verified');
+            }
+            if (generalTextRecipient !== recipient || generalTextEstimate !== selectedEstimate) return;
+            const currentEstimate = (snapshot.estimates || []).find(estimate => String(estimate.id) === String(selectedEstimate.id));
+            if (!isTextableHomeWorksEstimate(currentEstimate)) throw new Error('This estimate is no longer available to text from HomeWorks');
+            const currentPhone = snapshot.customer.cell || snapshot.customer.phone;
+            if (!currentPhone) throw new Error('This HomeWorks customer has no phone number for texting');
+            if (String(currentEstimate.number) !== String(selectedEstimate.number)
+                || Number(currentEstimate.total) !== Number(selectedEstimate.total)
+                || currentEstimate.portalUrl !== selectedEstimate.portalUrl
+                || digitsOnly(currentPhone) !== digitsOnly(recipient.phone)) {
+                generalTextEstimate = currentEstimate;
+                recipient.phone = currentPhone;
+                document.getElementById('general-sms-recipient-preview').innerHTML = `<strong>${esc(recipient.name)}</strong>${esc(fmtPhone(recipient.phone))}`;
+                renderGeneralTextTemplate();
+                document.getElementById('general-sms-reviewed').checked = false;
+                status.textContent = 'HomeWorks estimate or phone details changed. Review the refreshed message before sending.';
+                return;
+            }
+        }
+        if (!confirm(`Send this text to ${generalTextRecipient.name} at ${fmtPhone(generalTextRecipient.phone)}?`)) return;
+        status.textContent = 'Sending this text...';
         const res = await fetch(`${API}/api/messages/send`, {
             method: 'POST',
             headers: {
@@ -1789,6 +1986,8 @@ async function sendReviewedGeneralText() {
         loadFeed();
     } catch (error) {
         status.textContent = error.message || 'Text failed to send.';
+        if (requiresEstimate) document.getElementById('general-sms-reviewed').checked = false;
+    } finally {
         updateGeneralTextSendState();
     }
 }

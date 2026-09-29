@@ -1,4 +1,5 @@
 const {
+  fetchCustomerEstimatesForText,
   fetchMobileCustomerSnapshot,
   fetchMobileCustomers,
   fetchMobileToday,
@@ -17,6 +18,32 @@ describe('TwilioConnect HomeWorks data', () => {
     expect(mapEstimate({ id: 25, isSent: false }, 'portal-key').portalUrl).toBeNull();
     expect(mapEstimate({ id: 25, isSent: true }, 'portal-key').portalUrl)
       .toBe('https://secure.copilotcrm.com/client/estimates/view/25/portal-key');
+  });
+
+  test('loads estimate text choices from the official HomeWorks customer and keeps unsent links unavailable', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(response({ customers: [{
+      id: 91,
+      fullName: 'Jane Smith',
+      firstName: 'Jane',
+      phone: '216-555-0100',
+      cell: '216-555-0199',
+      portalKey: 'portal-key',
+      estimates: [
+        { id: 25, number: 1680, total: '286.20', status: 'PENDING', isSent: true },
+        { id: 26, number: 1681, total: '310.00', status: 'DRAFT', isSent: false },
+      ],
+    }] }));
+    const result = await fetchCustomerEstimatesForText({ accessToken: 'token', fetchImpl, customerId: 91 });
+    const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
+
+    expect(request.operationName).toBe('YardDeskCustomerTextEstimates');
+    expect(request.variables.where).toEqual({ id: { equals: 91 }, isDeleted: false });
+    expect(request.query).toContain('estimates(take: 100');
+    expect(result.customer).toMatchObject({ id: 91, name: 'Jane Smith', phone: '216-555-0199' });
+    expect(result.estimates[0]).toMatchObject({ number: 1680, total: 286.2,
+      portalUrl: 'https://secure.copilotcrm.com/client/estimates/view/25/portal-key' });
+    expect(result.estimates[1].portalUrl).toBeNull();
+    expect(result.source).toBe('official_homeworks_graphql');
   });
 
   test('maps the official customer directory contract', async () => {

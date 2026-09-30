@@ -45,6 +45,13 @@
     .met { color:#326b45; font-weight:700; }
     .blank { padding:24px; text-align:center; color:var(--muted); }
     .foot { color:var(--muted); font-size:12px; margin-top:16px; }
+    .target-intro { background:#eef5e8; border:1px solid #d8e6ca; border-radius:12px; padding:18px 20px; margin-bottom:20px; }
+    .target-intro p { margin-top:7px; }
+    .target-input { width:96px; min-height:34px; text-align:right; }
+    .target-save { min-height:34px; padding:5px 9px; font-size:12px; margin-left:5px; }
+    .target-row { display:flex; align-items:center; justify-content:flex-end; white-space:nowrap; }
+    .pill { display:inline-block; border-radius:99px; background:#edf4e5; padding:4px 9px; margin:0 7px 7px 0; font-size:12px; font-weight:700; }
+    .pill.under { background:#fff0eb; }
     @media(max-width:650px) { main { padding:18px; } h1 { font-size:25px; } .controls { width:100%; } .controls label { flex:1; } }
     @media print { body { background:white; } main { padding:0; } .back, button, .controls { display:none; } .table-wrap { max-height:none; } .card, .metric { break-inside:avoid; } }
   </style>
@@ -57,11 +64,11 @@
     <div><h1>Monthly performance</h1><p>HomeWorks activity, billing, and pricing signals for Pappas &amp; Co.</p></div>
     <div class="controls">
       <label>Month <input id="month" type="month"></label>
-      <label>Minimum revenue per budgeted labor-hour <input id="target" type="number" min="1" step="1" placeholder="Set a target" style="width:160px"></label>
       <button id="refresh" type="button">Refresh</button>
-      <button id="download" class="secondary" type="button" disabled>Export pricing review</button>
+      <button id="download" class="secondary" type="button" disabled>Export customer pricing</button>
     </div>
   </div>
+  <div class="target-intro"><h2>Customer pricing targets</h2><p>Set the minimum pre-tax visit value you want for each <strong>budgeted labor hour</strong> for each customer. For example, a $150 hourly target means a 2-hour visit needs a $300 pre-tax price. Targets are saved in YardDesk and never change customer prices.</p><p class="foot">This is a planning goal, not profit. Materials, travel, equipment, overhead, and actual labor cost are not included.</p></div>
   <div id="status" class="note">Loading HomeWorks data…</div>
   <div class="cards">
     <div class="metric"><div class="label">Invoices issued</div><b id="billed">—</b><small id="billedCompare">Includes tax</small></div>
@@ -70,19 +77,25 @@
     <div class="metric"><div class="label">Time captured</div><b id="coverage">—</b><small id="budgetCoverage">Tracked visits / completed visits</small></div>
   </div>
   <section class="card">
+    <div class="section-head"><div><h2>Set targets by customer</h2><p>Each saved target applies to that customer's properties and services. Leave the amount blank and save to clear it.</p></div><label>Find customer <input id="customerSearch" type="search" placeholder="Search customers"></label></div>
+    <div id="targetSummary" aria-live="polite"></div>
+    <div class="table-wrap"><table><thead><tr><th>Customer</th><th class="num">Visits reviewed</th><th class="num">Value / budgeted hour</th><th class="num">Target / hour</th><th>Result</th></tr></thead><tbody id="customerTargets"><tr><td colspan="5" class="blank">Loading…</td></tr></tbody></table></div>
+    <p class="foot" id="customerTargetCount"></p>
+  </section>
+  <section class="card">
     <div class="section-head"><div><h2>Services</h2><p>Completed visit value and planned labor time. Values are before tax and are separate from invoices issued.</p></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Service</th><th class="num">Customers</th><th class="num">Visits</th><th class="num">Visit value</th><th class="num">Budgeted hours</th><th class="num">Value per budgeted hour</th><th>Target check</th><th>Share of visit value</th></tr></thead><tbody id="services"><tr><td colspan="8" class="blank">Loading…</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Service</th><th class="num">Customers</th><th class="num">Visits</th><th class="num">Visit value</th><th class="num">Budgeted hours</th><th class="num">Value per budgeted hour</th><th>Share of visit value</th></tr></thead><tbody id="services"><tr><td colspan="7" class="blank">Loading…</td></tr></tbody></table></div>
   </section>
   <section class="card">
     <div class="section-head">
-      <div><h2>Pricing review</h2><p>Properties with the lowest pre-tax visit value per budgeted labor-hour appear first. Enter a target to see the gap.</p></div>
-      <div class="controls"><label>Find customer, property, or service <input id="search" type="search" placeholder="Search"></label><label>Show <select id="filter"><option value="all">All priced visits</option><option value="below">Below target</option></select></label></div>
+      <div><h2>Pricing review by property</h2><p>Properties with the lowest pre-tax visit value per budgeted labor hour appear first. Gaps use each customer's saved target.</p></div>
+      <div class="controls"><label>Find customer, property, or service <input id="search" type="search" placeholder="Search"></label><label>Show <select id="filter"><option value="all">All priced visits</option><option value="below">Below customer target</option><option value="met">Meeting customer target</option><option value="unset">No target yet</option></select></label></div>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Customer and property</th><th>Service</th><th class="num">Visits</th><th class="num">Average visit price</th><th class="num">Average budgeted hours</th><th class="num">Value / hour</th><th class="num">Gap to target / visit</th></tr></thead><tbody id="pricing"><tr><td colspan="7" class="blank">Loading…</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Customer and property</th><th>Service</th><th class="num">Visits</th><th class="num">Average visit price</th><th class="num">Average budgeted hours</th><th class="num">Value / hour</th><th class="num">Customer target / hour</th><th class="num">Gap to target / visit</th></tr></thead><tbody id="pricing"><tr><td colspan="8" class="blank">Loading…</td></tr></tbody></table></div>
     <p class="foot" id="pricingCount"></p>
   </section>
   <p class="foot" id="definitions">Prices and budgeted hours are planning measures. This report does not calculate profit or change customer pricing.</p>
-  <p class="foot">The hourly target is saved on this browser only. It does not update HomeWorks prices.</p>
+  <p class="foot">Customer targets are saved in YardDesk for authorized office users. They do not update HomeWorks prices.</p>
 </main>
 <script>
 (function () {
@@ -94,8 +107,92 @@
   const currentMonth = `${monthParts.find((part) => part.type === 'year').value}-${monthParts.find((part) => part.type === 'month').value}`;
   $('month').value = currentMonth;
   $('month').max = currentMonth;
-  $('target').value = localStorage.getItem('monthlyPerformanceTarget') || '';
+  const initialFilter = new URLSearchParams(location.search).get('filter');
+  if (['below', 'unset', 'met'].includes(initialFilter)) $('filter').value = initialFilter;
   let report = null;
+
+  function targetFor(customerId) {
+    const target = Number(report?.customerTargets?.[customerId]);
+    return target > 0 ? target : null;
+  }
+  function customerRows() {
+    const byCustomer = new Map();
+    for (const item of report?.pricingReview || []) {
+      const key = item.customerId || `unknown:${item.customer}`;
+      const row = byCustomer.get(key) || { customerId: item.customerId, customer: item.customer, visits: 0, visitValue: 0, budgetedHours: 0 };
+      row.visits += item.visits;
+      row.visitValue += item.visitValue;
+      row.budgetedHours += item.budgetedHours;
+      byCustomer.set(key, row);
+    }
+    return [...byCustomer.values()].map((row) => ({
+      ...row, target: targetFor(row.customerId), rate: row.visitValue / row.budgetedHours,
+    })).sort((a, b) => {
+      const rank = (row) => !row.target ? 1 : row.rate < row.target ? 0 : 2;
+      return rank(a) - rank(b) || a.rate - b.rate;
+    });
+  }
+  async function saveTarget(customer, input, button) {
+    const raw = input.value.trim();
+    const targetPerHour = raw === '' ? null : Number(raw);
+    if (targetPerHour !== null && (!Number.isFinite(targetPerHour) || targetPerHour < 1 || targetPerHour > 10000 || Math.abs(targetPerHour * 100 - Math.round(targetPerHour * 100)) > 0.000001)) {
+      $('status').className = 'note error';
+      $('status').textContent = 'Enter $1 to $10,000 per budgeted labor hour, with up to two decimals.';
+      input.focus();
+      return;
+    }
+    button.disabled = true; button.textContent = 'Saving…';
+    try {
+      const response = await fetch('/api/reports/monthly-performance/customer-target', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: customer.customerId, targetPerHour }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.error || 'Target could not be saved.');
+      if (!report.customerTargets) report.customerTargets = {};
+      if (payload.targetPerHour === null) delete report.customerTargets[customer.customerId];
+      else report.customerTargets[customer.customerId] = payload.targetPerHour;
+      $('status').className = 'note';
+      $('status').textContent = `${payload.targetPerHour === null ? 'Cleared' : 'Saved'} target for ${customer.customer}. No customer price was changed.`;
+      renderTargets(); renderPricing();
+    } catch (error) {
+      $('status').className = 'note error'; $('status').textContent = error.message || 'Target could not be saved.';
+      button.disabled = false; button.textContent = 'Save';
+    }
+  }
+  function renderTargets() {
+    if (!report) return;
+    const all = customerRows();
+    const below = all.filter((row) => row.target && row.rate < row.target).length;
+    const met = all.filter((row) => row.target && row.rate >= row.target).length;
+    const summary = $('targetSummary'); summary.replaceChildren();
+    for (const [label, className] of [[`${below} below target`, 'under'], [`${met} meeting target`, 'met'], [`${all.length - below - met} need a target`, '']]) {
+      const pill = document.createElement('span'); pill.className = `pill ${className}`; pill.textContent = label; summary.appendChild(pill);
+    }
+    const search = $('customerSearch').value.trim().toLocaleLowerCase('en-US');
+    const rows = all.filter((row) => !search || row.customer.toLocaleLowerCase('en-US').includes(search));
+    const body = $('customerTargets'); body.replaceChildren();
+    if (!rows.length) placeholder(body, 5, 'No customers match this search.');
+    for (const customer of rows.slice(0, 300)) {
+      const row = document.createElement('tr');
+      cell(row, customer.customer);
+      cell(row, number(customer.visits), 'num');
+      cell(row, currency2(customer.rate), 'num');
+      const targetCell = cell(row, '', 'num');
+      if (customer.customerId) {
+        const wrap = document.createElement('div'); wrap.className = 'target-row';
+        const input = document.createElement('input'); input.className = 'target-input'; input.type = 'number'; input.min = '1'; input.max = '10000'; input.step = '0.01'; input.placeholder = '$/hour'; input.value = customer.target || '';
+        input.setAttribute('aria-label', `Target per budgeted labor hour for ${customer.customer}`);
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'target-save'; button.textContent = 'Save';
+        button.addEventListener('click', () => saveTarget(customer, input, button));
+        input.addEventListener('keydown', (event) => { if (event.key === 'Enter') button.click(); });
+        wrap.append(input, button); targetCell.appendChild(wrap);
+      } else targetCell.textContent = 'No customer ID';
+      cell(row, !customer.target ? 'Needs target' : customer.rate < customer.target ? 'Below target' : 'Meeting target', customer.target ? (customer.rate < customer.target ? 'under' : 'met') : '');
+      body.appendChild(row);
+    }
+    $('customerTargetCount').textContent = `${rows.length} matching customers${rows.length > 300 ? '; showing first 300' : ''}. Only priced visits with budgeted hours are included.`;
+  }
 
   function cell(row, value, className) {
     const item = document.createElement('td');
@@ -119,7 +216,7 @@
   function renderServices() {
     const body = $('services'); body.replaceChildren();
     const rows = report.services || [];
-    if (!rows.length) return placeholder(body, 8, 'No completed visits in this month.');
+    if (!rows.length) return placeholder(body, 7, 'No completed visits in this month.');
     const max = Math.max(...rows.map((row) => row.visitValue), 1);
     for (const service of rows) {
       const row = document.createElement('tr');
@@ -128,10 +225,7 @@
       cell(row, number(service.visits), 'num');
       cell(row, currency(service.visitValue), 'num');
       cell(row, number(service.budgetedHours), 'num');
-      const target = Number($('target').value);
-      cell(row, service.revenuePerBudgetedHour == null ? 'No budget' : currency(service.revenuePerBudgetedHour), `num ${target > 0 && service.revenuePerBudgetedHour != null ? (service.revenuePerBudgetedHour < target ? 'under' : 'met') : ''}`);
-      const check = service.revenuePerBudgetedHour == null ? 'No budget' : target <= 0 ? 'Set target' : service.revenuePerBudgetedHour < target ? 'Below target' : 'At or above target';
-      cell(row, check, target > 0 && service.revenuePerBudgetedHour != null ? (service.revenuePerBudgetedHour < target ? 'under' : 'met') : '');
+      cell(row, service.revenuePerBudgetedHour == null ? 'No budget' : currency(service.revenuePerBudgetedHour), 'num');
       const share = cell(row, `${report.visitValue ? (service.visitValue / report.visitValue * 100).toFixed(1) : '0.0'}%`);
       const bar = document.createElement('div'); bar.className = 'bar';
       const fill = document.createElement('span'); fill.style.width = `${service.visitValue / max * 100}%`;
@@ -139,11 +233,13 @@
     }
   }
   function selectedRows() {
-    const target = Number($('target').value);
     const search = $('search').value.trim().toLocaleLowerCase('en-US');
     return (report?.pricingReview || []).filter((row) => {
       if (search && !`${row.customer} ${row.address} ${row.service}`.toLocaleLowerCase('en-US').includes(search)) return false;
-      if ($('filter').value === 'below' && !(target > 0 && row.revenuePerBudgetedHour < target)) return false;
+      const target = targetFor(row.customerId);
+      if ($('filter').value === 'below' && !(target && row.revenuePerBudgetedHour < target)) return false;
+      if ($('filter').value === 'met' && !(target && row.revenuePerBudgetedHour >= target)) return false;
+      if ($('filter').value === 'unset' && target) return false;
       return true;
     });
   }
@@ -151,8 +247,7 @@
     if (!report) return;
     const body = $('pricing'); body.replaceChildren();
     const rows = selectedRows();
-    const target = Number($('target').value);
-    if (!rows.length) placeholder(body, 7, target > 0 ? 'No properties match this filter.' : 'Set a target or choose All priced visits.');
+    if (!rows.length) placeholder(body, 8, 'No properties match this filter.');
     for (const item of rows.slice(0, 250)) {
       const row = document.createElement('tr');
       const who = cell(row, item.customer);
@@ -161,9 +256,11 @@
       cell(row, number(item.visits), 'num');
       cell(row, currency2(item.averagePrice), 'num');
       cell(row, number(item.averageBudgetedHours), 'num');
-      cell(row, currency2(item.revenuePerBudgetedHour), `num ${target > 0 ? (item.revenuePerBudgetedHour < target ? 'under' : 'met') : ''}`);
-      const gap = target > 0 ? Math.max(0, target * item.averageBudgetedHours - item.averagePrice) : null;
-      cell(row, gap == null ? 'Set target' : gap > 0 ? currency2(gap) : 'Meets target', `num ${gap > 0 ? 'under' : ''}`);
+      const target = targetFor(item.customerId);
+      cell(row, currency2(item.revenuePerBudgetedHour), `num ${target ? (item.revenuePerBudgetedHour < target ? 'under' : 'met') : ''}`);
+      cell(row, target ? currency2(target) : 'No target', 'num');
+      const gap = target ? Math.max(0, target * item.averageBudgetedHours - item.averagePrice) : null;
+      cell(row, gap == null ? '—' : gap > 0 ? currency2(gap) : 'Meets target', `num ${gap > 0 ? 'under' : ''}`);
       body.appendChild(row);
     }
     $('pricingCount').textContent = `${rows.length} matching property/service groups${rows.length > 250 ? '; showing first 250' : ''}. Price gaps use budgeted time and exclude materials, equipment, travel, and overhead.`;
@@ -184,7 +281,7 @@
       ? `${number(missing)} completed visits have no tracked job time. Pricing is compared with budgeted time; actual performance and profit cannot be confirmed from this data.`
       : 'All completed visits have tracked job time. Pricing comparisons below still use budgeted hours.';
     $('definitions').textContent = `${report.definitions.billed} ${report.definitions.collected} ${report.definitions.visitValue} ${report.definitions.pricing} No customer price is changed here. Updated ${new Date(report.asOf).toLocaleString()}.`;
-    renderServices(); renderPricing(); $('download').disabled = false;
+    renderTargets(); renderServices(); renderPricing(); $('download').disabled = false;
   }
   async function load() {
     const month = $('month').value;
@@ -205,15 +302,18 @@
       $('collectedCompare').textContent = 'Data unavailable';
       $('visitValue').textContent = 'Data unavailable';
       $('budgetCoverage').textContent = 'Data unavailable';
-      placeholder($('services'), 8, 'Data unavailable.');
-      placeholder($('pricing'), 7, 'Data unavailable.');
+      placeholder($('services'), 7, 'Data unavailable.');
+      placeholder($('pricing'), 8, 'Data unavailable.');
+      placeholder($('customerTargets'), 5, 'Data unavailable.');
     } finally { $('refresh').disabled = false; }
   }
   function exportPricing() {
     if (!report) return;
-    const target = Number($('target').value) || 0;
     const values = [['Customer','Property','Service','Visits','Average visit price','Average budgeted hours','Value per budgeted hour','Target per hour','Gap per visit']];
-    for (const row of selectedRows()) values.push([row.customer,row.address,row.service,row.visits,row.averagePrice.toFixed(2),row.averageBudgetedHours.toFixed(2),row.revenuePerBudgetedHour.toFixed(2),target || '',target ? Math.max(0,target*row.averageBudgetedHours-row.averagePrice).toFixed(2) : '']);
+    for (const row of selectedRows()) {
+      const target = targetFor(row.customerId);
+      values.push([row.customer,row.address,row.service,row.visits,row.averagePrice.toFixed(2),row.averageBudgetedHours.toFixed(2),row.revenuePerBudgetedHour.toFixed(2),target || '',target ? Math.max(0,target*row.averageBudgetedHours-row.averagePrice).toFixed(2) : '']);
+    }
     const csv = values.map((row) => row.map((value) => {
       const text = String(value);
       const safe = /^[=+@\-\t\r]/.test(text) ? `'${text}` : text;
@@ -224,7 +324,7 @@
   }
   $('month').addEventListener('change', load);
   $('refresh').addEventListener('click', load);
-  $('target').addEventListener('input', () => { localStorage.setItem('monthlyPerformanceTarget', $('target').value); if (report) renderServices(); renderPricing(); });
+  $('customerSearch').addEventListener('input', renderTargets);
   $('search').addEventListener('input', renderPricing);
   $('filter').addEventListener('change', renderPricing);
   $('download').addEventListener('click', exportPricing);

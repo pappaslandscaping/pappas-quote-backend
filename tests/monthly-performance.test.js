@@ -29,7 +29,7 @@ describe('HomeWorks monthly performance', () => {
     expect(result.services.find((row) => row.name === 'Mowing').revenuePerBudgetedHour).toBe(100);
     expect(result.services.find((row) => row.name === 'Mowing').customers).toBe(1);
     expect(result.pricingReview).toHaveLength(1);
-    expect(result.pricingReview[0]).toMatchObject({ visits: 2, averagePrice: 50, averageBudgetedHours: 0.5 });
+    expect(result.pricingReview[0]).toMatchObject({ customerId: '100', visits: 2, averagePrice: 50, averageBudgetedHours: 0.5 });
   });
 
   test('paginates visits and keeps payment dates distinct from invoice dates', async () => {

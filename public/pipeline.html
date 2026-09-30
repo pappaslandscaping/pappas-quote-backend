@@ -56,10 +56,22 @@
         .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px 20px; min-width: 160px; flex: 1; }
         .stat-card .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 4px; }
         .stat-card .stat-value { font-size: 26px; font-weight: 700; color: var(--forest); }
+        .source-note { margin-bottom:20px; padding:16px 18px; border-radius:11px; background:#fff4dc; border:1px solid #ecd9a9; color:#5f4e22; font-size:13px; }
+        .source-note strong { display:block; margin-bottom:3px; font-size:14px; }
+        .source-note a { color:#355f45; font-weight:700; }
+        .report-tabs { display:flex; gap:6px; flex-wrap:wrap; padding:14px 32px 0; }
+        .report-tabs a { border:1px solid var(--gray-200); border-radius:9px; padding:8px 13px; text-decoration:none; color:var(--forest); background:#fff; font-weight:700; font-size:14px; }
+        .report-tabs a[aria-current="page"] { color:#fff; background:var(--forest); border-color:var(--forest); }
+        .board-toolbar { display:flex; align-items:end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+        .board-toolbar h3 { font-size:19px; color:var(--forest); }
+        .board-toolbar p { color:var(--gray-500); font-size:12px; }
+        .board-toolbar label { display:grid; gap:5px; font-size:12px; color:var(--gray-600); font-weight:700; }
+        .board-toolbar input { min-height:40px; min-width:260px; border:1px solid var(--gray-300); border-radius:8px; padding:8px 11px; font:inherit; }
+        .board-toolbar input:focus { outline:3px solid #b0cb83; outline-offset:2px; }
 
         /* Kanban Board */
-        .kanban { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 20px; min-height: calc(100vh - 220px); }
-        .kanban-col { min-width: 240px; width: 240px; flex-shrink: 0; display: flex; flex-direction: column; }
+        .kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 20px; min-height: calc(100vh - 300px); scroll-snap-type:x proximity; }
+        .kanban-col { min-width: 255px; width: 255px; flex-shrink: 0; display: flex; flex-direction: column; scroll-snap-align:start; }
         .col-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; }
         .col-header h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
         .col-dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -81,11 +93,12 @@
         .col-invoiced .col-dot { background: var(--forest); }
 
         /* Job Cards */
-        .job-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: grab; transition: all 0.15s; }
+        .job-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: grab; transition: all 0.15s; box-shadow:0 2px 7px rgba(31,43,41,.04); }
         .job-card:hover { border-color: var(--gray-300); box-shadow: 0 2px 8px rgba(0,0,0,0.06); transform: translateY(-1px); }
         .job-card.dragging { opacity: 0.5; transform: rotate(2deg); }
         .job-card .jc-customer { font-size: 13px; font-weight: 700; color: var(--gray-700); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .job-card .jc-service { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+        .job-card .jc-address { font-size:11px; color:var(--gray-500); margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .job-card .jc-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
         .job-card .jc-date { font-size: 11px; color: var(--gray-400); }
         .job-card .jc-price { font-size: 13px; font-weight: 700; color: var(--forest); }
@@ -142,7 +155,7 @@
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div class="topbar-left"><h2>Pipeline</h2><p>Drag jobs between stages</p></div>
+            <div class="topbar-left"><h2>Job pipeline</h2><p>YardDesk's local job board</p></div>
         </div>
         <div class="universal-search-wrapper">
             <div class="search-input-group">
@@ -154,18 +167,17 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="reports.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Reports</a>
-        <a href="kpi.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Insights</a>
-        <a href="pipeline.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Pipeline</a>
-    </div>
+    <nav class="report-tabs" aria-label="Reporting areas"><a href="reports.html">Overview</a><a href="monthly-performance.html">Monthly performance</a><a href="kpi.html">Insights</a><a href="pipeline.html" aria-current="page">Pipeline</a></nav>
 
     <div class="page-content">
+        <div class="source-note"><strong>About this board</strong>This pipeline uses YardDesk's older local job records. Its stage totals and listed prices are not the live HomeWorks reporting totals. Use <a href="scheduling.html">Schedule</a> for current HomeWorks visits and <a href="monthly-performance.html">Monthly performance</a> for billing and pricing review. Moving a card updates the local YardDesk job stage.</div>
         <div class="stats-row" id="statsRow">
-            <div class="stat-card"><div class="label">Total Jobs</div><div class="stat-value" id="statTotal">-</div></div>
-            <div class="stat-card"><div class="label">Revenue in Pipeline</div><div class="stat-value" id="statRevenue">-</div></div>
-            <div class="stat-card"><div class="label">Completed This Month</div><div class="stat-value" id="statCompleted">-</div></div>
+            <div class="stat-card"><div class="label">Local jobs on board</div><div class="stat-value" id="statTotal">-</div></div>
+            <div class="stat-card"><div class="label">Sum of listed job prices</div><div class="stat-value" id="statRevenue">-</div></div>
+            <div class="stat-card"><div class="label">Marked complete locally this month</div><div class="stat-value" id="statCompleted">-</div></div>
         </div>
+
+        <div class="board-toolbar"><div><h3>Stages</h3><p>Search this board to narrow the cards. Dragging changes the local stage.</p></div><label>Filter local jobs <input id="boardSearch" type="search" placeholder="Customer, service, or address"></label></div>
 
         <div class="kanban" id="kanban">
             <div class="loading-state" style="width:100%"><div class="loading-spinner"></div>Loading pipeline...</div>
@@ -186,6 +198,7 @@ const stages = [
 ];
 
 let pipelineData = {};
+let pipelineSearch = '';
 
 async function loadPipeline() {
     try {
@@ -218,12 +231,12 @@ function renderBoard(data) {
 
     const kanban = document.getElementById('kanban');
     kanban.innerHTML = stages.map(s => {
-        const jobs = data.pipeline[s.key] || [];
+        const jobs = (data.pipeline[s.key] || []).filter(j => !pipelineSearch || [j.customer_name,j.service_type,j.address].some(value => String(value || '').toLocaleLowerCase('en-US').includes(pipelineSearch)));
         const cards = jobs.map(j => renderCard(j)).join('');
         return `<div class="kanban-col col-${s.key}">
             <div class="col-header">
                 <h3><span class="col-dot"></span>${s.label}</h3>
-                <span class="col-count">${jobs.length}</span>
+                <span class="col-count">${jobs.length}${pipelineSearch ? ' / ' + (counts[s.key] || 0) : ''}</span>
             </div>
             <div class="col-body" data-stage="${s.key}"
                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
@@ -241,6 +254,7 @@ function renderCard(j) {
         onclick="window.location.href='job-detail.html?id=${j.id}'">
         <div class="jc-customer">${esc(j.customer_name || 'Unknown')}</div>
         <div class="jc-service">${esc(j.service_type || '')}</div>
+        ${j.address ? `<div class="jc-address">${esc(j.address)}</div>` : ''}
         <div class="jc-meta">
             <span class="jc-date">${date}</span>
             <span class="jc-price">$${price.toFixed(0)}</span>
@@ -302,6 +316,10 @@ function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 
 document.addEventListener('DOMContentLoaded', loadPipeline);
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('boardSearch');
+  input.addEventListener('input', () => { pipelineSearch = input.value.trim().toLocaleLowerCase('en-US'); if (pipelineData && Object.keys(pipelineData).length) renderBoard({ pipeline:pipelineData, counts:Object.fromEntries(stages.map(stage => [stage.key, (pipelineData[stage.key] || []).length])) }); });
+});
 
 // Universal Search
 let searchDebounceTimer=null;

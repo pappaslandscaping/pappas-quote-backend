@@ -75,6 +75,26 @@ test('owner-confirmed Tim solo work is explained without counting Christopher as
   expect(report.profitability.blockedWorkerAssignments).toEqual([]);
 });
 
+test('budgeted duration supplies a labor estimate while actual time stays separately counted', () => {
+  const report = buildOperationalReport({ month: '2026-09', events: [
+    visit(1, { users: [{ id: 9273, status: 'ACTIVE' }, { id: 9321, status: 'BLOCKED' }] }),
+    visit(2, { users: [{ id: 9319, rate: '25', status: 'ACTIVE' }],
+      timeEntryTotals: { pastTimeEntrySeconds: 3600 } }),
+    visit(3, { budgetedHours: '0', users: [{ id: 9319, rate: '25', status: 'ACTIVE' }],
+      timeEntryTotals: { pastTimeEntrySeconds: 1800 } }),
+  ] });
+  expect(report.profitability.timeAvailable).toMatchObject({ actualVisits: 2,
+    budgetedFallbackVisits: 1, missingVisits: 0, analysisHours: 2 });
+  expect(report.profitability.laborEstimate).toMatchObject({ pricedVisitsWithCrewCost: 2,
+    visitValue: 120, estimatedLaborCost: 33 });
+  expect(report.profitability.laborEstimate.customers[0]).toMatchObject({
+    visits: 2, afterLabor: 87, laborShare: 33 / 120,
+  });
+  expect(report.crews[0]).toMatchObject({ timeAvailableVisits: 3,
+    trackedVisits: 2, budgetedFallbackVisits: 1 });
+  expect(report.profitability.actualProfitAvailable).toBe(false);
+});
+
 test('an optional HomeWorks section failure is visible without hiding completed visits', async () => {
   const queryImpl = jest.fn(async ({ operationName }) => {
     if (operationName === 'YardDeskOperationalVisits') return { events: [visit(1)] };

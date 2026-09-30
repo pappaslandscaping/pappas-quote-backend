@@ -1,1179 +1,184 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KPI Dashboard — YardDesk</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .topbar h1, h1 { font-family: 'DM Sans', sans-serif; font-weight: 700; }
-        h2 { font-family: 'DM Sans', sans-serif; font-weight: 700; }
-        .stat-card .stat-value { font-family: 'DM Sans', sans-serif; font-weight: 700; }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --cream: #ffffff;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* Sidebar */
-        
-
-        
-
-        
-
-        
-        
-
-        
-
-        
-
-        
-        
-
-        
-        
-
-        
-
-        
-        
-
-        /* Main */
-        
-
-        /* Topbar */
-        
-
-        .topbar-left h1 { font-size: 24px; font-weight: 700; color: var(--forest); line-height: 1.2; }
-        .topbar-left p { font-size: 13px; color: var(--gray-400); }
-
-        .topbar-actions { display: flex; align-items: center; gap: 12px; }
-
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
-
-        /* Page Content */
-        .page-content {
-            padding: 28px 32px;
-            animation: fadeIn 0.4s ease;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Period Toggle */
-        .period-toggle {
-            display: inline-flex;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 10px;
-            padding: 4px;
-            gap: 2px;
-            margin-bottom: 24px;
-        }
-
-        .period-btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            background: transparent;
-            color: var(--gray-500);
-            transition: all 0.15s;
-        }
-
-        .period-btn:hover { color: var(--gray-700); background: var(--gray-50); }
-
-        .period-btn.active {
-            background: var(--forest);
-            color: var(--lime);
-            box-shadow: 0 2px 8px rgba(46, 64, 61, 0.15);
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
-
-        .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover {
-            background: var(--forest-dark);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
-        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
-
-        /* KPI Metric Cards Grid */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 28px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.15s ease;
-        }
-
-        .stat-card:hover {
-            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
-            transform: translateY(-1px);
-        }
-
-        .stat-card .stat-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .stat-card .stat-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-500);
-        }
-
-        .stat-card .stat-icon {
-            width: 36px; height: 36px;
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 18px;
-        }
-
-        .stat-card .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--gray-700);
-            line-height: 1;
-        }
-
-        .stat-card .stat-sub {
-            font-size: 12px;
-            color: var(--gray-400);
-            margin-top: 6px;
-        }
-
-        .stat-card .stat-sub .up { color: var(--green); font-weight: 600; }
-        .stat-card .stat-sub .down { color: var(--red); font-weight: 600; }
-
-        .icon-green { background: var(--green-bg); color: var(--green); }
-        .icon-blue { background: var(--blue-bg); color: var(--blue); }
-        .icon-amber { background: var(--amber-bg); color: var(--amber); }
-        .icon-purple { background: var(--purple-bg); color: var(--purple); }
-        .icon-red { background: var(--red-bg); color: var(--red); }
-        .icon-forest { background: rgba(46, 64, 61, 0.08); color: var(--forest); }
-
-        /* Charts Section */
-        .charts-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 28px;
-        }
-
-        .chart-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.15s ease;
-        }
-
-        .chart-card:hover {
-            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
-        }
-
-        .chart-card h2 {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--forest);
-            margin-bottom: 20px;
-        }
-
-        .chart-card svg { width: 100%; }
-
-        /* AR Aging Legend */
-        .ar-legend {
-            display: flex;
-            gap: 20px;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-
-        .ar-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--gray-500);
-        }
-
-        .ar-legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-        }
-
-        .ar-legend-value {
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        /* Table */
-        .table-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 28px;
-            transition: all 0.15s ease;
-        }
-
-        .table-card:hover {
-            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
-        }
-
-        .table-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 24px;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .table-header h2 {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead th {
-            text-align: left;
-            padding: 12px 24px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--gray-100);
-            background: var(--gray-50);
-        }
-
-        tbody td {
-            padding: 14px 24px;
-            font-size: 14px;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        tbody tr:last-child td { border-bottom: none; }
-
-        tbody tr:hover { background: var(--gray-50); }
-
-        .crew-name {
-            font-weight: 600;
-            color: var(--forest);
-        }
-
-        .money { font-weight: 600; color: var(--gray-700); }
-
-        /* Coaching Suggestions */
-        .coaching-section { margin-bottom: 28px; }
-
-        .coaching-section h2 {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--forest);
-            margin-bottom: 16px;
-        }
-
-        .coaching-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-
-        .coaching-card {
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid;
-            transition: all 0.15s ease;
-        }
-
-        .coaching-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-        }
-
-        .coaching-card.severity-success {
-            background: var(--green-bg);
-            border-color: #a7f3d0;
-        }
-
-        .coaching-card.severity-warning {
-            background: var(--amber-bg);
-            border-color: #fcd34d;
-        }
-
-        .coaching-card.severity-danger {
-            background: var(--red-bg);
-            border-color: #fca5a5;
-        }
-
-        .coaching-card.severity-info {
-            background: var(--blue-bg);
-            border-color: #93c5fd;
-        }
-
-        .coaching-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .coaching-severity-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .severity-success .coaching-severity-icon { background: rgba(5, 150, 105, 0.15); color: var(--green); }
-        .severity-warning .coaching-severity-icon { background: rgba(217, 119, 6, 0.15); color: var(--amber); }
-        .severity-danger .coaching-severity-icon { background: rgba(220, 74, 74, 0.15); color: var(--red); }
-        .severity-info .coaching-severity-icon { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
-
-        .coaching-title {
-            font-size: 14px;
-            font-weight: 700;
-        }
-
-        .severity-success .coaching-title { color: #065f46; }
-        .severity-warning .coaching-title { color: #92400e; }
-        .severity-danger .coaching-title { color: #991b1b; }
-        .severity-info .coaching-title { color: #1e40af; }
-
-        .coaching-suggestion {
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .severity-success .coaching-suggestion { color: #047857; }
-        .severity-warning .coaching-suggestion { color: #b45309; }
-        .severity-danger .coaching-suggestion { color: #dc2626; }
-        .severity-info .coaching-suggestion { color: #2563eb; }
-
-        /* Loading State */
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
-            background: rgba(248, 250, 248, 0.8);
-            z-index: 40;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .loading-overlay.visible { display: flex; }
-
-        .spinner {
-            width: 40px; height: 40px;
-            border: 3px solid var(--gray-200);
-            border-top-color: var(--forest);
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--gray-400);
-        }
-
-        .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; color: var(--gray-300); }
-        .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
-        .empty-state p { font-size: 13px; }
-
-        /* Responsive */
-        @media (max-width: 1200px) {
-            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-        }
-
-        @media (max-width: 1024px) {
-            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-            .charts-row { grid-template-columns: 1fr; }
-            .coaching-grid { grid-template-columns: 1fr; }
-        }
-
-        @media (max-width: 768px) {
-            
-            .sidebar.open { transform: translateX(0); }
-            
-            .mobile-menu-btn { display: block; }
-            .page-content { padding: 20px 16px; }
-            
-            .kpi-grid { grid-template-columns: 1fr; }
-            .loading-overlay { left: 0; }
-            .period-toggle { width: 100%; }
-            .period-btn { flex: 1; padding: 8px 12px; }
-        }
-
-        /* Toast */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--white);
-            background: var(--forest);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-            transform: translateY(80px);
-            opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 500;
-        }
-
-        .toast.visible { transform: translateY(0); opacity: 1; }
-        .toast.error { background: var(--red); }
-
-        /* Trend line tooltip */
-        .trend-tooltip {
-            position: absolute;
-            background: var(--forest);
-            color: var(--lime);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            pointer-events: none;
-            white-space: nowrap;
-            z-index: 10;
-            transform: translate(-50%, -100%);
-            margin-top: -8px;
-            display: none;
-        }
-    </style>
-    <link rel="stylesheet" href="shared.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Insights - YardDesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    :root { --forest:#29443a; --green:#2f704a; --ink:#263a32; --muted:#65776d; --line:#dce6df; --soft:#f4f8f3; --red:#a64437; --amber:#8a620e; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f7faf7; color:var(--ink); font:14px/1.5 'DM Sans',sans-serif; }
+    main { max-width:1450px; margin:auto; padding:30px; }
+    h1,h2,p { margin:0; }
+    h1 { font-size:31px; line-height:1.2; letter-spacing:-.03em; }
+    h2 { font-size:20px; letter-spacing:-.02em; }
+    p { color:var(--muted); }
+    .eyebrow { color:var(--green); text-transform:uppercase; font-weight:800; letter-spacing:.1em; font-size:11px; }
+    .header { display:flex; align-items:end; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:19px; }
+    .header p { margin-top:7px; }
+    .controls { display:flex; gap:9px; align-items:end; flex-wrap:wrap; }
+    label { display:grid; gap:5px; color:var(--muted); font-size:12px; font-weight:700; }
+    input,button { font:inherit; border-radius:9px; min-height:41px; }
+    input { background:#fff; border:1px solid #bbccc0; padding:8px 10px; color:var(--ink); }
+    button { background:var(--forest); border:1px solid var(--forest); color:#fff; padding:8px 14px; cursor:pointer; font-weight:700; }
+    a:focus-visible,button:focus-visible,input:focus { outline:3px solid #a5c96b; outline-offset:2px; }
+    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 17px; }
+    .tabs a { border:1px solid var(--line); border-radius:9px; padding:8px 13px; text-decoration:none; color:var(--forest); background:#fff; font-weight:700; }
+    .tabs a[aria-current="page"] { color:#fff; background:var(--forest); border-color:var(--forest); }
+    .message { padding:12px 15px; border-radius:10px; background:#eff4e9; color:#35553d; margin-bottom:16px; }
+    .message.warning { background:#fff4dc; color:#6d551d; }
+    .message.error { background:#fff0eb; color:#963e31; }
+    .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+    .metric,.panel { background:#fff; border:1px solid var(--line); border-radius:13px; box-shadow:0 2px 10px #263a3008; }
+    .metric { padding:17px; }
+    .metric span { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:800; }
+    .metric b { display:block; font-size:26px; line-height:1.2; margin:8px 0 6px; }
+    .metric small { color:var(--muted); }
+    .grid { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-bottom:16px; }
+    .panel { padding:20px; }
+    .panel p { margin:4px 0 15px; font-size:12px; }
+    .row { display:grid; grid-template-columns:minmax(130px,1fr) 130px 130px 95px; gap:12px; align-items:center; border-top:1px solid #e9eee9; padding:10px 0; }
+    .row span:not(:first-child) { text-align:right; }
+    .row.heading { color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+    .row .positive { color:var(--green); font-weight:800; }
+    .row .negative { color:var(--red); font-weight:800; }
+    .bar-item { display:grid; grid-template-columns:minmax(120px,1fr) minmax(130px,2fr) 90px; gap:12px; align-items:center; margin:11px 0; }
+    .bar-item span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .bar-track { height:11px; border-radius:10px; background:#ecf1e8; overflow:hidden; }
+    .bar-fill { height:100%; background:#8caf69; }
+    .bar-item b { text-align:right; }
+    .callout { background:#eef5e7; border-radius:10px; padding:15px; margin-top:13px; }
+    .callout b { display:block; font-size:22px; margin:2px 0; }
+    .callout p { margin:0; }
+    .foot { font-size:12px; color:var(--muted); margin:15px 0; }
+    .link { color:var(--green); font-weight:700; }
+    @media(max-width:1050px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
+    @media(max-width:680px) { main { padding:18px; } .controls { width:100%; } .row { grid-template-columns:1fr 75px 75px 70px; gap:5px; font-size:12px; } }
+  </style>
 </head>
 <body>
 <script src="shell.js"></script>
-<!-- Sidebar -->
-
-    </div>
-</div>
-
-<!-- Main Content -->
-<div class="main">
-    <!-- Topbar -->
-    <div class="topbar">
-        <div class="topbar-left">
-            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-            </button>
-            <div>
-                <h1>KPI Dashboard</h1>
-                <p id="topbar-subtitle">Performance metrics at a glance</p>
-            </div>
-        </div>
-        <div class="topbar-actions">
-            <button class="btn btn-secondary" onclick="loadDashboard()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                Refresh
-            </button>
-        </div>
-    </div>
-
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="reports.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Reports</a>
-        <a href="kpi.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Insights</a>
-        <a href="pipeline.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Pipeline</a>
-    </div>
-
-    <!-- Page Content -->
-    <div class="page-content">
-        <!-- Period Toggle -->
-        <div class="period-toggle" id="periodToggle">
-            <button class="period-btn" data-period="week">Week</button>
-            <button class="period-btn active" data-period="month">Month</button>
-            <button class="period-btn" data-period="quarter">Quarter</button>
-            <button class="period-btn" data-period="year">Year</button>
-        </div>
-
-        <!-- KPI Metric Cards -->
-        <div class="kpi-grid" id="kpiGrid">
-            <!-- Close Ratio -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Close Ratio</span>
-                    <div class="stat-icon icon-green">🎯</div>
-                </div>
-                <div class="stat-value" id="kpi-closeRatio">--</div>
-                <div class="stat-sub" id="kpi-closeRatio-sub">Loading...</div>
-            </div>
-
-            <!-- Avg Job Value -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Avg Job Value</span>
-                    <div class="stat-icon icon-blue">💵</div>
-                </div>
-                <div class="stat-value" id="kpi-avgJobValue">--</div>
-                <div class="stat-sub" id="kpi-avgJobValue-sub">Loading...</div>
-            </div>
-
-            <!-- Customer Acquisition Cost -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Customer Acquisition Cost</span>
-                    <div class="stat-icon icon-amber">📣</div>
-                </div>
-                <div class="stat-value" id="kpi-cac">--</div>
-                <div class="stat-sub" id="kpi-cac-sub">Loading...</div>
-            </div>
-
-            <!-- Labor Efficiency -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Labor Efficiency</span>
-                    <div class="stat-icon icon-purple">⚡</div>
-                </div>
-                <div class="stat-value" id="kpi-laborEfficiency">--</div>
-                <div class="stat-sub" id="kpi-laborEfficiency-sub">Loading...</div>
-            </div>
-
-            <!-- Monthly Recurring Revenue -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Monthly Recurring Revenue</span>
-                    <div class="stat-icon icon-forest">🔄</div>
-                </div>
-                <div class="stat-value" id="kpi-mrr">--</div>
-                <div class="stat-sub" id="kpi-mrr-sub">Loading...</div>
-            </div>
-
-            <!-- Customer Lifetime Value -->
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Customer Lifetime Value</span>
-                    <div class="stat-icon icon-green">👤</div>
-                </div>
-                <div class="stat-value" id="kpi-clv">--</div>
-                <div class="stat-sub" id="kpi-clv-sub">Loading...</div>
-            </div>
-        </div>
-
-        <!-- Charts Row -->
-        <div class="charts-row">
-            <!-- AR Aging Chart -->
-            <div class="chart-card">
-                <h2>Accounts Receivable Aging</h2>
-                <div id="arAgingChart">
-                    <svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="0" y="10" width="500" height="50" rx="8" fill="#e2e5e2"/>
-                        <text x="250" y="40" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">Loading AR data...</text>
-                    </svg>
-                </div>
-                <div class="ar-legend" id="arLegend"></div>
-            </div>
-
-            <!-- Outstanding Balance Trend -->
-            <div class="chart-card" style="position: relative;">
-                <h2>Outstanding Balance Trend</h2>
-                <div id="outstandingTrendChart">
-                    <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="0" y="0" width="500" height="200" rx="8" fill="transparent"/>
-                        <text x="250" y="105" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">Loading trend data...</text>
-                    </svg>
-                </div>
-                <div class="trend-tooltip" id="trendTooltip"></div>
-            </div>
-        </div>
-
-        <!-- Revenue Per Crew Table -->
-        <div class="table-card">
-            <div class="table-header">
-                <h2>Revenue Per Crew</h2>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Crew</th>
-                        <th>Revenue</th>
-                        <th>Jobs</th>
-                        <th>Avg / Job</th>
-                    </tr>
-                </thead>
-                <tbody id="crewTableBody">
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: var(--gray-400); padding: 32px;">Loading crew data...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Pipeline & Operations -->
-        <div class="charts-row" id="pipelineRow" style="display:none">
-            <div class="chart-card">
-                <h2>Revenue by Service Type</h2>
-                <div id="serviceRevenueChart" style="padding:8px 0"></div>
-            </div>
-            <div class="chart-card">
-                <h2>Pipeline Snapshot</h2>
-                <div id="pipelineSnapshot" style="padding:8px 0">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-                        <div style="text-align:center;padding:16px;background:var(--purple-bg);border-radius:10px">
-                            <div style="font-size:24px;font-weight:700;color:var(--purple)" id="pipeLeads">—</div>
-                            <div style="font-size:12px;color:var(--purple)">Active Leads</div>
-                        </div>
-                        <div style="text-align:center;padding:16px;background:var(--blue-bg);border-radius:10px">
-                            <div style="font-size:24px;font-weight:700;color:var(--blue)" id="pipePending">—</div>
-                            <div style="font-size:12px;color:var(--blue)">Pending Quotes</div>
-                        </div>
-                        <div style="text-align:center;padding:16px;background:var(--green-bg);border-radius:10px">
-                            <div style="font-size:24px;font-weight:700;color:var(--green)" id="pipeJobsMonth">—</div>
-                            <div style="font-size:12px;color:var(--green)">Jobs This Month</div>
-                        </div>
-                        <div style="text-align:center;padding:16px;background:var(--amber-bg);border-radius:10px">
-                            <div style="font-size:24px;font-weight:700;color:var(--amber)" id="pipeBookedOut">—</div>
-                            <div style="font-size:12px;color:var(--amber)">Days Booked Out</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--gray-50);border-radius:8px">
-                        <div><span style="font-size:12px;color:var(--gray-500)">Pending Quote Value</span><br><span style="font-size:18px;font-weight:700;color:var(--forest)" id="pipePendingValue">—</span></div>
-                        <div><span style="font-size:12px;color:var(--gray-500)">Customer LTV</span><br><span style="font-size:18px;font-weight:700;color:var(--forest)" id="pipeLTV">—</span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Revenue Trend -->
-        <div class="chart-card" id="revenueTrendCard" style="display:none;margin-bottom:24px">
-            <h2>Monthly Revenue Trend</h2>
-            <div id="revenueTrendChart" style="padding:8px 0"></div>
-        </div>
-
-        <!-- Coaching Suggestions -->
-        <div class="coaching-section">
-            <h2>Coaching Suggestions</h2>
-            <div class="coaching-grid" id="coachingGrid">
-                <div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--gray-400); font-size: 13px;">
-                    Loading coaching insights...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Loading Overlay -->
-<div class="loading-overlay" id="loadingOverlay">
-    <div class="spinner"></div>
-</div>
-
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
+<main>
+  <div class="header"><div><div class="eyebrow">HomeWorks data</div><h1>Insights</h1><p>Month to month trends, service mix, and data coverage you can trust.</p></div><div class="controls"><label>Month <input id="month" type="month"></label><button id="refresh" type="button">Refresh</button></div></div>
+  <nav class="tabs" aria-label="Reporting areas"><a href="reports.html">Overview</a><a href="monthly-performance.html">Monthly performance</a><a href="kpi.html" aria-current="page">Insights</a><a href="pipeline.html">Pipeline</a></nav>
+  <div id="status" class="message" role="status">Loading HomeWorks data…</div>
+  <div class="metrics">
+    <div class="metric"><span>Invoices issued</span><b id="billed">—</b><small id="billedChange">Compared with prior month</small></div>
+    <div class="metric"><span>Payments received</span><b id="collected">—</b><small id="collectedChange">Compared with prior month</small></div>
+    <div class="metric"><span>Completed visits</span><b id="visits">—</b><small id="visitValue">Pre-tax visit value —</small></div>
+    <div class="metric"><span>Time records</span><b id="tracked">—</b><small id="trackedNote">Visits with recorded job time</small></div>
+  </div>
+  <div class="grid">
+    <section class="panel"><h2>Billing and cash movement</h2><p>Invoice dates and payment dates are separate. Payments this month may relate to older invoices.</p>
+      <div class="row heading"><span>Measure</span><span>Selected month</span><span>Prior month</span><span>Change</span></div>
+      <div class="row"><span>Invoices issued</span><span id="billNow">—</span><span id="billPrior">—</span><span id="billDelta">—</span></div>
+      <div class="row"><span>Payments received</span><span id="payNow">—</span><span id="payPrior">—</span><span id="payDelta">—</span></div>
+      <div class="callout"><span>Completed visit value</span><b id="completedValue">—</b><p>Pre-tax HomeWorks visit prices, separate from the invoices and payments above.</p></div>
+    </section>
+    <section class="panel"><h2>Work mix</h2><p>Top services by pre-tax value of completed visits.</p><div id="serviceMix">Loading…</div><a class="link" href="monthly-performance.html">Explore service and customer details →</a></section>
+  </div>
+  <div class="grid">
+    <section class="panel"><h2>Pricing goal coverage</h2><p>Customers with priced visits and budgeted hours.</p><div id="targetCoverage">Loading…</div><a class="link" href="monthly-performance.html">Review customer targets →</a></section>
+    <section class="panel"><h2>Data quality</h2><p>Use these measures to judge how much confidence to place in pricing review.</p><div id="dataQuality">Loading…</div></section>
+  </div>
+  <p id="asOf" class="foot">These insights use HomeWorks data. They do not calculate actual profit or automatically change pricing.</p>
+</main>
 <script>
-    // State
-    let currentPeriod = 'month';
-    let dashboardData = null;
-
-    // Format helpers
-    function formatDollars(val) {
-        if (val == null) return '$0';
-        return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    }
-
-    function formatDollarsWhole(val) {
-        if (val == null) return '$0';
-        return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    }
-
-    function formatPercent(val) {
-        if (val == null) return '0%';
-        return Number(val).toFixed(0) + '%';
-    }
-
-    function formatNumber(val) {
-        if (val == null) return '0';
-        return Number(val).toLocaleString('en-US');
-    }
-
-    function formatMonth(dateStr) {
-        if (!dateStr) return '';
-        const parts = dateStr.split('-');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthIndex = parseInt(parts[1], 10) - 1;
-        return months[monthIndex] || dateStr;
-    }
-
-    // Toast
-    function showToast(message, isError) {
-        const toast = document.getElementById('toast');
-        toast.textContent = message;
-        toast.className = 'toast' + (isError ? ' error' : '');
-        setTimeout(() => toast.classList.add('visible'), 10);
-        setTimeout(() => toast.classList.remove('visible'), 3500);
-    }
-
-    // Period toggle
-    document.getElementById('periodToggle').addEventListener('click', function(e) {
-        const btn = e.target.closest('.period-btn');
-        if (!btn) return;
-        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentPeriod = btn.dataset.period;
-        loadDashboard();
+(function(){
+  const $=function(id){return document.getElementById(id);};
+  const dollars=function(value){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(value)||0);};
+  const number=function(value){return new Intl.NumberFormat('en-US').format(Number(value)||0);};
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+  const currentMonth=parts.find(function(x){return x.type==='year';}).value+'-'+parts.find(function(x){return x.type==='month';}).value;
+  $('month').value=currentMonth; $('month').max=currentMonth;
+  function comparison(current,prior){
+    if(!prior) return '—';
+    const pct=(current-prior)/prior*100;
+    return (pct>=0?'+':'')+pct.toFixed(1)+'%';
+  }
+  function setDelta(id,current,prior){
+    const el=$(id); el.textContent=comparison(current,prior); el.className=current>=prior?'positive':'negative';
+  }
+  function renderMix(report){
+    const box=$('serviceMix'); box.replaceChildren();
+    const rows=(report.services||[]).slice(0,6);
+    if(!rows.length){box.textContent='No completed visits for this month.';return;}
+    const max=rows[0].visitValue||1;
+    rows.forEach(function(item){
+      const row=document.createElement('div');row.className='bar-item';
+      const name=document.createElement('span');name.textContent=item.name;name.title=item.name;
+      const track=document.createElement('div');track.className='bar-track';
+      const fill=document.createElement('div');fill.className='bar-fill';fill.style.width=Math.max(0,Math.min(100,item.visitValue/max*100))+'%';
+      track.appendChild(fill);
+      const value=document.createElement('b');value.textContent=dollars(item.visitValue);
+      row.append(name,track,value);box.appendChild(row);
     });
-
-    // Render KPI Cards
-    function renderKPICards(metrics) {
-        if (!metrics) return;
-
-        // Close Ratio
-        const cr = metrics.closeRatio || {};
-        document.getElementById('kpi-closeRatio').textContent = formatPercent(cr.value);
-        document.getElementById('kpi-closeRatio-sub').textContent =
-            (cr.signed || 0) + ' signed / ' + (cr.sent || 0) + ' sent';
-
-        // Avg Job Value
-        const ajv = metrics.avgJobValue || {};
-        document.getElementById('kpi-avgJobValue').textContent = formatDollars(ajv.value);
-        document.getElementById('kpi-avgJobValue-sub').textContent =
-            'Across ' + formatNumber(ajv.count) + ' jobs';
-
-        // Customer Acquisition Cost
-        const cac = metrics.customerAcquisitionCost || {};
-        document.getElementById('kpi-cac').textContent = formatDollars(cac.value);
-        document.getElementById('kpi-cac-sub').textContent =
-            formatDollarsWhole(cac.marketing) + ' marketing / ' + (cac.newCustomers || 0) + ' new customers';
-
-        // Labor Efficiency
-        const le = metrics.laborEfficiency || {};
-        document.getElementById('kpi-laborEfficiency').textContent = formatDollars(le.value) + '/hr';
-        document.getElementById('kpi-laborEfficiency-sub').textContent =
-            formatDollarsWhole(le.revenue) + ' revenue / ' + formatNumber(le.hours) + ' hours';
-
-        // MRR
-        const mrr = metrics.monthlyRecurringRevenue || {};
-        document.getElementById('kpi-mrr').textContent = formatDollarsWhole(mrr.value);
-        document.getElementById('kpi-mrr-sub').textContent =
-            formatNumber(mrr.customerCount) + ' recurring customers';
-
-        // CLV
-        const clv = metrics.customerLifetimeValue || {};
-        document.getElementById('kpi-clv').textContent = formatDollarsWhole(clv.value);
-        document.getElementById('kpi-clv-sub').textContent =
-            formatDollarsWhole(clv.totalRevenue) + ' total / ' + formatNumber(clv.activeCustomers) + ' active customers';
-    }
-
-    // Render AR Aging Chart
-    function renderARAgingChart(ar) {
-        if (!ar) return;
-
-        const total = (ar.current || 0) + (ar.days30 || 0) + (ar.days60 || 0) + (ar.days90plus || 0);
-        if (total === 0) {
-            document.getElementById('arAgingChart').innerHTML =
-                '<svg viewBox="0 0 500 80"><text x="250" y="45" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">No AR data available</text></svg>';
-            document.getElementById('arLegend').innerHTML = '';
-            return;
-        }
-
-        const chartW = 500;
-        const barH = 44;
-        const barY = 16;
-        const r = 8;
-
-        const segments = [
-            { key: 'current', label: 'Current', value: ar.current || 0, color: '#059669' },
-            { key: 'days30',  label: '30 Days', value: ar.days30 || 0,  color: '#d97706' },
-            { key: 'days60',  label: '60 Days', value: ar.days60 || 0,  color: '#ea580c' },
-            { key: 'days90plus', label: '90+ Days', value: ar.days90plus || 0, color: '#dc4a4a' }
-        ];
-
-        let svg = '<svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg">';
-
-        // Background
-        svg += '<rect x="0" y="' + barY + '" width="' + chartW + '" height="' + barH + '" rx="' + r + '" fill="#e2e5e2"/>';
-
-        // Clip path for rounded corners
-        svg += '<defs><clipPath id="arClip"><rect x="0" y="' + barY + '" width="' + chartW + '" height="' + barH + '" rx="' + r + '"/></clipPath></defs>';
-
-        let xOffset = 0;
-        segments.forEach(function(seg) {
-            const w = (seg.value / total) * chartW;
-            if (w > 0) {
-                svg += '<rect x="' + xOffset + '" y="' + barY + '" width="' + w + '" height="' + barH + '" fill="' + seg.color + '" clip-path="url(#arClip)"/>';
-
-                // Label inside bar if wide enough
-                if (w > 50) {
-                    const textX = xOffset + w / 2;
-                    const pctText = Math.round((seg.value / total) * 100) + '%';
-                    svg += '<text x="' + textX + '" y="' + (barY + barH / 2 + 5) + '" text-anchor="middle" fill="white" font-size="12" font-weight="600" font-family="DM Sans, sans-serif">' + pctText + '</text>';
-                }
-                xOffset += w;
-            }
-        });
-
-        // Total label
-        svg += '<text x="' + chartW + '" y="12" text-anchor="end" fill="#6e726e" font-size="12" font-family="DM Sans, sans-serif">Total: ' + formatDollarsWhole(total) + '</text>';
-
-        svg += '</svg>';
-        document.getElementById('arAgingChart').innerHTML = svg;
-
-        // Legend
-        let legendHtml = '';
-        segments.forEach(function(seg) {
-            legendHtml += '<div class="ar-legend-item">';
-            legendHtml += '<div class="ar-legend-dot" style="background: ' + seg.color + ';"></div>';
-            legendHtml += '<span>' + seg.label + ':</span>';
-            legendHtml += '<span class="ar-legend-value">' + formatDollarsWhole(seg.value) + '</span>';
-            legendHtml += '</div>';
-        });
-        document.getElementById('arLegend').innerHTML = legendHtml;
-    }
-
-    // Render Outstanding Balance Trend
-    function renderOutstandingTrend(trendData) {
-        const container = document.getElementById('outstandingTrendChart');
-
-        if (!trendData || trendData.length === 0) {
-            container.innerHTML = '<svg viewBox="0 0 500 200"><text x="250" y="105" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">No trend data available</text></svg>';
-            return;
-        }
-
-        const W = 500;
-        const H = 200;
-        const padTop = 20;
-        const padBottom = 40;
-        const padLeft = 60;
-        const padRight = 20;
-        const chartW = W - padLeft - padRight;
-        const chartH = H - padTop - padBottom;
-
-        const values = trendData.map(function(d) { return d.amount; });
-        const maxVal = Math.max.apply(null, values) * 1.15;
-        const minVal = 0;
-        const range = maxVal - minVal || 1;
-
-        function xPos(i) {
-            if (trendData.length === 1) return padLeft + chartW / 2;
-            return padLeft + (i / (trendData.length - 1)) * chartW;
-        }
-
-        function yPos(val) {
-            return padTop + chartH - ((val - minVal) / range) * chartH;
-        }
-
-        let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
-
-        // Grid lines
-        const gridLines = 4;
-        for (let i = 0; i <= gridLines; i++) {
-            const y = padTop + (i / gridLines) * chartH;
-            const labelVal = maxVal - (i / gridLines) * range;
-            svg += '<line x1="' + padLeft + '" y1="' + y + '" x2="' + (W - padRight) + '" y2="' + y + '" stroke="#e2e5e2" stroke-width="1"/>';
-            svg += '<text x="' + (padLeft - 8) + '" y="' + (y + 4) + '" text-anchor="end" fill="#9ca09c" font-size="10" font-family="DM Sans, sans-serif">' + formatDollarsWhole(labelVal) + '</text>';
-        }
-
-        // Area fill
-        if (trendData.length > 1) {
-            let areaPath = 'M' + xPos(0) + ',' + yPos(trendData[0].amount);
-            for (let i = 1; i < trendData.length; i++) {
-                areaPath += ' L' + xPos(i) + ',' + yPos(trendData[i].amount);
-            }
-            areaPath += ' L' + xPos(trendData.length - 1) + ',' + (padTop + chartH);
-            areaPath += ' L' + xPos(0) + ',' + (padTop + chartH) + ' Z';
-
-            svg += '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">';
-            svg += '<stop offset="0%" stop-color="#2e403d" stop-opacity="0.15"/>';
-            svg += '<stop offset="100%" stop-color="#2e403d" stop-opacity="0.02"/>';
-            svg += '</linearGradient></defs>';
-            svg += '<path d="' + areaPath + '" fill="url(#areaGrad)"/>';
-        }
-
-        // Line
-        if (trendData.length > 1) {
-            let linePath = 'M' + xPos(0) + ',' + yPos(trendData[0].amount);
-            for (let i = 1; i < trendData.length; i++) {
-                linePath += ' L' + xPos(i) + ',' + yPos(trendData[i].amount);
-            }
-            svg += '<path d="' + linePath + '" fill="none" stroke="#2e403d" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
-        }
-
-        // Data points and month labels
-        trendData.forEach(function(d, i) {
-            const cx = xPos(i);
-            const cy = yPos(d.amount);
-
-            // Month label at bottom
-            svg += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" fill="#9ca09c" font-size="11" font-family="DM Sans, sans-serif">' + formatMonth(d.month) + '</text>';
-
-            // Data point circle
-            svg += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="#2e403d" stroke="white" stroke-width="2"/>';
-
-            // Invisible hover target
-            svg += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="transparent" class="trend-point" data-amount="' + d.amount + '" data-month="' + formatMonth(d.month) + '"/>';
-        });
-
-        svg += '</svg>';
-        container.innerHTML = svg;
-
-        // Hover tooltips
-        const chartCard = container.closest('.chart-card');
-        const tooltip = document.getElementById('trendTooltip');
-        container.querySelectorAll('.trend-point').forEach(function(pt) {
-            pt.addEventListener('mouseenter', function(e) {
-                tooltip.textContent = formatDollarsWhole(pt.dataset.amount) + ' - ' + pt.dataset.month;
-                const rect = chartCard.getBoundingClientRect();
-                const circleRect = pt.getBoundingClientRect();
-                tooltip.style.left = (circleRect.left - rect.left + circleRect.width / 2) + 'px';
-                tooltip.style.top = (circleRect.top - rect.top - 4) + 'px';
-                tooltip.style.display = 'block';
-            });
-            pt.addEventListener('mouseleave', function() {
-                tooltip.style.display = 'none';
-            });
-        });
-    }
-
-    // Render Crew Table
-    function renderCrewTable(crews) {
-        const tbody = document.getElementById('crewTableBody');
-        if (!crews || crews.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--gray-400); padding: 32px;">No crew data available</td></tr>';
-            return;
-        }
-
-        let html = '';
-        crews.forEach(function(crew) {
-            const avgPerJob = crew.jobs > 0 ? crew.revenue / crew.jobs : 0;
-            html += '<tr>';
-            html += '<td class="crew-name">' + escapeHtml(crew.crew_name) + '</td>';
-            html += '<td class="money">' + formatDollarsWhole(crew.revenue) + '</td>';
-            html += '<td>' + formatNumber(crew.jobs) + '</td>';
-            html += '<td class="money">' + formatDollars(avgPerJob) + '</td>';
-            html += '</tr>';
-        });
-
-        // Totals row
-        const totalRevenue = crews.reduce(function(s, c) { return s + (c.revenue || 0); }, 0);
-        const totalJobs = crews.reduce(function(s, c) { return s + (c.jobs || 0); }, 0);
-        const totalAvg = totalJobs > 0 ? totalRevenue / totalJobs : 0;
-        html += '<tr style="background: var(--gray-50); font-weight: 700;">';
-        html += '<td class="crew-name">Total</td>';
-        html += '<td class="money">' + formatDollarsWhole(totalRevenue) + '</td>';
-        html += '<td>' + formatNumber(totalJobs) + '</td>';
-        html += '<td class="money">' + formatDollars(totalAvg) + '</td>';
-        html += '</tr>';
-
-        tbody.innerHTML = html;
-    }
-
-    // Render Coaching Suggestions
-    function renderCoaching(coaching) {
-        const grid = document.getElementById('coachingGrid');
-        if (!coaching || coaching.length === 0) {
-            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--gray-400); font-size: 13px;">No coaching suggestions at this time. Great work!</div>';
-            return;
-        }
-
-        const severityIcons = {
-            success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M20 6L9 17l-5-5"/></svg>',
-            warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.06 14a2 2 0 001.72 3h16.1a2 2 0 001.72-3l-8.06-14a2 2 0 00-3.44 0z"/></svg>',
-            danger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6m0-6l6 6"/></svg>',
-            info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>'
-        };
-
-        let html = '';
-        coaching.forEach(function(item) {
-            const severity = item.severity || 'info';
-            const icon = severityIcons[severity] || severityIcons.info;
-            html += '<div class="coaching-card severity-' + severity + '">';
-            html += '<div class="coaching-header">';
-            html += '<div class="coaching-severity-icon">' + icon + '</div>';
-            html += '<div class="coaching-title">' + escapeHtml(item.title) + '</div>';
-            html += '</div>';
-            html += '<div class="coaching-suggestion">' + escapeHtml(item.suggestion) + '</div>';
-            html += '</div>';
-        });
-
-        grid.innerHTML = html;
-    }
-
-    // HTML escape
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Main data load function
-    async function loadDashboard() {
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.add('visible');
-
-        try {
-            const response = await fetch('/api/kpi/dashboard?period=' + encodeURIComponent(currentPeriod));
-            if (!response.ok) throw new Error('Failed to load KPI data (HTTP ' + response.status + ')');
-
-            const data = await response.json();
-            if (!data.success) throw new Error(data.error || 'Failed to load KPI data');
-
-            dashboardData = data;
-
-            // Update subtitle
-            const periodLabel = currentPeriod.charAt(0).toUpperCase() + currentPeriod.slice(1);
-            document.getElementById('topbar-subtitle').textContent = periodLabel + 'ly performance metrics';
-
-            // Render all sections
-            renderKPICards(data.metrics);
-            renderARAgingChart(data.metrics && data.metrics.arAging);
-            renderOutstandingTrend(data.metrics && data.metrics.outstandingTrend);
-            renderCrewTable(data.metrics && data.metrics.revenuePerCrew);
-            renderCoaching(data.coaching);
-
-        } catch (err) {
-            console.error('KPI Dashboard error:', err);
-            showToast(err.message || 'Failed to load dashboard', true);
-            document.getElementById('kpiCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--gray-400);"><p style="font-size:18px;margin-bottom:8px;">Unable to load KPI data</p><p style="font-size:13px;">Check your connection and try again</p></div>';
-        } finally {
-            overlay.classList.remove('visible');
-        }
-    }
-
-    // Load enhanced KPI data
-    async function loadDetailedKPI() {
-        try {
-            const res = await fetch('/api/kpi/detailed');
-            const data = await res.json();
-            if (!data.success || !data.kpi) return;
-            const k = data.kpi;
-
-            // Pipeline snapshot
-            document.getElementById('pipelineRow').style.display = '';
-            document.getElementById('pipeLeads').textContent = formatNumber(k.activeLeads);
-            document.getElementById('pipePending').textContent = formatNumber(k.pendingQuotes?.count || 0);
-            document.getElementById('pipeJobsMonth').textContent = formatNumber(k.jobsThisMonth);
-            document.getElementById('pipeBookedOut').textContent = k.bookedOutDays + 'd';
-            document.getElementById('pipePendingValue').textContent = formatDollarsWhole(k.pendingQuotes?.value || 0);
-            document.getElementById('pipeLTV').textContent = formatDollarsWhole(k.customerLTV);
-
-            // Revenue by service type bar chart
-            if (k.revenueByService && k.revenueByService.length > 0) {
-                const maxRev = Math.max(...k.revenueByService.map(s => parseFloat(s.revenue)));
-                const colors = ['#2e403d', '#3a524e', '#059669', '#3b82f6', '#7c3aed', '#d97706', '#dc4a4a', '#ea580c', '#c9dd80', '#6e726e'];
-                let html = '';
-                k.revenueByService.forEach((s, i) => {
-                    const pct = maxRev > 0 ? (parseFloat(s.revenue) / maxRev * 100) : 0;
-                    const color = colors[i % colors.length];
-                    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
-                        '<div style="width:120px;font-size:12px;color:var(--gray-600);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="' + escapeHtml(s.service_type || 'Other') + '">' + escapeHtml(s.service_type || 'Other') + '</div>' +
-                        '<div style="flex:1;height:24px;background:var(--gray-100);border-radius:6px;overflow:hidden">' +
-                        '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.5s"></div></div>' +
-                        '<div style="width:80px;text-align:right;font-size:12px;font-weight:600;color:var(--gray-700)">' + formatDollarsWhole(s.revenue) + '</div>' +
-                        '<div style="width:40px;text-align:right;font-size:11px;color:var(--gray-400)">' + s.job_count + ' jobs</div></div>';
-                });
-                document.getElementById('serviceRevenueChart').innerHTML = html;
-            }
-
-            // Revenue trend mini bar chart
-            if (k.revenueTrend && k.revenueTrend.length > 0) {
-                document.getElementById('revenueTrendCard').style.display = '';
-                const maxMonth = Math.max(...k.revenueTrend.map(m => parseFloat(m.revenue)));
-                let html = '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:0 8px">';
-                k.revenueTrend.forEach(m => {
-                    const pct = maxMonth > 0 ? (parseFloat(m.revenue) / maxMonth * 100) : 0;
-                    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
-                        '<div style="font-size:10px;font-weight:600;color:var(--forest)">' + formatDollarsWhole(m.revenue) + '</div>' +
-                        '<div style="width:100%;height:' + Math.max(pct, 2) + '%;background:var(--forest);border-radius:6px 6px 0 0;min-height:4px;transition:height 0.5s"></div>' +
-                        '<div style="font-size:10px;color:var(--gray-400)">' + formatMonth(m.month) + '</div></div>';
-                });
-                html += '</div>';
-                document.getElementById('revenueTrendChart').innerHTML = html;
-            }
-        } catch(e) {
-            console.error('Detailed KPI error:', e);
-        }
-    }
-
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-        loadDashboard();
-        loadDetailedKPI();
+  }
+  function factLine(parent,label,value){
+    const row=document.createElement('div');row.className='row';
+    const a=document.createElement('span');a.textContent=label;
+    const b=document.createElement('span');b.textContent=value;
+    row.append(a,b);parent.appendChild(row);
+  }
+  function renderCoverage(report){
+    const groups=new Map();
+    (report.pricingReview||[]).forEach(function(item){
+      const key=item.customerId||'unknown:'+item.customer;
+      const row=groups.get(key)||{value:0,hours:0,id:item.customerId};
+      row.value+=item.visitValue;row.hours+=item.budgetedHours;groups.set(key,row);
     });
+    let below=0,met=0,unset=0;
+    groups.forEach(function(row){
+      const target=Number(report.customerTargets&&report.customerTargets[row.id]);
+      if(!(target>0)) unset++;
+      else if(row.value/row.hours<target) below++;
+      else met++;
+    });
+    const targetBox=$('targetCoverage');targetBox.replaceChildren();
+    factLine(targetBox,'Below their target',number(below));
+    factLine(targetBox,'Meeting their target',number(met));
+    factLine(targetBox,'No target yet',number(unset));
+    const quality=$('dataQuality');quality.replaceChildren();
+    const c=report.coverage;
+    factLine(quality,'Completed visits',number(c.completedVisits));
+    factLine(quality,'Visits with budgeted hours',number(c.budgetedVisits));
+    factLine(quality,'Visits with tracked time',number(c.trackedVisits));
+    factLine(quality,'Missing tracked time',number(c.completedVisits-c.trackedVisits));
+  }
+  async function load(){
+    $('refresh').disabled=true;$('status').className='message';$('status').textContent='Loading HomeWorks data…';
+    try{
+      const response=await fetch('/api/reports/monthly-performance?month='+encodeURIComponent($('month').value));
+      const payload=await response.json();
+      if(!response.ok||!payload.success) throw new Error(payload.error||'Insights could not load.');
+      const r=payload.report,c=r.coverage;
+      $('billed').textContent=dollars(r.financials.billed);
+      $('collected').textContent=dollars(r.financials.collected);
+      $('visits').textContent=number(c.completedVisits);
+      $('tracked').textContent=number(c.trackedVisits)+' / '+number(c.completedVisits);
+      $('visitValue').textContent=dollars(r.visitValue)+' pre-tax visit value';
+      $('trackedNote').textContent=number(c.budgetedVisits)+' visits have budgeted hours';
+      $('billedChange').textContent=comparison(r.financials.billed,r.previousMonth.billed)+' vs '+r.previousMonth.month;
+      $('collectedChange').textContent=comparison(r.financials.collected,r.previousMonth.collected)+' vs '+r.previousMonth.month;
+      $('billNow').textContent=dollars(r.financials.billed);$('billPrior').textContent=dollars(r.previousMonth.billed);setDelta('billDelta',r.financials.billed,r.previousMonth.billed);
+      $('payNow').textContent=dollars(r.financials.collected);$('payPrior').textContent=dollars(r.previousMonth.collected);setDelta('payDelta',r.financials.collected,r.previousMonth.collected);
+      $('completedValue').textContent=dollars(r.visitValue);
+      renderMix(r);renderCoverage(r);
+      const missing=c.completedVisits-c.trackedVisits;
+      $('status').className='message '+(missing?'warning':'');
+      $('status').textContent=missing?number(missing)+' completed visits have no tracked job time. Price signals use budgeted hours, not actual labor cost.':'Report ready. Price signals still use budgeted hours.';
+      $('asOf').textContent='Updated '+new Date(r.asOf).toLocaleString()+'. Invoices issued, payments received, and completed visit value are separate measures. Actual profit is not shown.';
+    }catch(error){
+      $('status').className='message error';$('status').textContent=error.message||'Insights could not load.';
+      ['billed','collected','visits','tracked','billNow','billPrior','payNow','payPrior','completedValue'].forEach(function(id){$(id).textContent='—';});
+      ['serviceMix','targetCoverage','dataQuality'].forEach(function(id){$(id).textContent='Data unavailable.';});
+    }finally{$('refresh').disabled=false;}
+  }
+  $('month').addEventListener('change',load);$('refresh').addEventListener('click',load);load();
+})();
 </script>
 </body>
 </html>

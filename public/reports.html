@@ -1,995 +1,162 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports - YardDesk</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-
-        :root {
-            --forest: #2e403d;
-            --lime: #c9dd80;
-            --white: #ffffff;
-            --gray-50: #fafafa;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-400: #9ca3af;
-            --gray-500: #6b7280;
-            --gray-600: #4b5563;
-            --gray-700: #1f2937;
-            --status-success: #10b981;
-            --status-danger: #ef4444;
-            --status-warning: #f59e0b;
-            --status-info: #3b82f6;
-            --sidebar-w: 240px;
-            --spacing-xs: 4px;
-            --spacing-sm: 8px;
-            --spacing-md: 16px;
-            --spacing-lg: 24px;
-            --spacing-xl: 32px;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background-color: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.6;
-        }
-
-        /* Sidebar */
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        /* Main Content */
-        
-
-        /* Topbar */
-        
-
-        
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
-
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-
-        /* Period Selector */
-        .period-selector {
-            display: flex;
-            gap: var(--spacing-sm);
-            margin-bottom: var(--spacing-xl);
-            flex-wrap: wrap;
-        }
-
-        .period-btn {
-            padding: 8px 16px;
-            border: 1px solid var(--gray-300);
-            background: var(--white);
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-            color: var(--gray-600);
-        }
-
-        .period-btn:hover {
-            border-color: var(--forest);
-            color: var(--forest);
-        }
-
-        .period-btn.active {
-            background: var(--forest);
-            color: var(--lime);
-            border-color: var(--forest);
-        }
-
-        .date-picker {
-            display: none;
-            gap: var(--spacing-md);
-            align-items: flex-end;
-            padding: var(--spacing-md);
-            background: var(--white);
-            border-radius: 8px;
-            border: 1px solid var(--gray-200);
-            margin-bottom: var(--spacing-xl);
-        }
-
-        .date-picker.active {
-            display: flex;
-        }
-
-        .date-picker label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .date-picker input {
-            padding: 8px 12px;
-            border: 1px solid var(--gray-300);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: 'DM Sans', sans-serif;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--white);
-            border-radius: 12px;
-            border: 1px solid var(--gray-200);
-            padding: var(--spacing-lg);
-            margin-bottom: var(--spacing-xl);
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: var(--spacing-lg);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* KPI Grid */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: var(--spacing-lg);
-        }
-
-        .kpi-card {
-            background: var(--gray-50);
-            padding: var(--spacing-lg);
-            border-radius: 8px;
-            border: 1px solid var(--gray-200);
-        }
-
-        .kpi-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-500);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
-        }
-
-        .kpi-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--forest);
-            font-family: 'DM Sans', sans-serif;
-        }
-
-        .kpi-positive {
-            color: var(--status-success);
-        }
-
-        .kpi-negative {
-            color: var(--status-danger);
-        }
-
-        /* Tables */
-        .table-wrapper {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead {
-            background: var(--gray-50);
-        }
-
-        th {
-            padding: var(--spacing-md);
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        td {
-            padding: var(--spacing-md);
-            border-bottom: 1px solid var(--gray-200);
-            font-size: 13px;
-        }
-
-        tr:hover {
-            background: var(--gray-50);
-        }
-
-        tr.total-row {
-            background: var(--gray-100);
-            font-weight: 600;
-        }
-
-        tr.total-row td {
-            color: var(--forest);
-        }
-
-        /* Chart */
-        .chart-container {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing-md);
-        }
-
-        .chart-bar-item {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-md);
-        }
-
-        .chart-label {
-            width: 80px;
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--gray-600);
-            text-align: right;
-        }
-
-        .chart-bar {
-            flex: 1;
-            height: 24px;
-            background: var(--lime);
-            border-radius: 4px;
-            position: relative;
-            min-width: 20px;
-        }
-
-        .chart-value {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
-            width: 40px;
-            text-align: right;
-        }
-
-        /* Utilities */
-        .text-muted {
-            color: var(--gray-500);
-        }
-
-        .text-success {
-            color: var(--status-success);
-        }
-
-        .text-danger {
-            color: var(--status-danger);
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            
-
-            
-
-            
-        }
-
-        @media (max-width: 768px) {
-            
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            
-
-            .kpi-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .period-selector {
-                flex-direction: column;
-            }
-
-            .period-btn {
-                flex: 1;
-            }
-
-            .date-picker {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .date-picker label {
-                flex-direction: row;
-                justify-content: space-between;
-            }
-
-            .date-picker input {
-                flex: 1;
-            }
-        }
-    </style>
-    <link rel="stylesheet" href="shared.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reports - YardDesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    :root { --forest:#29443a; --green:#2f704a; --ink:#263a32; --muted:#65776d; --line:#dce6df; --soft:#f4f8f3; --red:#a64437; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f7faf7; color:var(--ink); font:14px/1.5 'DM Sans',sans-serif; }
+    main { max-width:1450px; margin:auto; padding:30px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:31px; line-height:1.2; letter-spacing:-.03em; }
+    h2 { font-size:20px; letter-spacing:-.02em; }
+    h3 { font-size:16px; }
+    p { color:var(--muted); }
+    .eyebrow { color:var(--green); text-transform:uppercase; font-weight:800; letter-spacing:.1em; font-size:11px; }
+    .header { display:flex; align-items:end; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:19px; }
+    .header p { margin-top:7px; }
+    .controls { display:flex; gap:9px; align-items:end; flex-wrap:wrap; }
+    label { display:grid; gap:5px; color:var(--muted); font-size:12px; font-weight:700; }
+    input,button { font:inherit; border-radius:9px; min-height:41px; }
+    input { background:#fff; border:1px solid #bbccc0; padding:8px 10px; color:var(--ink); }
+    button { background:var(--forest); border:1px solid var(--forest); color:#fff; padding:8px 14px; cursor:pointer; font-weight:700; }
+    a:focus-visible,button:focus-visible,input:focus { outline:3px solid #a5c96b; outline-offset:2px; }
+    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 17px; }
+    .tabs a { border:1px solid var(--line); border-radius:9px; padding:8px 13px; text-decoration:none; color:var(--forest); background:#fff; font-weight:700; }
+    .tabs a[aria-current="page"] { color:#fff; background:var(--forest); border-color:var(--forest); }
+    .hero { display:flex; justify-content:space-between; align-items:center; gap:20px; background:#eaf3e4; border:1px solid #d4e5cd; border-radius:15px; padding:20px 22px; margin-bottom:16px; }
+    .hero p { margin-top:7px; max-width:760px; }
+    .hero a { display:inline-flex; align-items:center; white-space:nowrap; border-radius:9px; background:var(--forest); color:#fff; text-decoration:none; padding:10px 15px; font-weight:800; }
+    .message { padding:12px 15px; border-radius:10px; background:#eff4e9; color:#35553d; margin-bottom:16px; }
+    .message.warning { background:#fff4dc; color:#6d551d; }
+    .message.error { background:#fff0eb; color:#963e31; }
+    .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+    .metric,.panel,.report-link { background:#fff; border:1px solid var(--line); border-radius:13px; box-shadow:0 2px 10px #263a3008; }
+    .metric { padding:17px; }
+    .metric span { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:800; }
+    .metric b { display:block; font-size:26px; line-height:1.2; margin:8px 0 6px; }
+    .metric small { color:var(--muted); }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:17px; }
+    .panel { padding:18px; }
+    .panel h2 { margin-bottom:4px; }
+    .panel > p { font-size:12px; margin-bottom:13px; }
+    .panel a { color:var(--green); font-weight:700; }
+    .line { display:flex; justify-content:space-between; gap:14px; border-top:1px solid #e9eee9; padding:10px 0; }
+    .line strong { font-weight:700; }
+    .line span { color:var(--muted); white-space:nowrap; }
+    .line.bad span { color:var(--red); font-weight:800; }
+    .blank { color:var(--muted); padding:12px 0; }
+    .library { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
+    .report-link { display:block; padding:18px; text-decoration:none; color:var(--ink); }
+    .report-link:hover { border-color:#92b67b; background:#fbfdf9; }
+    .report-link b { display:block; font-size:16px; margin-bottom:4px; }
+    .report-link span { display:block; color:var(--muted); font-size:12px; }
+    .label { margin-top:20px; font-size:18px; }
+    .foot { font-size:12px; color:var(--muted); margin:15px 0; }
+    @media(max-width:1050px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid { grid-template-columns:1fr 1fr; } .library { grid-template-columns:1fr 1fr; } }
+    @media(max-width:680px) { main { padding:18px; } .hero { display:block; } .hero a { margin-top:15px; } .grid,.library { grid-template-columns:1fr; } .controls { width:100%; } }
+  </style>
 </head>
 <body>
 <script src="shell.js"></script>
-<!-- Sidebar -->
-    
-<!-- Main Content -->
-    <main class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-            <h1>Reports</h1>
-            <button class="btn btn-primary" onclick="exportCSV()">
-                <span>📥</span>
-                Export CSV
-            </button>
-        </div>
-
-        <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-            <a href="reports.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Reports</a>
-            <a href="kpi.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Insights</a>
-            <a href="pipeline.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Pipeline</a>
-        </div>
-
-        <!-- Period Selector -->
-        <div class="period-selector" id="periodSelector">
-            <button class="period-btn active" data-period="month" onclick="selectPeriod('month')">
-                This Month
-            </button>
-            <button class="period-btn" data-period="last-month" onclick="selectPeriod('last-month')">
-                Last Month
-            </button>
-            <button class="period-btn" data-period="quarter" onclick="selectPeriod('quarter')">
-                This Quarter
-            </button>
-            <button class="period-btn" data-period="year" onclick="selectPeriod('year')">
-                This Year
-            </button>
-            <button class="period-btn" data-period="custom" onclick="selectPeriod('custom')">
-                Custom
-            </button>
-        </div>
-
-        <!-- Date Picker (Hidden by default) -->
-        <div class="date-picker" id="datePicker">
-            <label>
-                Start Date
-                <input type="date" id="startDate" onchange="loadReport()">
-            </label>
-            <label>
-                End Date
-                <input type="date" id="endDate" onchange="loadReport()">
-            </label>
-        </div>
-
-        <!-- Quick Links to Detailed Reports -->
-        <div class="card" style="margin-bottom:20px;">
-            <h2 class="card-title" style="margin-bottom:16px;">Detailed Reports</h2>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
-                <a href="monthly-performance.html" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--gray-50);border-radius:10px;text-decoration:none;color:var(--gray-700);border:1px solid var(--gray-100);">
-                    <div style="width:40px;height:40px;border-radius:8px;background:#eef4df;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">$</div>
-                    <div>
-                        <div style="font-size:14px;font-weight:600;">Monthly Performance &amp; Pricing</div>
-                        <div style="font-size:12px;color:var(--gray-500);">HomeWorks billing, completed visits, and prices per budgeted labor-hour</div>
-                    </div>
-                </a>
-                <a href="sales-tax-report.html" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--gray-50);border-radius:10px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;border:1px solid var(--gray-100);" onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--green-bg)'" onmouseout="this.style.borderColor='var(--gray-100)';this.style.background='var(--gray-50)'">
-                    <div style="width:40px;height:40px;border-radius:8px;background:var(--amber-bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📋</div>
-                    <div>
-                        <div style="font-size:14px;font-weight:600;">Sales Tax Report</div>
-                        <div style="font-size:12px;color:var(--gray-500);">Shows sales tax based on billed, outstanding, or collected</div>
-                    </div>
-                </a>
-                <a href="tax-transfers.html" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--gray-50);border-radius:10px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;border:1px solid var(--gray-100);" onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--green-bg)'" onmouseout="this.style.borderColor='var(--gray-100)';this.style.background='var(--gray-50)'">
-                    <div style="width:40px;height:40px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">↔️</div>
-                    <div>
-                        <div style="font-size:14px;font-weight:600;">Tax Transfer Reconciliation</div>
-                        <div style="font-size:12px;color:var(--gray-500);">Copilot tax recommendation with linked and unresolved payment review</div>
-                    </div>
-                </a>
-            </div>
-        </div>
-
-        <!-- Business Summary -->
-        <div class="card">
-            <h2 class="card-title">📊 Business Summary</h2>
-            <div class="kpi-grid" id="kpiGrid">
-                <div class="kpi-card">
-                    <div class="kpi-label">Quotes Sent</div>
-                    <div class="kpi-value" id="quotesSent">0</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Conversion Rate</div>
-                    <div class="kpi-value" id="conversionRate">0%</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Jobs Completed</div>
-                    <div class="kpi-value" id="jobsCompleted">0</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Revenue</div>
-                    <div class="kpi-value" id="revenue">$0.00</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Expenses</div>
-                    <div class="kpi-value" id="expenses">$0.00</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Profit</div>
-                    <div class="kpi-value" id="profit">$0.00</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Service Breakdown -->
-        <div class="card">
-            <h2 class="card-title">🛠️ Service Breakdown</h2>
-            <div class="table-wrapper">
-                <table id="serviceTable">
-                    <thead>
-                        <tr>
-                            <th>Service Type</th>
-                            <th>Jobs</th>
-                            <th>Revenue</th>
-                            <th>% of Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="serviceBody">
-                        <tr>
-                            <td colspan="4" class="text-muted">Loading...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Customer Acquisition -->
-        <div class="card">
-            <h2 class="card-title">📈 Customer Acquisition (Last 12 Months)</h2>
-            <div class="chart-container" id="customerChart">
-                <div class="chart-bar-item">
-                    <div class="chart-label">Loading...</div>
-                    <div class="chart-bar" style="width: 0;"></div>
-                    <div class="chart-value">0</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Crew Performance -->
-        <div class="card">
-            <h2 class="card-title">👷 Team Performance
-                <button class="btn btn-primary" style="margin-left:auto;font-size:12px;padding:6px 12px;" onclick="exportCrewCSV()">📥 Export CSV</button>
-            </h2>
-            <div class="table-wrapper">
-                <table id="crewTable">
-                    <thead>
-                        <tr>
-                            <th>Crew Name</th>
-                            <th>Jobs Completed</th>
-                            <th>Total Revenue</th>
-                            <th>Avg per Job</th>
-                            <th>Completion Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody id="crewBody">
-                        <tr>
-                            <td colspan="5" class="text-muted">Loading...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Revenue Report with Bar Chart -->
-        <div class="card">
-            <h2 class="card-title">💰 Revenue Report
-                <button class="btn btn-primary" style="margin-left:auto;font-size:12px;padding:6px 12px;" onclick="exportRevenueCSV()">📥 Export CSV</button>
-            </h2>
-            <div class="chart-container" id="revenueChart">
-                <div class="text-muted">Loading revenue data...</div>
-            </div>
-        </div>
-
-        <!-- Customer Value Report -->
-        <div class="card">
-            <h2 class="card-title">🏆 Top Customers by Value
-                <button class="btn btn-primary" style="margin-left:auto;font-size:12px;padding:6px 12px;" onclick="exportCustomerValueCSV()">📥 Export CSV</button>
-            </h2>
-            <div class="table-wrapper">
-                <table id="customerValueTable">
-                    <thead>
-                        <tr>
-                            <th>Customer</th>
-                            <th>Total Invoiced</th>
-                            <th>Invoices</th>
-                            <th>Last Invoice</th>
-                        </tr>
-                    </thead>
-                    <tbody id="customerValueBody">
-                        <tr><td colspan="4" class="text-muted">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Job Costing Report -->
-        <div class="card">
-            <h2 class="card-title">📋 Job Costing
-                <button class="btn btn-primary" style="margin-left:auto;font-size:12px;padding:6px 12px;" onclick="exportJobCostingCSV()">📥 Export CSV</button>
-            </h2>
-            <div class="table-wrapper">
-                <table id="jobCostingTable">
-                    <thead>
-                        <tr>
-                            <th>Customer</th>
-                            <th>Service</th>
-                            <th>Revenue</th>
-                            <th>Expenses</th>
-                            <th>Profit</th>
-                        </tr>
-                    </thead>
-                    <tbody id="jobCostingBody">
-                        <tr><td colspan="5" class="text-muted">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        // State
-        let currentPeriod = 'month';
-        let reportData = {
-            summary: null,
-            services: [],
-            customers: [],
-            crew: []
-        };
-
-        // Format currency
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(amount);
-        }
-
-        // Format percentage
-        function formatPercent(value) {
-            return (value * 100).toFixed(1) + '%';
-        }
-
-        // Select period
-        function selectPeriod(period) {
-            currentPeriod = period;
-
-            // Update active button
-            document.querySelectorAll('.period-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-period="${period}"]`).classList.add('active');
-
-            // Show/hide date picker
-            if (period === 'custom') {
-                document.getElementById('datePicker').classList.add('active');
-            } else {
-                document.getElementById('datePicker').classList.remove('active');
-            }
-
-            loadReport();
-        }
-
-        // Load report data
-        async function loadReport() {
-            try {
-                let endpoint = `/api/reports/business-summary?period=${currentPeriod}`;
-
-                if (currentPeriod === 'custom') {
-                    const startDate = document.getElementById('startDate').value;
-                    const endDate = document.getElementById('endDate').value;
-                    if (startDate && endDate) {
-                        endpoint = `/api/reports/business-summary?startDate=${startDate}&endDate=${endDate}`;
-                    } else {
-                        return;
-                    }
-                }
-
-                const response = await fetch(endpoint);
-                const data = await response.json();
-
-                reportData.summary = data;
-                updateSummaryCards();
-                updateServiceTable();
-                renderRevenueChart();
-                loadCrewPerformance();
-                loadCustomerAcquisition();
-                loadCustomerValue();
-                loadJobCosting();
-            } catch (error) {
-                console.error('Error loading report:', error);
-                showError('Failed to load report data');
-            }
-        }
-
-        // Update KPI cards
-        function updateSummaryCards() {
-            const data = reportData.summary;
-            if (!data) return;
-
-            document.getElementById('quotesSent').textContent = data.quotesSent || 0;
-
-            const conversionRate = data.conversionRate || 0;
-            const convElement = document.getElementById('conversionRate');
-            convElement.textContent = (conversionRate * 100).toFixed(1) + '%';
-            convElement.className = 'kpi-value ' + (conversionRate >= 0.3 ? 'kpi-positive' : 'kpi-negative');
-
-            document.getElementById('jobsCompleted').textContent = data.jobsCompleted || 0;
-            document.getElementById('revenue').textContent = formatCurrency(data.revenue || 0);
-            document.getElementById('expenses').textContent = formatCurrency(data.expenses || 0);
-
-            const profit = (data.revenue || 0) - (data.expenses || 0);
-            const profitElement = document.getElementById('profit');
-            profitElement.textContent = formatCurrency(profit);
-            profitElement.className = 'kpi-value ' + (profit >= 0 ? 'kpi-positive' : 'kpi-negative');
-        }
-
-        // Update service table
-        function updateServiceTable() {
-            const data = reportData.summary;
-            if (!data || !data.services) return;
-
-            const tbody = document.getElementById('serviceBody');
-            tbody.innerHTML = '';
-
-            let totalRevenue = 0;
-            const services = data.services.sort((a, b) => b.revenue - a.revenue);
-
-            services.forEach(service => {
-                totalRevenue += service.revenue;
-            });
-
-            services.forEach(service => {
-                const percent = totalRevenue > 0 ? (service.revenue / totalRevenue) * 100 : 0;
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><strong>${service.name}</strong></td>
-                    <td>${service.jobs}</td>
-                    <td>${formatCurrency(service.revenue)}</td>
-                    <td>${percent.toFixed(1)}%</td>
-                `;
-                tbody.appendChild(row);
-            });
-
-            // Total row
-            const totalRow = document.createElement('tr');
-            totalRow.className = 'total-row';
-            totalRow.innerHTML = `
-                <td><strong>Total</strong></td>
-                <td><strong>${services.reduce((sum, s) => sum + s.jobs, 0)}</strong></td>
-                <td><strong>${formatCurrency(totalRevenue)}</strong></td>
-                <td><strong>100%</strong></td>
-            `;
-            tbody.appendChild(totalRow);
-
-            reportData.services = services;
-        }
-
-        // Load crew performance
-        async function loadCrewPerformance() {
-            try {
-                const response = await fetch('/api/reports/crew-performance');
-                const data = await response.json();
-
-                const tbody = document.getElementById('crewBody');
-                tbody.innerHTML = '';
-
-                const crew = data.sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-                crew.forEach(member => {
-                    const avgPerJob = member.jobsCompleted > 0 ? member.totalRevenue / member.jobsCompleted : 0;
-                    const completionRate = member.jobsTotal > 0 ? ((member.jobsCompleted / member.jobsTotal) * 100).toFixed(0) : 0;
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><strong>${member.name}</strong></td>
-                        <td>${member.jobsCompleted}</td>
-                        <td>${formatCurrency(member.totalRevenue)}</td>
-                        <td>${formatCurrency(avgPerJob)}</td>
-                        <td>${completionRate}%</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-
-                reportData.crew = crew;
-            } catch (error) {
-                console.error('Error loading crew performance:', error);
-            }
-        }
-
-        // Load Customer Value report
-        async function loadCustomerValue() {
-            try {
-                const response = await fetch('/api/reports/customer-value');
-                reportData.customerValue = await response.json();
-                const tbody = document.getElementById('customerValueBody');
-                tbody.innerHTML = '';
-                if (!reportData.customerValue || reportData.customerValue.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No customer data</td></tr>';
-                    return;
-                }
-                reportData.customerValue.forEach(c => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><strong>${c.name}</strong></td>
-                        <td>${formatCurrency(c.total_invoiced)}</td>
-                        <td>${c.invoice_count}</td>
-                        <td>${c.last_invoice_date ? new Date(c.last_invoice_date).toLocaleDateString() : '-'}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (error) {
-                console.error('Error loading customer value:', error);
-            }
-        }
-
-        // Load Job Costing report
-        async function loadJobCosting() {
-            try {
-                const response = await fetch('/api/reports/job-costing');
-                reportData.jobCosting = await response.json();
-                const tbody = document.getElementById('jobCostingBody');
-                tbody.innerHTML = '';
-                if (!reportData.jobCosting || reportData.jobCosting.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No job costing data</td></tr>';
-                    return;
-                }
-                reportData.jobCosting.forEach(j => {
-                    const row = document.createElement('tr');
-                    const profitClass = j.profit >= 0 ? 'text-success' : 'text-danger';
-                    row.innerHTML = `
-                        <td><strong>${j.customer_name}</strong></td>
-                        <td>${j.service_type}</td>
-                        <td>${formatCurrency(j.revenue)}</td>
-                        <td>${formatCurrency(j.expenses)}</td>
-                        <td class="${profitClass}">${formatCurrency(j.profit)}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (error) {
-                console.error('Error loading job costing:', error);
-            }
-        }
-
-        // Revenue bar chart
-        function renderRevenueChart() {
-            const chartContainer = document.getElementById('revenueChart');
-            const data = reportData.summary;
-            if (!data || !data.services || data.services.length === 0) {
-                chartContainer.innerHTML = '<div class="text-muted">No revenue data available for this period</div>';
-                return;
-            }
-            const services = data.services.sort((a, b) => b.revenue - a.revenue);
-            const maxRevenue = Math.max(...services.map(s => s.revenue));
-            chartContainer.innerHTML = services.map(s => {
-                const percent = maxRevenue > 0 ? (s.revenue / maxRevenue) * 100 : 0;
-                return `<div class="chart-bar-item">
-                    <div class="chart-label">${s.name}</div>
-                    <div class="chart-bar" style="width: ${percent}%;"></div>
-                    <div class="chart-value">${formatCurrency(s.revenue)}</div>
-                </div>`;
-            }).join('');
-        }
-
-        // Per-section CSV exports
-        function exportCrewCSV() {
-            let csv = 'Crew Name,Jobs Completed,Total Revenue,Avg per Job,Completion Rate\n';
-            (reportData.crew || []).forEach(m => {
-                const avg = m.jobsCompleted > 0 ? (m.totalRevenue / m.jobsCompleted).toFixed(2) : 0;
-                const rate = m.jobsTotal > 0 ? ((m.jobsCompleted / m.jobsTotal) * 100).toFixed(0) : 0;
-                csv += `${m.name},${m.jobsCompleted},${m.totalRevenue},${avg},${rate}%\n`;
-            });
-            downloadCSV(csv, `crew_performance_${new Date().toISOString().split('T')[0]}.csv`);
-        }
-
-        function exportCustomerValueCSV() {
-            let csv = 'Customer,Total Invoiced,Invoice Count,Last Invoice\n';
-            (reportData.customerValue || []).forEach(c => {
-                csv += `"${c.name}",${c.total_invoiced},${c.invoice_count},${c.last_invoice_date || ''}\n`;
-            });
-            downloadCSV(csv, `customer_value_${new Date().toISOString().split('T')[0]}.csv`);
-        }
-
-        function exportJobCostingCSV() {
-            let csv = 'Customer,Service,Revenue,Expenses,Profit\n';
-            (reportData.jobCosting || []).forEach(j => {
-                csv += `"${j.customer_name}",${j.service_type},${j.revenue},${j.expenses},${j.profit}\n`;
-            });
-            downloadCSV(csv, `job_costing_${new Date().toISOString().split('T')[0]}.csv`);
-        }
-
-        function exportRevenueCSV() {
-            let csv = 'Service Type,Jobs,Revenue\n';
-            const data = reportData.summary;
-            if (data && data.services) {
-                data.services.forEach(s => {
-                    csv += `${s.name},${s.jobs},${s.revenue}\n`;
-                });
-            }
-            downloadCSV(csv, `revenue_report_${new Date().toISOString().split('T')[0]}.csv`);
-        }
-
-        // Load customer acquisition
-        async function loadCustomerAcquisition() {
-            try {
-                const response = await fetch('/api/reports/customer-acquisition');
-                const data = await response.json();
-
-                const chartContainer = document.getElementById('customerChart');
-                chartContainer.innerHTML = '';
-
-                if (!data || data.length === 0) {
-                    chartContainer.innerHTML = '<div class="text-muted">No data available</div>';
-                    return;
-                }
-
-                const maxCount = Math.max(...data.map(d => d.count));
-
-                data.forEach(item => {
-                    const percent = (item.count / maxCount) * 100;
-                    const barItem = document.createElement('div');
-                    barItem.className = 'chart-bar-item';
-                    barItem.innerHTML = `
-                        <div class="chart-label">${item.month}</div>
-                        <div class="chart-bar" style="width: ${percent}%;"></div>
-                        <div class="chart-value">${item.count}</div>
-                    `;
-                    chartContainer.appendChild(barItem);
-                });
-
-                reportData.customers = data;
-            } catch (error) {
-                console.error('Error loading customer acquisition:', error);
-            }
-        }
-
-        // Export CSV
-        function exportCSV() {
-            let csv = '';
-            let filename = `reports_${currentPeriod}_${new Date().toISOString().split('T')[0]}.csv`;
-
-            // Summary section
-            csv += 'BUSINESS SUMMARY\n';
-            csv += 'Metric,Value\n';
-            const data = reportData.summary;
-            if (data) {
-                csv += `Quotes Sent,${data.quotesSent || 0}\n`;
-                csv += `Conversion Rate,${((data.conversionRate || 0) * 100).toFixed(1)}%\n`;
-                csv += `Jobs Completed,${data.jobsCompleted || 0}\n`;
-                csv += `Revenue,${data.revenue || 0}\n`;
-                csv += `Expenses,${data.expenses || 0}\n`;
-                const profit = (data.revenue || 0) - (data.expenses || 0);
-                csv += `Profit,${profit}\n`;
-            }
-
-            csv += '\n\nSERVICE BREAKDOWN\n';
-            csv += 'Service Type,Jobs,Revenue,% of Total\n';
-            let totalRevenue = 0;
-            reportData.services.forEach(service => {
-                totalRevenue += service.revenue;
-            });
-            reportData.services.forEach(service => {
-                const percent = totalRevenue > 0 ? ((service.revenue / totalRevenue) * 100).toFixed(1) : 0;
-                csv += `${service.name},${service.jobs},${service.revenue},${percent}%\n`;
-            });
-
-            csv += '\n\nCREW PERFORMANCE\n';
-            csv += 'Crew Name,Jobs Completed,Total Revenue,Avg per Job\n';
-            reportData.crew.forEach(member => {
-                const avgPerJob = member.jobsCompleted > 0 ? (member.totalRevenue / member.jobsCompleted).toFixed(2) : 0;
-                csv += `${member.name},${member.jobsCompleted},${member.totalRevenue},${avgPerJob}\n`;
-            });
-
-            csv += '\n\nCUSTOMER ACQUISITION\n';
-            csv += 'Month,New Customers\n';
-            reportData.customers.forEach(item => {
-                csv += `${item.month},${item.count}\n`;
-            });
-
-            downloadCSV(csv, filename);
-        }
-
-        // Download CSV helper
-        function downloadCSV(content, filename) {
-            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = filename;
-            link.click();
-            URL.revokeObjectURL(link.href);
-        }
-
-        // Show error
-        function showError(message) {
-            console.error(message);
-            // Could integrate with a toast notification system
-        }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set today's date as default end date for custom range
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('endDate').value = today;
-
-            // Set start date to 30 days ago
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-
-            loadReport();
-        });
-    </script>
+<main>
+  <div class="header">
+    <div><div class="eyebrow">HomeWorks activity</div><h1>Reports</h1><p>A clear monthly view of billing, completed work, and customers to review.</p></div>
+    <div class="controls"><label>Month <input id="month" type="month"></label><button id="refresh" type="button">Refresh</button></div>
+  </div>
+  <nav class="tabs" aria-label="Reporting areas"><a href="reports.html" aria-current="page">Overview</a><a href="monthly-performance.html">Monthly performance</a><a href="kpi.html">Insights</a><a href="pipeline.html">Pipeline</a></nav>
+  <div class="hero"><div><h2>Where should we focus?</h2><p>Review customers below their own pricing goals, see who is performing well, and spot missing targets or time records. Customer targets are set in the monthly report.</p></div><a id="openMonthly" href="monthly-performance.html">Open full report →</a></div>
+  <div id="status" class="message" role="status">Loading HomeWorks data…</div>
+  <div class="metrics">
+    <div class="metric"><span>Invoices issued</span><b id="billed">—</b><small>Invoices dated this month; includes tax</small></div>
+    <div class="metric"><span>Payments received</span><b id="collected">—</b><small>Less refunds; may pay older invoices</small></div>
+    <div class="metric"><span>Completed visits</span><b id="visits">—</b><small id="visitValue">Pre-tax visit value —</small></div>
+    <div class="metric"><span>Tracked job time</span><b id="coverage">—</b><small>Visits with recorded time</small></div>
+  </div>
+  <div class="grid">
+    <section class="panel"><h2>Needs pricing review</h2><p>Customers below their saved target per budgeted labor hour.</p><div id="below" class="blank">Loading…</div><a href="monthly-performance.html?filter=below">Review all →</a></section>
+    <section class="panel"><h2>Performing well</h2><p>Customers meeting or exceeding their saved target.</p><div id="met" class="blank">Loading…</div><a href="monthly-performance.html?filter=met">See customer review →</a></section>
+    <section class="panel"><h2>Targets to set</h2><p>Customers with priced, budgeted visits and no saved target.</p><div id="unset" class="blank">Loading…</div><a href="monthly-performance.html?filter=unset">Set customer targets →</a></section>
+  </div>
+  <h2 class="label">Detailed reports</h2>
+  <div class="library">
+    <a class="report-link" href="monthly-performance.html"><b>Monthly performance &amp; pricing</b><span>HomeWorks invoices, payments, completed visits, service mix, and customer targets.</span></a>
+    <a class="report-link" href="sales-tax-report.html"><b>Sales tax report</b><span>Review tax based on billing, outstanding balances, or collections.</span></a>
+    <a class="report-link" href="tax-transfers.html"><b>Tax transfer reconciliation</b><span>Review linked and unresolved transfers.</span></a>
+  </div>
+  <p id="asOf" class="foot">Invoice totals and payments are different measures. Pricing uses budgeted hours and does not establish actual profit.</p>
+</main>
+<script>
+(function(){
+  const $=function(id){return document.getElementById(id);};
+  const dollars=function(value){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(value)||0);};
+  const number=function(value){return new Intl.NumberFormat('en-US').format(Number(value)||0);};
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+  const currentMonth=parts.find(function(x){return x.type==='year';}).value+'-'+parts.find(function(x){return x.type==='month';}).value;
+  $('month').value=currentMonth; $('month').max=currentMonth;
+  function customerGroups(report){
+    const groups=new Map();
+    (report.pricingReview||[]).forEach(function(item){
+      const key=item.customerId||'unknown:'+item.customer;
+      const group=groups.get(key)||{name:item.customer,id:item.customerId,visits:0,value:0,hours:0};
+      group.visits+=item.visits; group.value+=item.visitValue; group.hours+=item.budgetedHours; groups.set(key,group);
+    });
+    return Array.from(groups.values()).map(function(group){
+      group.rate=group.hours?group.value/group.hours:0;
+      const saved=Number(report.customerTargets && report.customerTargets[group.id]);
+      group.target=saved>0?saved:null;
+      return group;
+    });
+  }
+  function renderList(id,rows,emptyText,kind){
+    const box=$(id); box.replaceChildren(); box.className='';
+    if(!rows.length){box.className='blank';box.textContent=emptyText;return;}
+    rows.slice(0,5).forEach(function(item){
+      const line=document.createElement('div'); line.className='line '+(kind==='below'?'bad':'');
+      const name=document.createElement('strong'); name.textContent=item.name;
+      const detail=document.createElement('span');
+      detail.textContent=kind==='unset'?dollars(item.rate)+'/hr':dollars(item.rate)+' / '+dollars(item.target)+' goal';
+      line.append(name,detail); box.appendChild(line);
+    });
+    if(rows.length>5){const more=document.createElement('p');more.className='foot';more.textContent='+'+(rows.length-5)+' more customers';box.appendChild(more);}
+  }
+  async function load(){
+    $('refresh').disabled=true; $('status').className='message'; $('status').textContent='Loading HomeWorks data…';
+    try {
+      const month=$('month').value;
+      const response=await fetch('/api/reports/monthly-performance?month='+encodeURIComponent(month));
+      const payload=await response.json();
+      if(!response.ok||!payload.success) throw new Error(payload.error||'Reports could not load.');
+      const report=payload.report, coverage=report.coverage;
+      $('billed').textContent=dollars(report.financials.billed);
+      $('collected').textContent=dollars(report.financials.collected);
+      $('visits').textContent=number(coverage.completedVisits);
+      $('visitValue').textContent=dollars(report.visitValue)+' pre-tax visit value';
+      $('coverage').textContent=number(coverage.trackedVisits)+' / '+number(coverage.completedVisits);
+      const groups=customerGroups(report);
+      const below=groups.filter(function(x){return x.target&&x.rate<x.target;}).sort(function(a,b){return (a.rate/a.target)-(b.rate/b.target);});
+      const met=groups.filter(function(x){return x.target&&x.rate>=x.target;}).sort(function(a,b){return (b.rate/b.target)-(a.rate/a.target);});
+      const unset=groups.filter(function(x){return !x.target;}).sort(function(a,b){return a.rate-b.rate;});
+      renderList('below',below,'No customers below a saved target.','below');
+      renderList('met',met,'No customers have met a saved target yet.','met');
+      renderList('unset',unset,'Every reviewed customer has a target.','unset');
+      const missing=coverage.completedVisits-coverage.trackedVisits;
+      $('status').className='message '+(missing?'warning':'');
+      $('status').textContent=missing?number(missing)+' visits have no tracked job time. Pricing comparisons use budgeted hours.':'Report ready. Pricing comparisons use budgeted hours.';
+      $('asOf').textContent='HomeWorks data updated '+new Date(report.asOf).toLocaleString()+'. Invoices issued, payments received, and pre-tax completed visit value are separate measures. This report does not calculate actual profit.';
+    } catch(error) {
+      $('status').className='message error'; $('status').textContent=error.message||'Reports could not load.';
+      ['billed','collected','visits','coverage'].forEach(function(id){$(id).textContent='—';});
+      ['below','met','unset'].forEach(function(id){$(id).textContent='Data unavailable.';});
+    } finally {$('refresh').disabled=false;}
+  }
+  $('month').addEventListener('change',load); $('refresh').addEventListener('click',load); load();
+})();
+</script>
 </body>
 </html>

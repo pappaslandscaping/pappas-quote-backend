@@ -10341,9 +10341,25 @@ app.get('/api/reports/monthly-performance', authenticateToken, async (req, res) 
       return res.status(400).json({ success: false, error: 'Use a month in YYYY-MM format.' });
     }
     const report = await fetchMonthlyPerformance({ pool, month });
+    const { loadCustomerTargets } = require('./lib/monthly-performance-targets');
+    report.customerTargets = await loadCustomerTargets(pool);
     res.json({ success: true, report });
   } catch (error) {
     console.error('Monthly performance report error:', error);
+    serverError(res, error);
+  }
+});
+
+app.put('/api/reports/monthly-performance/customer-target', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { saveCustomerTarget } = require('./lib/monthly-performance-targets');
+    const saved = await saveCustomerTarget(pool, req.body?.customerId, req.body?.targetPerHour);
+    res.json({ success: true, ...saved });
+  } catch (error) {
+    if (error.message === 'A HomeWorks customer ID is required.' || error.message.startsWith('Enter a target')) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    console.error('Customer pricing target error:', error);
     serverError(res, error);
   }
 });

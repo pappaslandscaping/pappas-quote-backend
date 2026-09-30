@@ -66,8 +66,10 @@
         .board-toolbar h3 { font-size:19px; color:var(--forest); }
         .board-toolbar p { color:var(--gray-500); font-size:12px; }
         .board-toolbar label { display:grid; gap:5px; font-size:12px; color:var(--gray-600); font-weight:700; }
-        .board-toolbar input { min-height:40px; min-width:260px; border:1px solid var(--gray-300); border-radius:8px; padding:8px 11px; font:inherit; }
-        .board-toolbar input:focus { outline:3px solid #b0cb83; outline-offset:2px; }
+        .board-toolbar input,.board-toolbar select { min-height:40px; min-width:220px; border:1px solid var(--gray-300); border-radius:8px; padding:8px 11px; font:inherit; background:#fff; }
+        .board-toolbar input:focus,.board-toolbar select:focus { outline:3px solid #b0cb83; outline-offset:2px; }
+        .board-filters { display:flex; align-items:end; gap:10px; flex-wrap:wrap; }
+        .board-count { color:var(--gray-500); font-size:12px; margin:-6px 0 12px; }
 
         /* Kanban Board */
         .kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 20px; min-height: calc(100vh - 300px); scroll-snap-type:x proximity; }
@@ -172,12 +174,13 @@
     <div class="page-content">
         <div class="source-note"><strong>About this board</strong>This pipeline uses YardDesk's older local job records. Its stage totals and listed prices are not the live HomeWorks reporting totals. Use <a href="scheduling.html">Schedule</a> for current HomeWorks visits and <a href="monthly-performance.html">Monthly performance</a> for billing and pricing review. Moving a card updates the local YardDesk job stage.</div>
         <div class="stats-row" id="statsRow">
-            <div class="stat-card"><div class="label">Local jobs on board</div><div class="stat-value" id="statTotal">-</div></div>
-            <div class="stat-card"><div class="label">Sum of listed job prices</div><div class="stat-value" id="statRevenue">-</div></div>
-            <div class="stat-card"><div class="label">Marked complete locally this month</div><div class="stat-value" id="statCompleted">-</div></div>
+            <div class="stat-card"><div class="label">Local jobs shown</div><div class="stat-value" id="statTotal">-</div></div>
+            <div class="stat-card"><div class="label">Sum of shown job prices</div><div class="stat-value" id="statRevenue">-</div></div>
+            <div class="stat-card"><div class="label">Shown jobs marked complete this month</div><div class="stat-value" id="statCompleted">-</div></div>
         </div>
 
-        <div class="board-toolbar"><div><h3>Stages</h3><p>Search this board to narrow the cards. Dragging changes the local stage.</p></div><label>Filter local jobs <input id="boardSearch" type="search" placeholder="Customer, service, or address"></label></div>
+        <div class="board-toolbar"><div><h3>Stages</h3><p>Search or change the date range. Dragging changes the local stage.</p></div><div class="board-filters"><label>Job dates <select id="boardDate"><option value="recent">Last 60 days</option><option value="all">All history</option></select></label><label>Filter local jobs <input id="boardSearch" type="search" placeholder="Customer, service, or address"></label></div></div>
+        <p class="board-count" id="boardCount">Loading local jobs…</p>
 
         <div class="kanban" id="kanban">
             <div class="loading-state" style="width:100%"><div class="loading-spinner"></div>Loading pipeline...</div>
@@ -199,6 +202,7 @@ const stages = [
 
 let pipelineData = {};
 let pipelineSearch = '';
+let pipelineDate = 'recent';
 
 async function loadPipeline() {
     try {
@@ -217,10 +221,16 @@ function renderBoard(data) {
     let totalJobs = 0, totalRevenue = 0, completedThisMonth = 0;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    stages.forEach(s => totalJobs += (counts[s.key] || 0));
-
-    Object.values(data.pipeline).flat().forEach(j => {
+    const recentStart = new Date(now.getTime() - 60 * 86400000);
+    const visible = {};
+    stages.forEach(s => {
+        visible[s.key] = (data.pipeline[s.key] || []).filter(j => {
+            if (pipelineDate === 'recent' && (!j.job_date || new Date(j.job_date) < recentStart)) return false;
+            return !pipelineSearch || [j.customer_name,j.service_type,j.address].some(value => String(value || '').toLocaleLowerCase('en-US').includes(pipelineSearch));
+        });
+        totalJobs += visible[s.key].length;
+    });
+    Object.values(visible).flat().forEach(j => {
         totalRevenue += parseFloat(j.service_price) || 0;
         if (j.status === 'completed' && j.completed_at && new Date(j.completed_at) >= monthStart) completedThisMonth++;
     });
@@ -228,15 +238,21 @@ function renderBoard(data) {
     document.getElementById('statTotal').textContent = totalJobs.toLocaleString();
     document.getElementById('statRevenue').textContent = '$' + totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     document.getElementById('statCompleted').textContent = completedThisMonth.toLocaleString();
+    const allJobs = stages.reduce((sum, stage) => sum + (counts[stage.key] || 0), 0);
+    document.getElementById('boardCount').textContent = totalJobs.toLocaleString() + ' of ' + allJobs.toLocaleString() + ' local jobs shown.';
 
     const kanban = document.getElementById('kanban');
+    if (!totalJobs) {
+        kanban.innerHTML = '<div class="loading-state" style="width:100%;background:#fff;border:1px solid var(--gray-200);border-radius:12px;">No local jobs match this view. Choose All history to see older records, or open <a href="scheduling.html">Schedule</a> for current HomeWorks visits.</div>';
+        return;
+    }
     kanban.innerHTML = stages.map(s => {
-        const jobs = (data.pipeline[s.key] || []).filter(j => !pipelineSearch || [j.customer_name,j.service_type,j.address].some(value => String(value || '').toLocaleLowerCase('en-US').includes(pipelineSearch)));
+        const jobs = visible[s.key];
         const cards = jobs.map(j => renderCard(j)).join('');
         return `<div class="kanban-col col-${s.key}">
             <div class="col-header">
                 <h3><span class="col-dot"></span>${s.label}</h3>
-                <span class="col-count">${jobs.length}${pipelineSearch ? ' / ' + (counts[s.key] || 0) : ''}</span>
+                <span class="col-count">${jobs.length}</span>
             </div>
             <div class="col-body" data-stage="${s.key}"
                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
@@ -318,7 +334,10 @@ function showToast(m) { const t = document.getElementById('toast'); t.textConten
 document.addEventListener('DOMContentLoaded', loadPipeline);
 document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('boardSearch');
-  input.addEventListener('input', () => { pipelineSearch = input.value.trim().toLocaleLowerCase('en-US'); if (pipelineData && Object.keys(pipelineData).length) renderBoard({ pipeline:pipelineData, counts:Object.fromEntries(stages.map(stage => [stage.key, (pipelineData[stage.key] || []).length])) }); });
+  const dates = document.getElementById('boardDate');
+  const rerender = () => { if (pipelineData && Object.keys(pipelineData).length) renderBoard({ pipeline:pipelineData, counts:Object.fromEntries(stages.map(stage => [stage.key, (pipelineData[stage.key] || []).length])) }); };
+  input.addEventListener('input', () => { pipelineSearch = input.value.trim().toLocaleLowerCase('en-US'); rerender(); });
+  dates.addEventListener('change', () => { pipelineDate = dates.value; rerender(); });
 });
 
 // Universal Search

@@ -79,7 +79,7 @@
     <div class="metric"><span>Tracked job time</span><b id="coverage">—</b><small>Visits with recorded time</small></div>
   </div>
   <div class="grid">
-    <section class="panel"><h2>Needs pricing review</h2><p>Customers below their saved target per budgeted labor hour.</p><div id="below" class="blank">Loading…</div><a href="monthly-performance.html?filter=below">Review all →</a></section>
+    <section class="panel"><h2>Needs pricing review</h2><p>Customers below their saved target per budgeted visit hour.</p><div id="below" class="blank">Loading…</div><a href="monthly-performance.html?filter=below">Review all →</a></section>
     <section class="panel"><h2>Performing well</h2><p>Customers meeting or exceeding their saved target.</p><div id="met" class="blank">Loading…</div><a href="monthly-performance.html?filter=met">See customer review →</a></section>
     <section class="panel"><h2>Targets to set</h2><p>Customers with priced, budgeted visits and no saved target.</p><div id="unset" class="blank">Loading…</div><a href="monthly-performance.html?filter=unset">Set customer targets →</a></section>
   </div>
@@ -148,7 +148,7 @@
       renderList('unset',unset,'Every reviewed customer has a target.','unset');
       const missing=coverage.completedVisits-coverage.trackedVisits;
       $('status').className='message '+(missing?'warning':'');
-      $('status').textContent=missing?number(missing)+' visits have no tracked job time. Pricing comparisons use budgeted hours.':'Report ready. Pricing comparisons use budgeted hours.';
+      $('status').textContent=(missing?number(missing)+' visits have no tracked job time. Pricing comparisons use budgeted hours.':'Report ready. Pricing comparisons use budgeted hours.')+(coverage.unallocatedContractVisits?' '+number(coverage.unallocatedContractVisits)+' recurring visits carry repeated contract amounts and are excluded from visit value.':'');
       $('asOf').textContent='HomeWorks data updated '+new Date(report.asOf).toLocaleString()+'. Invoices issued, payments received, and pre-tax completed visit value are separate measures. This report does not calculate actual profit.';
     } catch(error) {
       $('status').className='message error'; $('status').textContent=error.message||'Reports could not load.';

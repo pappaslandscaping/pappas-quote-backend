@@ -169,7 +169,7 @@
       renderMix(r);renderCoverage(r);
       const missing=c.completedVisits-c.trackedVisits;
       $('status').className='message '+(missing?'warning':'');
-      $('status').textContent=missing?number(missing)+' completed visits have no tracked job time. Price signals use budgeted hours, not actual labor cost.':'Report ready. Price signals still use budgeted hours.';
+      $('status').textContent=(missing?number(missing)+' completed visits have no tracked job time. Price signals use budgeted hours, not actual labor cost.':'Report ready. Price signals still use budgeted hours.')+(c.unallocatedContractVisits?' '+number(c.unallocatedContractVisits)+' recurring visits carry repeated contract amounts and are excluded from visit value.':'');
       $('asOf').textContent='Updated '+new Date(r.asOf).toLocaleString()+'. Invoices issued, payments received, and completed visit value are separate measures. Actual profit is not shown.';
     }catch(error){
       $('status').className='message error';$('status').textContent=error.message||'Insights could not load.';

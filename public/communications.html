@@ -953,7 +953,7 @@
                 <div class="email-field" id="general-sms-estimate-wrap" style="display:none">
                     <label for="general-sms-estimate">Choose HomeWorks estimate</label>
                     <select class="email-select" id="general-sms-estimate" onchange="selectGeneralTextEstimate(this.value)">
-                        <option value="">Choose a sent estimate...</option>
+                        <option value="">Choose an estimate ready for review...</option>
                     </select>
                     <div class="email-inline-note" id="general-sms-estimate-note">Choose a HomeWorks customer to load their estimates.</div>
                 </div>
@@ -1601,9 +1601,9 @@ function isEstimateSmsTemplate(template) {
 }
 
 function isTextableHomeWorksEstimate(estimate) {
-    if (!estimate?.id || !estimate.number || estimate.isSent !== true || estimate.hasTotal === false
+    if (!estimate?.id || !estimate.number || (estimate.isSent !== true && estimate.status !== 'PENDING') || estimate.hasTotal === false
         || !Number.isFinite(Number(estimate.total))) return false;
-    if (['ACCEPTED', 'DECLINED', 'REJECTED', 'CANCELLED', 'CANCELED', 'EXPIRED'].includes(String(estimate.status || '').toUpperCase())) return false;
+    if (['DRAFT', 'ACCEPTED', 'DECLINED', 'REJECTED', 'CANCELLED', 'CANCELED', 'EXPIRED', 'INVOICED'].includes(String(estimate.status || '').toUpperCase())) return false;
     try {
         const url = new URL(estimate.portalUrl);
         return url.protocol === 'https:' && url.hostname === 'secure.copilotcrm.com'
@@ -1638,7 +1638,7 @@ function resetGeneralTextEstimate() {
     generalEstimateRequestId += 1;
     generalTextEstimates = [];
     generalTextEstimate = null;
-    document.getElementById('general-sms-estimate').innerHTML = '<option value="">Choose a sent estimate...</option>';
+    document.getElementById('general-sms-estimate').innerHTML = '<option value="">Choose an estimate ready for review...</option>';
     document.getElementById('general-sms-estimate-note').textContent = 'Choose a HomeWorks customer to load their estimates.';
 }
 
@@ -1808,7 +1808,7 @@ async function loadGeneralTextEstimates() {
     if (!recipient?.homeworksId) return;
     const requestId = generalEstimateRequestId;
     const status = document.getElementById('general-sms-status');
-    status.textContent = 'Loading sent estimates from HomeWorks...';
+    status.textContent = 'Loading estimates from HomeWorks...';
     try {
         const token = localStorage.getItem('adminToken');
         const res = await fetch(`/api/app/homeworks/customers/${encodeURIComponent(recipient.homeworksId)}/text-estimates`, {
@@ -1828,16 +1828,16 @@ async function loadGeneralTextEstimates() {
         document.getElementById('general-sms-recipient-preview').innerHTML = `<strong>${esc(recipient.name)}</strong>${esc(fmtPhone(recipient.phone))}`;
         generalTextEstimates = (data.estimates || []).filter(isTextableHomeWorksEstimate);
         const select = document.getElementById('general-sms-estimate');
-        select.innerHTML = '<option value="">Choose a sent estimate...</option>' + generalTextEstimates.map(estimate =>
+        select.innerHTML = '<option value="">Choose an estimate ready for review...</option>' + generalTextEstimates.map(estimate =>
             `<option value="${esc(estimate.id)}">#${esc(estimate.number)} · $${esc(Number(estimate.total).toFixed(2))}${estimate.title ? ` · ${esc(estimate.title)}` : ''}</option>`
         ).join('');
         const note = document.getElementById('general-sms-estimate-note');
         note.textContent = generalTextEstimates.length
-            ? 'Choose the exact sent estimate. The amount and review link come from HomeWorks.'
-            : 'No sent HomeWorks estimate with a review link is available for this customer.';
+            ? 'Choose the exact estimate. The amount and review link come from HomeWorks.'
+            : 'No HomeWorks estimate ready for review is available for this customer.';
         status.textContent = generalTextEstimates.length
             ? 'Choose the HomeWorks estimate to fill the text.'
-            : 'No sent HomeWorks estimate with a review link was found.';
+            : 'No HomeWorks estimate ready for review was found.';
     } catch (error) {
         if (requestId !== generalEstimateRequestId) return;
         document.getElementById('general-sms-estimate-note').textContent = error.message || 'Unable to load HomeWorks estimates.';

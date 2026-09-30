@@ -50,10 +50,14 @@ describe('HomeWorks estimate text template', () => {
     expect(elements['general-sms-send-btn'].disabled).toBe(false);
   });
 
-  test('blocks unsent estimates, accepted estimates, and unresolved template fields', () => {
+  test('allows pending estimates and blocks drafts, accepted estimates, and unresolved fields', () => {
     const { context, elements } = composerContext();
     elements['general-sms-reviewed'].checked = true;
     vm.runInContext("generalTextEstimate = { ...generalTextEstimate, isSent: false }; renderGeneralTextTemplate(); updateGeneralTextSendState()", context);
+    expect(elements['general-sms-body'].value).toContain('your estimate #1680 is ready');
+    expect(elements['general-sms-send-btn'].disabled).toBe(false);
+
+    vm.runInContext("generalTextEstimate = { ...generalTextEstimate, status: 'DRAFT' }; renderGeneralTextTemplate(); updateGeneralTextSendState()", context);
     expect(elements['general-sms-body'].value).toBe('');
     expect(elements['general-sms-send-btn'].disabled).toBe(true);
 

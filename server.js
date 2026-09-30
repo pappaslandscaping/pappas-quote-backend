@@ -10333,6 +10333,21 @@ app.get('/api/reports/2025-services', async (req, res) => {
 
 
 // GET /api/reports/business-summary - KPIs for a period
+app.get('/api/reports/monthly-performance', authenticateToken, async (req, res) => {
+  try {
+    const month = String(req.query.month || '').trim();
+    const { monthBounds, fetchMonthlyPerformance } = require('./lib/monthly-performance');
+    try { monthBounds(month); } catch (_) {
+      return res.status(400).json({ success: false, error: 'Use a month in YYYY-MM format.' });
+    }
+    const report = await fetchMonthlyPerformance({ pool, month });
+    res.json({ success: true, report });
+  } catch (error) {
+    console.error('Monthly performance report error:', error);
+    serverError(res, error);
+  }
+});
+
 app.get('/api/reports/business-summary', async (req, res) => {
   try {
     const { period = 'month' } = req.query;

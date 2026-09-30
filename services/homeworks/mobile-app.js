@@ -125,7 +125,8 @@ function mapInvoice(invoice, portalKey) {
   };
 }
 
-function mapEstimate(estimate, portalKey) {
+function mapEstimate(estimate, portalKey, { allowPendingReviewLink = false } = {}) {
+  const reviewReady = estimate.isSent || (allowPendingReviewLink && estimate.status === 'PENDING');
   return {
     ...estimate,
     hasTotal: estimate.total !== null && estimate.total !== undefined
@@ -134,7 +135,7 @@ function mapEstimate(estimate, portalKey) {
     totalOwed: money(estimate.totalOwed),
     paidAmount: money(estimate.paidAmount),
     depositOwed: money(estimate.depositOwed),
-    portalUrl: portalKey && estimate.isSent
+    portalUrl: portalKey && reviewReady
       ? `https://secure.copilotcrm.com/client/estimates/view/${estimate.id}/${portalKey}`
       : null,
   };
@@ -162,7 +163,7 @@ async function fetchCustomerEstimatesForText({ pool, accessToken, fetchImpl = fe
   if (!customer) return null;
   return {
     customer: mapCustomer(customer),
-    estimates: (customer.estimates || []).map((estimate) => mapEstimate(estimate, customer.portalKey)),
+    estimates: (customer.estimates || []).map((estimate) => mapEstimate(estimate, customer.portalKey, { allowPendingReviewLink: true })),
     source: 'official_homeworks_graphql',
     asOf: new Date().toISOString(),
   };

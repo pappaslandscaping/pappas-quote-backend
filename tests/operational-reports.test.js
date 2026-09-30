@@ -52,6 +52,18 @@ test('contract tracker uses the full series counts and prioritizes actionable da
   expect(report.issueExamples[0].reasons).toEqual(expect.arrayContaining(['No visit price', 'No budgeted duration', 'No crew']));
 });
 
+test('profit readiness separates shift time from visit time and flags blocked assignments', () => {
+  const report = buildOperationalReport({ month: '2026-09', events: [visit(1, {
+    users: [{ id: 9321, firstName: 'Christopher', lastName: 'R', status: 'BLOCKED' }],
+  })], timeEntries: [
+    { eventId: null, _count: { id: 2 }, _sum: { totalSeconds: 7200 } },
+    { eventId: 1, _count: { id: 1 }, _sum: { totalSeconds: 1800 } },
+  ] });
+  expect(report.profitability.timeTracking).toMatchObject({ shiftEntries: 2, shiftHours: 2, jobEntries: 1, jobHours: 0.5 });
+  expect(report.profitability.blockedWorkerAssignments[0]).toMatchObject({ id: '9321', assignedVisits: 1 });
+  expect(report.profitability.actualProfitAvailable).toBe(false);
+});
+
 test('an optional HomeWorks section failure is visible without hiding completed visits', async () => {
   const queryImpl = jest.fn(async ({ operationName }) => {
     if (operationName === 'YardDeskOperationalVisits') return { events: [visit(1)] };

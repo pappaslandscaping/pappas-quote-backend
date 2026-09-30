@@ -10379,6 +10379,46 @@ app.get('/api/reports/operational', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/reports/customer-target-proposals', authenticateToken, async (req, res) => {
+  try {
+    const month = String(req.query.month || '').trim();
+    const { proposalBounds, fetchTargetProposals } = require('./lib/customer-target-proposals');
+    try { proposalBounds(month); } catch (_) {
+      return res.status(400).json({ success: false, error: 'Use a month in YYYY-MM format.' });
+    }
+    res.json({ success: true, report: await fetchTargetProposals({ pool, month }) });
+  } catch (error) {
+    console.error('Customer target proposal error:', error);
+    serverError(res, error);
+  }
+});
+
+app.post('/api/reports/customer-target-proposals/apply-ready', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const month = String(req.body?.month || '').trim();
+    const { proposalBounds, fetchTargetProposals } = require('./lib/customer-target-proposals');
+    try { proposalBounds(month); } catch (_) {
+      return res.status(400).json({ success: false, error: 'Use a month in YYYY-MM format.' });
+    }
+    const ids = Array.isArray(req.body?.customerIds) ? req.body.customerIds.map(String) : [];
+    if (!ids.length || ids.length > 300 || new Set(ids).size !== ids.length || ids.some((id) => !/^\d+$/.test(id))) {
+      return res.status(400).json({ success: false, error: 'Select up to 300 distinct HomeWorks customers.' });
+    }
+    const report = await fetchTargetProposals({ pool, month });
+    const ready = new Map(report.proposals.filter((row) => row.reviewStatus === 'ready')
+      .map((row) => [row.customerId, row.suggestedTarget]));
+    if (ids.some((id) => !ready.has(id))) {
+      return res.status(409).json({ success: false, error: 'One or more proposals need review or have changed. Refresh the report before saving.' });
+    }
+    const { saveCustomerTargetsBulk } = require('./lib/monthly-performance-targets');
+    const saved = await saveCustomerTargetsBulk(pool, Object.fromEntries(ids.map((id) => [id, ready.get(id)])));
+    res.json({ success: true, ...saved, note: 'Customer targets saved in YardDesk. HomeWorks prices were not changed.' });
+  } catch (error) {
+    console.error('Bulk customer target error:', error);
+    serverError(res, error);
+  }
+});
+
 app.get('/api/reports/business-summary', async (req, res) => {
   try {
     const { period = 'month' } = req.query;

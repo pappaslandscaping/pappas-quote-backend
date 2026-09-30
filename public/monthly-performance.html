@@ -74,7 +74,7 @@
     <div class="metric"><div class="label">Invoices issued</div><b id="billed">—</b><small id="billedCompare">Includes tax</small></div>
     <div class="metric"><div class="label">Payments received</div><b id="collected">—</b><small id="collectedCompare">Less refunds</small></div>
     <div class="metric"><div class="label">Completed visits</div><b id="visits">—</b><small id="visitValue">Pre-tax visit value —</small></div>
-    <div class="metric"><div class="label">Time captured</div><b id="coverage">—</b><small id="budgetCoverage">Tracked visits / completed visits</small></div>
+    <div class="metric"><div class="label">Time available for analysis</div><b id="coverage">—</b><small id="budgetCoverage">Actual or budgeted visits / completed visits</small></div>
   </div>
   <section class="card">
     <div class="section-head"><div><h2>Set targets by customer</h2><p>Each saved target applies to that customer's properties and services. Leave the amount blank and save to clear it.</p></div><label>Find customer <input id="customerSearch" type="search" placeholder="Search customers"></label></div>
@@ -273,13 +273,13 @@
     $('collectedCompare').textContent = comparison(f.collected, report.previousMonth.collected);
     $('visits').textContent = number(report.coverage.completedVisits);
     $('visitValue').textContent = `${currency(report.visitValue)} pre-tax visit value`;
-    $('coverage').textContent = `${number(report.coverage.trackedVisits)} / ${number(report.coverage.completedVisits)}`;
-    $('budgetCoverage').textContent = `${number(report.coverage.budgetedVisits)} visits have budgeted hours`;
-    const missing = report.coverage.completedVisits - report.coverage.trackedVisits;
+    $('coverage').textContent = `${number(report.coverage.usableTimeVisits)} / ${number(report.coverage.completedVisits)}`;
+    $('budgetCoverage').textContent = `${number(report.coverage.trackedVisits)} actual · ${number(report.coverage.budgetedFallbackVisits)} budgeted estimates`;
+    const missing = report.coverage.completedVisits - report.coverage.usableTimeVisits;
     $('status').className = `note ${missing ? 'warning' : ''}`;
     $('status').textContent = (missing
-      ? `${number(missing)} completed visits have no tracked job time. Pricing is compared with budgeted time; actual performance and profit cannot be confirmed from this data.`
-      : 'All completed visits have tracked job time. Pricing comparisons below still use budgeted hours.')
+      ? `${number(report.coverage.budgetedFallbackVisits)} visits use budgeted time where job time was not recorded; ${number(missing)} have neither. These estimates are not actual job time or profit.`
+      : `${number(report.coverage.budgetedFallbackVisits)} visits use budgeted time where job time was not recorded. Actual job profit still needs full costs.`)
       + (report.coverage.unallocatedContractVisits ? ` ${number(report.coverage.unallocatedContractVisits)} recurring visits carry repeated contract amounts and are excluded from visit value until allocated.` : '');
     $('definitions').textContent = `${report.definitions.billed} ${report.definitions.collected} ${report.definitions.visitValue} ${report.definitions.pricing} No customer price is changed here. Updated ${new Date(report.asOf).toLocaleString()}.`;
     renderTargets(); renderServices(); renderPricing(); $('download').disabled = false;

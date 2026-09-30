@@ -25,7 +25,8 @@ describe('HomeWorks monthly performance', () => {
         timeEntryTotals: { pastTimeEntrySeconds: 0 },
       },
     ]);
-    expect(result.coverage).toMatchObject({ completedVisits: 3, budgetedVisits: 2, trackedVisits: 1, trackedHours: 0.5 });
+    expect(result.coverage).toMatchObject({ completedVisits: 3, budgetedVisits: 2, trackedVisits: 1, trackedHours: 0.5,
+      budgetedFallbackVisits: 1, usableTimeVisits: 2, usableHours: 1 });
     expect(result.services.find((row) => row.name === 'Mowing').revenuePerBudgetedHour).toBe(100);
     expect(result.services.find((row) => row.name === 'Mowing').customers).toBe(1);
     expect(result.pricingReview).toHaveLength(1);
@@ -72,7 +73,8 @@ describe('HomeWorks monthly performance', () => {
     const report = await fetchMonthlyPerformance({ month: '2026-09', queryImpl });
     expect(report.financials).toMatchObject({ count: 2, billed: 120, paidOnInvoices: 40, collected: 80 });
     expect(report.previousMonth).toMatchObject({ month: '2026-08', billed: 100, collected: 80 });
-    expect(report.coverage).toMatchObject({ completedVisits: 1001, trackedVisits: 0 });
+    expect(report.coverage).toMatchObject({ completedVisits: 1001, trackedVisits: 0,
+      budgetedFallbackVisits: 1001, usableTimeVisits: 1001, usableHours: 500.5 });
     expect(report.visitValue).toBe(50050);
     expect(queryImpl).toHaveBeenCalledTimes(4);
   });

@@ -1,10 +1,11 @@
-const { buildTargetProposals, proposalBounds } = require('../lib/customer-target-proposals');
+const { buildTargetProposals, proposalBounds, effectiveCrewSize, plannedCrewRate } = require('../lib/customer-target-proposals');
 const { saveCustomerTargetsBulk } = require('../lib/monthly-performance-targets');
 
 const visit = (id, customerId, price = 60, options = {}) => ({
   id, title: 'Mowing', startDate: '2026-09-12', subtotal: String(price), budgetedHours: '0.5',
   customer: { id: customerId, fullName: `Customer ${customerId}` },
-  property: { id: customerId, name: `${customerId} Main St` }, ...options,
+  property: { id: customerId, name: `${customerId} Main St` },
+  users: [{ id: 9319, rate: '25' }], ...options,
 });
 
 test('proposals use other comparable properties and hold large increases for review', () => {
@@ -18,7 +19,8 @@ test('proposals use other comparable properties and hold large increases for rev
   expect(low).toMatchObject({ currentPerHour: 60, peerPerHour: 120, suggestedTarget: 120,
     reviewStatus: 'review', comparableProperties: 1 });
   const normal = report.proposals.find((row) => row.customerId === '2');
-  expect(normal).toMatchObject({ currentPerHour: 120, suggestedTarget: 120, reviewStatus: 'ready' });
+  expect(normal).toMatchObject({ currentPerHour: 120, laborOnlyFloor: 25 * 1.1 / 0.35,
+    suggestedTarget: 120, reviewStatus: 'ready' });
 });
 
 test('proposals exclude repeated season amounts and require an adequate peer group', () => {
@@ -29,6 +31,41 @@ test('proposals exclude repeated season amounts and require an adequate peer gro
   expect(report.proposals[0]).toMatchObject({ visits: 1, suggestedTarget: null,
     reviewStatus: 'review' });
   expect(proposalBounds('2026-09')).toMatchObject({ start: '2026-07-01', end: '2026-09-30' });
+});
+
+test('material-intensive services stay in review despite enough peer prices', () => {
+  const events = [];
+  for (let id = 1; id <= 12; id++) {
+    for (let n = 0; n < 3; n++) events.push(visit(id * 10 + n, id, 60, { title: 'Late Summer Fertilizing' }));
+  }
+  const report = buildTargetProposals({ month: '2026-09', events });
+  expect(report.summary.ready).toBe(0);
+  expect(report.proposals[0].reviewReason).toMatch(/Material cost/);
+});
+
+test('owner-confirmed stale staffing is only corrected for later pricing comparisons', () => {
+  const event = visit(1, 1, 60, { users: [{ id: 9273 }, { id: 9321 }] });
+  expect(effectiveCrewSize(event)).toBe(1);
+  expect(plannedCrewRate(event, 35)).toBe(35);
+  expect(effectiveCrewSize({ ...event, startDate: '2026-06-15' })).toBe(2);
+  const report = buildTargetProposals({ month: '2026-09', events: [event] });
+  expect(report.excluded.staffingCorrection).toBe(1);
+  expect(report.proposals[0].properties[0].crewSize).toBe(1);
+  expect(report.proposals[0].laborOnlyFloor).toBeCloseTo(35 * 1.1 / 0.35);
+});
+
+test('owner replacement assumption changes the labor floor without treating pay as profit', () => {
+  const events = [];
+  for (let id = 1; id <= 12; id++) {
+    for (let n = 0; n < 3; n++) events.push(visit(id * 10 + n, id, 50,
+      { users: [{ id: 9273 }] }));
+  }
+  const lower = buildTargetProposals({ month: '2026-09', events, ownerRate: 35 });
+  const higher = buildTargetProposals({ month: '2026-09', events, ownerRate: 50 });
+  expect(lower.proposals[0].suggestedTarget).toBe(110);
+  expect(higher.proposals[0].suggestedTarget).toBe(158);
+  expect(higher.costAssumptions.ownerReplacementPerHour).toBe(50);
+  expect(() => buildTargetProposals({ month: '2026-09', events, ownerRate: 0 })).toThrow(/replacement rate/);
 });
 
 test('bulk target save does not overwrite existing customer goals', async () => {

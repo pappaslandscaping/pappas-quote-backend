@@ -10379,14 +10379,18 @@ app.get('/api/reports/operational', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/reports/customer-target-proposals', authenticateToken, async (req, res) => {
+app.get('/api/reports/customer-target-proposals', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const month = String(req.query.month || '').trim();
     const { proposalBounds, fetchTargetProposals } = require('./lib/customer-target-proposals');
     try { proposalBounds(month); } catch (_) {
       return res.status(400).json({ success: false, error: 'Use a month in YYYY-MM format.' });
     }
-    res.json({ success: true, report: await fetchTargetProposals({ pool, month }) });
+    const ownerRate = Number(req.query.ownerRate ?? 35);
+    if (!Number.isFinite(ownerRate) || ownerRate < 20 || ownerRate > 150) {
+      return res.status(400).json({ success: false, error: 'Enter an owner replacement rate from $20 to $150 per field hour.' });
+    }
+    res.json({ success: true, report: await fetchTargetProposals({ pool, month, ownerRate }) });
   } catch (error) {
     console.error('Customer target proposal error:', error);
     serverError(res, error);
@@ -10404,7 +10408,11 @@ app.post('/api/reports/customer-target-proposals/apply-ready', authenticateToken
     if (!ids.length || ids.length > 300 || new Set(ids).size !== ids.length || ids.some((id) => !/^\d+$/.test(id))) {
       return res.status(400).json({ success: false, error: 'Select up to 300 distinct HomeWorks customers.' });
     }
-    const report = await fetchTargetProposals({ pool, month });
+    const ownerRate = Number(req.body?.ownerRate ?? 35);
+    if (!Number.isFinite(ownerRate) || ownerRate < 20 || ownerRate > 150) {
+      return res.status(400).json({ success: false, error: 'Enter an owner replacement rate from $20 to $150 per field hour.' });
+    }
+    const report = await fetchTargetProposals({ pool, month, ownerRate });
     const ready = new Map(report.proposals.filter((row) => row.reviewStatus === 'ready')
       .map((row) => [row.customerId, row.suggestedTarget]));
     if (ids.some((id) => !ready.has(id))) {

@@ -142,8 +142,9 @@
       const below=groups.filter(function(x){return x.target&&x.rate<x.target;}).sort(function(a,b){return (a.rate/a.target)-(b.rate/b.target);});
       const met=groups.filter(function(x){return x.target&&x.rate>=x.target;}).sort(function(a,b){return (b.rate/b.target)-(a.rate/a.target);});
       const unset=groups.filter(function(x){return !x.target;}).sort(function(a,b){return a.rate-b.rate;});
-      renderList('below',below,'No customers below a saved target.','below');
-      renderList('met',met,'No customers have met a saved target yet.','met');
+      const hasTargets=groups.some(function(x){return x.target;});
+      renderList('below',below,hasTargets?'No customers below a saved target.':'Set customer targets to identify pricing gaps.','below');
+      renderList('met',met,hasTargets?'No customers meeting a saved target yet.':'Set customer targets to see who is performing well.','met');
       renderList('unset',unset,'Every reviewed customer has a target.','unset');
       const missing=coverage.completedVisits-coverage.trackedVisits;
       $('status').className='message '+(missing?'warning':'');

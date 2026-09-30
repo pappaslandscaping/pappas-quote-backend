@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operational reports - YardDesk</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    :root{--ink:#263a32;--green:#29443a;--muted:#65776d;--line:#dce6df;--soft:#f7faf7}
+    *{box-sizing:border-box}body{margin:0;background:var(--soft);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
+    main{max-width:1460px;margin:auto;padding:30px}h1,h2,p{margin:0}h1{font-size:30px}h2{font-size:21px}p{color:var(--muted)}
+    .top{display:flex;justify-content:space-between;align-items:end;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+    .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px}.tabs a{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--green);text-decoration:none;font-weight:700}.tabs [aria-current]{background:var(--green);color:white}
+    label{display:grid;gap:4px;font-weight:700;color:var(--muted);font-size:12px}input,button{font:inherit;min-height:40px;padding:7px 10px;border-radius:8px}input{border:1px solid #aebfb1}button{border:0;background:var(--green);color:white;font-weight:700;cursor:pointer}
+    .notice{background:#edf4e9;border:1px solid #d3e6cc;padding:13px 16px;border-radius:10px;margin-bottom:16px}.notice.error{background:#fff0eb;border-color:#efd0c6;color:#963e31}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}.card.wide{grid-column:1/-1}.card p{margin:4px 0 14px}.stat{font-size:27px;font-weight:800;color:var(--green)}
+    .scroll{overflow:auto;max-height:460px}.row{display:grid;grid-template-columns:minmax(180px,1fr) 115px 115px 120px;gap:14px;align-items:center;padding:10px 2px;border-top:1px solid #edf1ed;min-width:600px}.row b{font-weight:700}.row span{color:var(--muted)}.row.head{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:var(--muted)}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpis div{padding:12px;background:#f4f8f3;border-radius:9px}.kpis b{display:block;font-size:21px}.kpis span{font-size:12px;color:var(--muted)}
+    .empty{padding:14px 0;color:var(--muted)}.foot{font-size:12px;margin-top:16px}a{color:#286448}a:focus-visible,button:focus-visible,input:focus{outline:3px solid #a5c96b;outline-offset:2px}
+    @media(max-width:800px){main{padding:17px}.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.kpis{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body><script src="shell.js"></script><main>
+  <div class="top"><div><h1>Operational reports</h1><p>See pricing opportunities, contract progress, cash due, crews, and missing records.</p></div><label>Month <input id="month" type="month"></label></div>
+  <nav class="tabs" aria-label="Reporting areas"><a href="reports.html">Overview</a><a href="monthly-performance.html">Monthly performance</a><a href="operational-reports.html" aria-current="page">Operations</a><a href="kpi.html">Insights</a><a href="pipeline.html">Pipeline</a></nav>
+  <div id="status" class="notice" role="status">Loading HomeWorks data…</div>
+  <div class="grid">
+    <section class="card wide"><h2>Customer pricing opportunities</h2><p>Only customers with a saved target are measured below goal. The gap estimates this month’s price difference for the same budgeted visit hours.</p><div class="scroll" id="pricing"></div><a href="monthly-performance.html?filter=unset">Set or edit customer targets →</a></section>
+    <section class="card"><h2>Job profitability readiness</h2><p id="profitText"></p><div class="kpis" id="profit"></div></section>
+    <section class="card"><h2>Recurring contracts</h2><p>Work this month on recurring series; equal season-price allocation is an estimate, not booked revenue.</p><div class="scroll" id="contracts"></div></section>
+    <section class="card wide"><h2>Unpaid invoices and cash due</h2><p>Current open balance across all invoice dates, grouped by how late the invoice is. This is not a cash forecast.</p><div class="kpis" id="aging"></div><div class="scroll" id="receivables"></div></section>
+    <section class="card"><h2>Crew and route efficiency</h2><p>Completed visits and budgeted visit duration; route miles and driving time come from HomeWorks routes.</p><div class="scroll" id="crews"></div><div class="scroll" id="routes"></div></section>
+    <section class="card"><h2>Data needing attention</h2><p>Counts of completed visits that cannot support a full pricing or productivity review.</p><div class="kpis" id="issues"></div></section>
+  </div><p id="asOf" class="foot"></p>
+</main><script>
+(function(){
+  const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n)||0), num=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(Number(n)||0);
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+  const current=parts.find(x=>x.type==='year').value+'-'+parts.find(x=>x.type==='month').value;
+  $('month').value=new URLSearchParams(location.search).get('month')||current;$('month').max=current;
+  function line(title,a,b,c){const el=document.createElement('div');el.className='row';[title,a,b,c].forEach((value,index)=>{const child=document.createElement(index?'span':'b');child.textContent=value;el.appendChild(child)});return el}
+  function fillRows(id,rows,empty){const box=$(id);box.replaceChildren();if(!rows.length){box.textContent=empty;box.className='empty';return}box.className='scroll';rows.forEach(row=>box.appendChild(line(...row)))}
+  function kpis(id,items){const box=$(id);box.replaceChildren();items.forEach(([label,value])=>{const el=document.createElement('div'),b=document.createElement('b'),s=document.createElement('span');b.textContent=value;s.textContent=label;el.append(b,s);box.appendChild(el)})}
+  async function load(){try{
+    $('status').className='notice';$('status').textContent='Loading HomeWorks data…';
+    const response=await fetch('/api/reports/operational?month='+encodeURIComponent($('month').value));
+    const payload=await response.json();if(!response.ok||!payload.success)throw new Error(payload.error||'Report unavailable');
+    const r=payload.report;
+    const below=r.pricing.filter(x=>x.target&&x.gap>0),unset=r.pricing.filter(x=>!x.target);
+    fillRows('pricing',below.slice(0,100).map(x=>[x.name,money(x.perHour)+'/hr',money(x.target)+'/hr goal',money(x.gap)+' gap']),below.length?'':'No customers below a saved target.');
+    $('profitText').textContent=r.profitability.explanation;
+    kpis('profit',[['Completed visits',num(r.profitability.completedVisits)],['Priced and budgeted',num(r.profitability.pricedAndBudgetedVisits)],['Tracked time',num(r.profitability.trackedVisits)],['Actual profit','Unavailable']]);
+    fillRows('contracts',r.contracts.slice(0,100).map(x=>[x.customer+' · '+x.name,num(x.monthCompleted)+' this month',x.endDate||'Ongoing',x.equalAllocationPerVisit?money(x.equalAllocationPerVisit)+'/visit est.':'—']),'No recurring contracts linked to completed visits.');
+    const a=r.receivables.aging;kpis('aging',[['Open total',money(r.receivables.total)],['Current',money(a.current)],['1–30 days late',money(a.days1to30)],['31+ days late',money(a.days31to60+a.days61plus)]]);
+    fillRows('receivables',r.receivables.rows.slice(0,100).map(x=>[x.customer+' · #'+x.number,money(x.balance),x.dueDate||'No due date',x.daysPastDue>0?num(x.daysPastDue)+' days late':'Current']),'No unpaid invoices found.');
+    fillRows('crews',r.crews.map(x=>[x.name,num(x.visits)+' visits',num(x.budgetedHours)+' planned hr',num(x.trackedVisits)+' tracked']),'No completed visits.');
+    fillRows('routes',r.routes.map(x=>[x.crew,num(x.routes)+' routes',num(x.stops)+' stops',num(x.miles)+' mi']),'No route data.');
+    const i=r.issues;kpis('issues',[['No visit price',num(i.missingVisitPrice)],['No budgeted duration',num(i.missingBudget)],['No tracked time',num(i.missingTrackedTime)],['Repeated contract amount',num(i.repeatedContractAmount)]]);
+    $('status').textContent=num(below.length)+' customers below a saved goal; '+num(unset.length)+' customers still need a goal. '+(r.warnings.length?'Some sections could not load: '+r.warnings.join('; '):'All available sections loaded.');
+    $('asOf').textContent='HomeWorks data updated '+new Date(r.asOf).toLocaleString()+'. Contract allocation and visit value are planning estimates; invoices and payments are separate measures.';
+  }catch(error){$('status').className='notice error';$('status').textContent=error.message||'Report unavailable';}}
+  $('month').addEventListener('change',load);load();
+})();
+</script></body></html>

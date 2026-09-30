@@ -24,10 +24,10 @@
   <nav class="tabs" aria-label="Reporting areas"><a href="reports.html">Overview</a><a href="monthly-performance.html">Monthly performance</a><a href="operational-reports.html" aria-current="page">Operations</a><a href="kpi.html">Insights</a><a href="pipeline.html">Pipeline</a></nav>
   <div id="status" class="notice" role="status">Loading HomeWorks data…</div>
   <div class="grid">
-    <section class="card wide"><h2>Customer pricing opportunities</h2><p>Only customers with a saved target are measured below goal. The gap estimates this month’s price difference for the same budgeted visit hours.</p><div class="scroll" id="pricing"></div><a href="monthly-performance.html?filter=unset">Set or edit customer targets →</a></section>
+    <section class="card wide"><h2>Customer pricing opportunities</h2><p>Saved goals show your chosen price gap. For services with at least 10 comparable properties, the peer comparison shows prices below the middle of that service group. Peer prices are a starting point for review, not a profit target.</p><h3>Below saved customer goal</h3><div class="scroll" id="pricing"></div><h3>Below service peers</h3><div class="scroll" id="peers"></div><a href="monthly-performance.html?filter=unset">Set or edit customer targets →</a></section>
     <section class="card"><h2>Job profitability readiness</h2><p id="profitText"></p><div class="kpis" id="profit"></div></section>
     <section class="card"><h2>Recurring contracts</h2><p>Work this month on recurring series; equal season-price allocation is an estimate, not booked revenue.</p><div class="scroll" id="contracts"></div></section>
-    <section class="card wide"><h2>Unpaid invoices and cash due</h2><p>Current open balance across all invoice dates, grouped by how late the invoice is. This is not a cash forecast.</p><div class="kpis" id="aging"></div><div class="scroll" id="receivables"></div></section>
+    <section class="card wide"><h2>Unpaid invoices and cash due</h2><p>Sent invoices with an open balance across all invoice dates. Lateness uses the due date shown; invoices without a due date are listed separately. This is not a cash forecast.</p><div class="kpis" id="aging"></div><div class="scroll" id="receivables"></div></section>
     <section class="card"><h2>Crew and route efficiency</h2><p>Completed visits and budgeted visit duration; route miles and driving time come from HomeWorks routes.</p><div class="scroll" id="crews"></div><div class="scroll" id="routes"></div></section>
     <section class="card"><h2>Data needing attention</h2><p>Counts of completed visits that cannot support a full pricing or productivity review.</p><div class="kpis" id="issues"></div></section>
   </div><p id="asOf" class="foot"></p>
@@ -47,11 +47,12 @@
     const r=payload.report;
     const below=r.pricing.filter(x=>x.target&&x.gap>0),unset=r.pricing.filter(x=>!x.target);
     fillRows('pricing',below.slice(0,100).map(x=>[x.name,money(x.perHour)+'/hr',money(x.target)+'/hr goal',money(x.gap)+' gap']),below.length?'':'No customers below a saved target.');
+    fillRows('peers',(r.peerPricing||[]).slice(0,100).map(x=>[x.customer+' · '+x.service,money(x.perHour)+'/hr',money(x.peerMedian)+'/hr peer',money(x.difference)+' difference']),'No priced properties below a comparable service group.');
     $('profitText').textContent=r.profitability.explanation;
     kpis('profit',[['Completed visits',num(r.profitability.completedVisits)],['Priced and budgeted',num(r.profitability.pricedAndBudgetedVisits)],['Tracked time',num(r.profitability.trackedVisits)],['Actual profit','Unavailable']]);
     fillRows('contracts',r.contracts.slice(0,100).map(x=>[x.customer+' · '+x.name,num(x.monthCompleted)+' this month',x.endDate||'Ongoing',x.equalAllocationPerVisit?money(x.equalAllocationPerVisit)+'/visit est.':'—']),'No recurring contracts linked to completed visits.');
-    const a=r.receivables.aging;kpis('aging',[['Open total',money(r.receivables.total)],['Current',money(a.current)],['1–30 days late',money(a.days1to30)],['31+ days late',money(a.days31to60+a.days61plus)]]);
-    fillRows('receivables',r.receivables.rows.slice(0,100).map(x=>[x.customer+' · #'+x.number,money(x.balance),x.dueDate||'No due date',x.daysPastDue>0?num(x.daysPastDue)+' days late':'Current']),'No unpaid invoices found.');
+    const a=r.receivables.aging;kpis('aging',[['Open total',money(r.receivables.total)],['Current',money(a.current)],['1–30 days late',money(a.days1to30)],['31+ days late',money(a.days31to60+a.days61plus)],['Due date missing',money(a.unknownDueDate)]]);
+    fillRows('receivables',r.receivables.rows.slice(0,100).map(x=>[x.customer+' · #'+x.number,money(x.balance),x.dueDate?new Date(x.dueDate).toLocaleDateString():'No due date',x.daysPastDue==null?'Date unknown':x.daysPastDue>0?num(x.daysPastDue)+' days late':'Current']),'No sent unpaid invoices found.');
     fillRows('crews',r.crews.map(x=>[x.name,num(x.visits)+' visits',num(x.budgetedHours)+' planned hr',num(x.trackedVisits)+' tracked']),'No completed visits.');
     fillRows('routes',r.routes.map(x=>[x.crew,num(x.routes)+' routes',num(x.stops)+' stops',num(x.miles)+' mi']),'No route data.');
     const i=r.issues;kpis('issues',[['No visit price',num(i.missingVisitPrice)],['No budgeted duration',num(i.missingBudget)],['No tracked time',num(i.missingTrackedTime)],['Repeated contract amount',num(i.repeatedContractAmount)]]);

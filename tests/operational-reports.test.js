@@ -19,12 +19,24 @@ test('pricing gaps use a saved customer target and exclude repeated season face 
 
 test('open balances age by due status without mixing in the selected work month', () => {
   const report = buildOperationalReport({ month: '2026-09', events: [], invoices: [
-    { id: 1, customerId: 11, total: '100', paidAmount: '25', daysPastDue: 0 },
-    { id: 2, customerId: 11, total: '200', paidAmount: '0', daysPastDue: 40 },
-  ], invoiceCustomers: { 11: 'Customer A' } });
+    { id: 1, customerId: 11, total: '100', paidAmount: '25', isSent: true, dueDate: '2026-10-01', daysPastDue: 40 },
+    { id: 2, customerId: 11, total: '200', paidAmount: '0', isSent: true, dueDate: '2026-08-21', daysPastDue: 0 },
+    { id: 3, customerId: 11, total: '999', paidAmount: '0', isSent: false, dueDate: '2026-08-01' },
+  ], invoiceCustomers: { 11: 'Customer A' }, asOf: new Date('2026-09-30T16:00:00Z') });
   expect(report.receivables.total).toBe(275);
   expect(report.receivables.aging).toMatchObject({ current: 75, days31to60: 200 });
   expect(report.receivables.rows[0].customer).toBe('Customer A');
+});
+
+test('peer comparisons are labeled separately from saved customer targets', () => {
+  const events = Array.from({ length: 10 }, (_, index) => visit(index + 1, {
+    subtotal: index === 0 ? '30' : '60',
+    customer: { id: index + 1, fullName: `Customer ${index + 1}` },
+    property: { id: index + 1, address: { street1: `${index + 1} Main St` } },
+  }));
+  const report = buildOperationalReport({ month: '2026-09', events });
+  expect(report.pricing.every((row) => row.target === null)).toBe(true);
+  expect(report.peerPricing[0]).toMatchObject({ customer: 'Customer 1', peerCount: 10, perHour: 60, peerMedian: 120 });
 });
 
 test('an optional HomeWorks section failure is visible without hiding completed visits', async () => {

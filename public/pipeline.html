@@ -73,6 +73,8 @@
 
         /* Kanban Board */
         .kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 20px; min-height: calc(100vh - 300px); scroll-snap-type:x proximity; }
+        .kanban.is-empty { min-height:0; }
+        .kanban.is-empty .loading-state { padding:42px 20px; }
         .kanban-col { min-width: 255px; width: 255px; flex-shrink: 0; display: flex; flex-direction: column; scroll-snap-align:start; }
         .col-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; }
         .col-header h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
@@ -242,6 +244,7 @@ function renderBoard(data) {
     document.getElementById('boardCount').textContent = totalJobs.toLocaleString() + ' of ' + allJobs.toLocaleString() + ' local jobs shown.';
 
     const kanban = document.getElementById('kanban');
+    kanban.classList.toggle('is-empty', !totalJobs);
     if (!totalJobs) {
         kanban.innerHTML = '<div class="loading-state" style="width:100%;background:#fff;border:1px solid var(--gray-200);border-radius:12px;">No local jobs match this view. Choose All history to see older records, or open <a href="scheduling.html">Schedule</a> for current HomeWorks visits.</div>';
         return;

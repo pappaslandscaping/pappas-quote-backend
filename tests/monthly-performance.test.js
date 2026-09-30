@@ -32,6 +32,21 @@ describe('HomeWorks monthly performance', () => {
     expect(result.pricingReview[0]).toMatchObject({ customerId: '100', visits: 2, averagePrice: 50, averageBudgetedHours: 0.5 });
   });
 
+  test('does not count a repeated season price as a separate price on every visit', () => {
+    const contractVisits = [1, 2, 3].map((id) => ({
+      id, title: 'Mowing', subtotal: '2310', budgetedHours: '0.6', recurringEventId: 50,
+      customer: { id: 101, fullName: 'Contract customer' }, property: { id: 10, name: '10 Main St' },
+    }));
+    const ordinaryVisit = { id: 4, title: 'Mowing', subtotal: '60', budgetedHours: '0.4', recurringEventId: 51,
+      customer: { id: 102, fullName: 'Per-visit customer' }, property: { id: 11, name: '11 Main St' } };
+    const result = summarizeVisits([...contractVisits, ordinaryVisit]);
+    expect(result.coverage).toMatchObject({ completedVisits: 4, pricedVisits: 1,
+      unallocatedContractVisits: 3, unallocatedContractFaceValue: 6930 });
+    expect(result.visitValue).toBe(60);
+    expect(result.pricingReview).toHaveLength(1);
+    expect(result.pricingReview[0].customerId).toBe('102');
+  });
+
   test('paginates visits and keeps payment dates distinct from invoice dates', async () => {
     const queryImpl = jest.fn(async (request) => {
       let data;

@@ -68,7 +68,7 @@
       <button id="download" class="secondary" type="button" disabled>Export customer pricing</button>
     </div>
   </div>
-  <div class="target-intro"><h2>Customer pricing targets</h2><p>Set the minimum pre-tax visit value you want for each <strong>budgeted labor hour</strong> for each customer. For example, a $150 hourly target means a 2-hour visit needs a $300 pre-tax price. Targets are saved in YardDesk and never change customer prices.</p><p class="foot">This is a planning goal, not profit. Materials, travel, equipment, overhead, and actual labor cost are not included.</p></div>
+  <div class="target-intro"><h2>Customer pricing targets</h2><p>Set the minimum pre-tax visit value you want for each <strong>budgeted visit hour</strong> for each customer. This is the planned time for the whole crew on site, not one hour per worker. For example, a $150 target means a half-hour visit needs a $75 pre-tax price. Targets are saved in YardDesk and never change customer prices.</p><p class="foot">This is a planning goal, not profit. Materials, travel, equipment, overhead, and actual labor cost are not included.</p></div>
   <div id="status" class="note">Loading HomeWorks data…</div>
   <div class="cards">
     <div class="metric"><div class="label">Invoices issued</div><b id="billed">—</b><small id="billedCompare">Includes tax</small></div>
@@ -79,16 +79,16 @@
   <section class="card">
     <div class="section-head"><div><h2>Set targets by customer</h2><p>Each saved target applies to that customer's properties and services. Leave the amount blank and save to clear it.</p></div><label>Find customer <input id="customerSearch" type="search" placeholder="Search customers"></label></div>
     <div id="targetSummary" aria-live="polite"></div>
-    <div class="table-wrap"><table><thead><tr><th>Customer</th><th class="num">Visits reviewed</th><th class="num">Value / budgeted hour</th><th class="num">Target / hour</th><th>Result</th></tr></thead><tbody id="customerTargets"><tr><td colspan="5" class="blank">Loading…</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Customer</th><th class="num">Visits reviewed</th><th class="num">Value / visit hour</th><th class="num">Target / visit hour</th><th>Result</th></tr></thead><tbody id="customerTargets"><tr><td colspan="5" class="blank">Loading…</td></tr></tbody></table></div>
     <p class="foot" id="customerTargetCount"></p>
   </section>
   <section class="card">
-    <div class="section-head"><div><h2>Services</h2><p>Completed visit value and planned labor time. Values are before tax and are separate from invoices issued.</p></div></div>
+    <div class="section-head"><div><h2>Services</h2><p>Completed visit value and planned crew time. Values are before tax and are separate from invoices issued.</p></div></div>
     <div class="table-wrap"><table><thead><tr><th>Service</th><th class="num">Customers</th><th class="num">Visits</th><th class="num">Visit value</th><th class="num">Budgeted hours</th><th class="num">Value per budgeted hour</th><th>Share of visit value</th></tr></thead><tbody id="services"><tr><td colspan="7" class="blank">Loading…</td></tr></tbody></table></div>
   </section>
   <section class="card">
     <div class="section-head">
-      <div><h2>Pricing review by property</h2><p>Properties with the lowest pre-tax visit value per budgeted labor hour appear first. Gaps use each customer's saved target.</p></div>
+      <div><h2>Pricing review by property</h2><p>Properties with the lowest pre-tax visit value per budgeted visit hour appear first. Gaps use each customer's saved target.</p></div>
       <div class="controls"><label>Find customer, property, or service <input id="search" type="search" placeholder="Search"></label><label>Show <select id="filter"><option value="all">All priced visits</option><option value="below">Below customer target</option><option value="met">Meeting customer target</option><option value="unset">No target yet</option></select></label></div>
     </div>
     <div class="table-wrap"><table><thead><tr><th>Customer and property</th><th>Service</th><th class="num">Visits</th><th class="num">Average visit price</th><th class="num">Average budgeted hours</th><th class="num">Value / hour</th><th class="num">Customer target / hour</th><th class="num">Gap to target / visit</th></tr></thead><tbody id="pricing"><tr><td colspan="8" class="blank">Loading…</td></tr></tbody></table></div>
@@ -137,7 +137,7 @@
     const targetPerHour = raw === '' ? null : Number(raw);
     if (targetPerHour !== null && (!Number.isFinite(targetPerHour) || targetPerHour < 1 || targetPerHour > 10000 || Math.abs(targetPerHour * 100 - Math.round(targetPerHour * 100)) > 0.000001)) {
       $('status').className = 'note error';
-      $('status').textContent = 'Enter $1 to $10,000 per budgeted labor hour, with up to two decimals.';
+      $('status').textContent = 'Enter $1 to $10,000 per budgeted visit hour, with up to two decimals.';
       input.focus();
       return;
     }
@@ -182,7 +182,7 @@
       if (customer.customerId) {
         const wrap = document.createElement('div'); wrap.className = 'target-row';
         const input = document.createElement('input'); input.className = 'target-input'; input.type = 'number'; input.min = '1'; input.max = '10000'; input.step = '0.01'; input.placeholder = '$/hour'; input.value = customer.target || '';
-        input.setAttribute('aria-label', `Target per budgeted labor hour for ${customer.customer}`);
+        input.setAttribute('aria-label', `Target per budgeted visit hour for ${customer.customer}`);
         const button = document.createElement('button'); button.type = 'button'; button.className = 'target-save'; button.textContent = 'Save';
         button.addEventListener('click', () => saveTarget(customer, input, button));
         input.addEventListener('keydown', (event) => { if (event.key === 'Enter') button.click(); });
@@ -277,9 +277,10 @@
     $('budgetCoverage').textContent = `${number(report.coverage.budgetedVisits)} visits have budgeted hours`;
     const missing = report.coverage.completedVisits - report.coverage.trackedVisits;
     $('status').className = `note ${missing ? 'warning' : ''}`;
-    $('status').textContent = missing
+    $('status').textContent = (missing
       ? `${number(missing)} completed visits have no tracked job time. Pricing is compared with budgeted time; actual performance and profit cannot be confirmed from this data.`
-      : 'All completed visits have tracked job time. Pricing comparisons below still use budgeted hours.';
+      : 'All completed visits have tracked job time. Pricing comparisons below still use budgeted hours.')
+      + (report.coverage.unallocatedContractVisits ? ` ${number(report.coverage.unallocatedContractVisits)} recurring visits carry repeated contract amounts and are excluded from visit value until allocated.` : '');
     $('definitions').textContent = `${report.definitions.billed} ${report.definitions.collected} ${report.definitions.visitValue} ${report.definitions.pricing} No customer price is changed here. Updated ${new Date(report.asOf).toLocaleString()}.`;
     renderTargets(); renderServices(); renderPricing(); $('download').disabled = false;
   }

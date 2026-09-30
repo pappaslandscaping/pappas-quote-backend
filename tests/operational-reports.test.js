@@ -39,6 +39,19 @@ test('peer comparisons are labeled separately from saved customer targets', () =
   expect(report.peerPricing[0]).toMatchObject({ customer: 'Customer 1', peerCount: 10, perHour: 60, peerMedian: 120 });
 });
 
+test('contract tracker uses the full series counts and prioritizes actionable data issues', () => {
+  const report = buildOperationalReport({ month: '2026-09', events: [
+    visit(1, { recurringEventId: 55 }),
+    visit(2, { subtotal: '0', budgetedHours: '0', crew: null }),
+  ], recurring: [{ id: 55, title: 'Mowing', eventCount: 33, lineItems: [] }],
+  contractProgress: [
+    { recurringEventId: 55, status: 'CLOSED', _count: { id: 25 } },
+    { recurringEventId: 55, status: 'OPEN', _count: { id: 8 } },
+  ] });
+  expect(report.contracts[0]).toMatchObject({ completedVisits: 25, remainingVisits: 8, monthCompleted: 1 });
+  expect(report.issueExamples[0].reasons).toEqual(expect.arrayContaining(['No visit price', 'No budgeted duration', 'No crew']));
+});
+
 test('an optional HomeWorks section failure is visible without hiding completed visits', async () => {
   const queryImpl = jest.fn(async ({ operationName }) => {
     if (operationName === 'YardDeskOperationalVisits') return { events: [visit(1)] };

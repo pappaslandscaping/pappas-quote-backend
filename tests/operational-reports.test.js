@@ -64,6 +64,17 @@ test('profit readiness separates shift time from visit time and flags blocked as
   expect(report.profitability.actualProfitAvailable).toBe(false);
 });
 
+test('owner-confirmed Tim solo work is explained without counting Christopher as a worker', () => {
+  const report = buildOperationalReport({ month: '2026-09', events: [visit(1, {
+    users: [
+      { id: 9273, firstName: 'Tim', status: 'ACTIVE' },
+      { id: 9321, firstName: 'Christopher', status: 'BLOCKED' },
+    ],
+  })] });
+  expect(report.profitability.confirmedTimSoloVisits).toBe(1);
+  expect(report.profitability.blockedWorkerAssignments).toEqual([]);
+});
+
 test('an optional HomeWorks section failure is visible without hiding completed visits', async () => {
   const queryImpl = jest.fn(async ({ operationName }) => {
     if (operationName === 'YardDeskOperationalVisits') return { events: [visit(1)] };

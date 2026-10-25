@@ -11,6 +11,8 @@ const { clientCommunicationsDisabledResponse } = require('../lib/client-communic
 const { classifyServiceArea, syncWebsiteLead } = require('../services/copilot/website-leads');
 const { formatPropertyAddress, queryHomeWorksGraphql } = require('../services/homeworks/client');
 const { buildServiceAgreementEmailV4 } = require('../lib/email-renderer');
+const snowAgreement = require('../public/js/snow-agreement');
+const { syncSnowAgreementToHomeWorks } = require('../lib/snow-agreement-homeworks');
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, generateContractPDF, emailTemplate }) {
   const router = express.Router();
@@ -675,6 +677,10 @@ router.post('/api/sent-quotes', validate(schemas.createSentQuote), async (req, r
 router.put('/api/sent-quotes/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const storedContract = await pool.query('SELECT contract_document FROM sent_quotes WHERE id = $1', [id]);
+    if (storedContract.rows[0]?.contract_document) {
+      return res.status(409).json({ success: false, error: 'This agreement preserves an accepted HomeWorks estimate. Create a revised estimate in HomeWorks instead of editing its contract copy.' });
+    }
     const updates = [];
     const values = [];
     let p = 1;
@@ -1197,6 +1203,16 @@ router.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Contract already signed' });
     }
 
+    const winterDocument = snowAgreement.read(quote);
+    if (winterDocument) {
+      if (consent_given !== true || !req.body.sign_token || req.body.sign_token !== quote.sign_token) {
+        return res.status(403).json({ success: false, error: 'Open the agreement using the link in your email before signing.' });
+      }
+      if (!quote.contract_document_hash || req.body.contract_document_hash !== quote.contract_document_hash) {
+        return res.status(409).json({ success: false, error: 'Please reload and review the current agreement before signing.' });
+      }
+    }
+
     const signerIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
     const updateResult = await pool.query(`
@@ -1207,11 +1223,12 @@ router.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
         contract_signer_ip = $3,
         contract_signer_name = $4,
         status = 'contracted'
-      WHERE id = $5
+      WHERE id = $5 AND contract_signed_at IS NULL
       RETURNING *
     `, [signature_data, signature_type, signerIp, printed_name, id]);
 
     const updatedQuote = updateResult.rows[0];
+    if (!updatedQuote) return res.status(409).json({ success: false, error: 'This agreement has already been signed.' });
 
     // Log contract signed event
     await logQuoteEvent(id, 'contracted', 'Contract signed by ' + printed_name, {
@@ -1243,7 +1260,7 @@ router.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
       ? `<img src="${signature_data}" style="max-height:60px;margin:8px 0;" alt="Signature">`
       : `<p style="font-family:'Brush Script MT',cursive;font-size:28px;margin:8px 0;color:#2e403d;">${signature_data || printed_name}</p>`;
 
-    const contractHtml = `<!DOCTYPE html>
+    const contractHtml = winterDocument ? snowAgreement.html(winterDocument, { data: signature_data, name: printed_name, date: signedDate }) : `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -1526,7 +1543,9 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
     await sendEmail(NOTIFICATION_EMAIL, `🎉 Contract Signed: ${updatedQuote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
     // Sync to CopilotCRM — update estimate status to accepted + upload signed contract
-    const copilotSyncResult = await syncSignedQuoteContractToCopilot(updatedQuote, pdfBytes, { source: 'contract-sign' });
+    const copilotSyncResult = winterDocument
+      ? await syncSnowAgreementToHomeWorks({ quote: updatedQuote, pdfBytes, pool, query: queryHomeWorksGraphql })
+      : await syncSignedQuoteContractToCopilot(updatedQuote, pdfBytes, { source: 'contract-sign' });
     if (!copilotSyncResult.success) {
       console.error(`CopilotCRM signed contract sync failed for quote ${quoteNumber}:`, copilotSyncResult.error);
     } else if (copilotSyncResult.uploaded) {
@@ -2021,6 +2040,9 @@ async function uploadSignedContractPdfToCopilotEstimate(copilotHeaders, copilotE
 }
 
 async function syncSignedQuoteContractToCopilot(quote, pdfBytes, { source = 'manual' } = {}) {
+  if (snowAgreement.read(quote)) {
+    return syncSnowAgreementToHomeWorks({ quote, pdfBytes, pool, query: queryHomeWorksGraphql });
+  }
   const quoteNumber = quote?.quote_number || '';
   if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
     return { success: false, skipped: true, error: 'CopilotCRM credentials not configured' };
@@ -2213,7 +2235,7 @@ async function handleCopilotEstimateAccepted(req, res) {
       return res.status(400).json({ success: false, error: 'Missing required field: estimate_number' });
     }
 
-    if ((!customer_name || !email || !services?.length || !estimate_amount) && process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
+    if (integrationSource !== 'homeworks' && (!customer_name || !email || !services?.length || !estimate_amount) && process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
       try {
         const copilotHeaders = await loginToCopilotCrmForEstimates();
         const { payload: detailPayload } = await resolveAcceptedCopilotEstimatePayload(copilotHeaders, estimate_number, {
@@ -2307,6 +2329,9 @@ async function handleCopilotEstimateAccepted(req, res) {
     // Fetch missing data from CopilotCRM. Copilot automations historically only sent
     // customer_name + estimate_number, so this lookup is required for compatibility.
     const needsCopilotLookup = !email || !services || services.length === 0 || !estimate_amount;
+    if (needsCopilotLookup && integrationSource === 'homeworks') {
+      return res.status(422).json({ success: false, error: 'The official HomeWorks estimate is missing customer, service or pricing details. Refresh it from HomeWorks before creating an agreement.' });
+    }
     if (needsCopilotLookup) {
       if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
         return res.status(400).json({ success: false, error: 'CopilotCRM credentials not configured. Provide email, services, and estimate_amount manually.' });
@@ -2468,20 +2493,30 @@ async function handleCopilotEstimateAccepted(req, res) {
 
     // Generate token and map services
     const sign_token = generateToken();
-    const serviceItems = services.map(s => ({ name: s.name, amount: s.price || s.amount, price: s.price || s.amount }));
+    const serviceItems = services.map(s => ({
+      name: s.name, description: s.description || '',
+      amount: s.price ?? s.amount, price: s.price ?? s.amount,
+      quantity: s.quantity ?? null, property_id: s.property_id || null,
+      property_address: s.property_address || address || ''
+    }));
+    const contractDocument = process.env.SNOW_AGREEMENT_ENABLED === 'true' && integrationSource === 'homeworks'
+      ? snowAgreement.create({ customer_name, customer_email: email, customer_phone: phone, customer_address: address, quote_number: estimate_number, total: estimate_amount, services: serviceItems }, { estimate_id: payload.homeworks_estimate_id, accepted_at: payload.accepted_at, terms: payload.estimate_terms, notes: payload.estimate_notes })
+      : null;
+    const contractDocumentHash = contractDocument ? crypto.createHash('sha256').update(JSON.stringify(contractDocument)).digest('hex') : null;
 
     // Create sent_quotes record — status='sent' since estimate is already accepted
     const result = await pool.query(
       `INSERT INTO sent_quotes (
         customer_id, customer_name, customer_email, customer_phone, customer_address,
         quote_type, services, subtotal, tax_rate, tax_amount, total,
-        status, sign_token, notes, quote_number, created_at, sent_at
-      ) VALUES ($1, $2, $3, $4, $5, 'regular', $6, $7, 0, 0, $7, 'sent', $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        status, sign_token, notes, quote_number, created_at, sent_at, contract_document, contract_document_hash
+      ) VALUES ($1, $2, $3, $4, $5, 'regular', $6, $7, 0, 0, $7, 'sent', $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $11, $12)
       RETURNING *`,
       [
         customer_id, customer_name, email, phone || null, address || null,
         JSON.stringify(serviceItems), estimate_amount,
-        sign_token, `Auto-created from ${integrationLabel} estimate #${estimate_number}`, estimate_number
+        sign_token, `Auto-created from ${integrationLabel} estimate #${estimate_number}`, estimate_number,
+        contractDocument ? JSON.stringify(contractDocument) : null, contractDocumentHash
       ]
     );
     const newQuote = result.rows[0];
@@ -2626,8 +2661,10 @@ function acceptedHomeWorksLineItems(estimate) {
     .map(lineItem => ({
       name: lineItem.name,
       description: lineItem.description || '',
-      price: Number(lineItem.subtotalWithTax || lineItem.subtotal || lineItem.price || 0),
-      quantity: Number(lineItem.quantity || 1),
+      price: Number(lineItem.subtotalWithTax ?? lineItem.subtotal ?? lineItem.price ?? 0),
+      quantity: Number(lineItem.quantity ?? 1),
+      property_id: lineItem.property?.id || null,
+      property_address: formatPropertyAddress(lineItem.property),
     }));
 }
 
@@ -2641,6 +2678,8 @@ function homeWorksEstimatePayload(estimate) {
     estimate_number: String(estimate.number),
     estimate_amount: Number(estimate.total || 0),
     accepted_at: estimate.acceptedAt,
+    estimate_terms: estimate.terms || '',
+    estimate_notes: estimate.notes || '',
     customer_name: customer.fullName,
     email: customer.email,
     phone: customer.cell || customer.phone || '',
@@ -2667,7 +2706,7 @@ async function fetchRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit = 1
           acceptedAt: { gte: $since }
         }
       ) {
-        id number status acceptedAt total
+        id number status acceptedAt total terms notes
         customer { id fullName email phone cell }
         lineItems {
           id name description price quantity subtotal subtotalWithTax removed

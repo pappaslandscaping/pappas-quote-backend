@@ -1444,6 +1444,7 @@
         <p>Processing your signature...</p>
     </div>
 
+    <script src="/js/snow-agreement.js"></script>
     <script>
         // Configuration
         const API_BASE = '';
@@ -1561,6 +1562,15 @@
 
         // Generate contract HTML
         function generateContractContent() {
+            if (quoteData.contract_document && !window.SnowAgreement) {
+                document.getElementById('submitBtn').disabled = true;
+                throw new Error('The agreement could not be loaded. Please refresh before signing.');
+            }
+            const snowDocument = window.SnowAgreement && window.SnowAgreement.read(quoteData);
+            if (snowDocument) {
+                document.getElementById('contractContent').innerHTML = window.SnowAgreement.render(snowDocument);
+                return;
+            }
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
             const contractHTML = `
@@ -1809,6 +1819,8 @@
 
                 const payload = {
                     quote_id: quoteData.id,
+                    sign_token: new URLSearchParams(window.location.search).get('token'),
+                    contract_document_hash: quoteData.contract_document_hash || null,
                     signature_data: signatureData,
                     signature_type: signatureType,
                     printed_name: document.getElementById('printedName').value.trim(),

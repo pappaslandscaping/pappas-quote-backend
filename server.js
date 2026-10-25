@@ -1474,6 +1474,12 @@ function formatAddressLines(addr) {
 
 // Generate filled PDF contract from scratch using pdf-lib
 async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
+  const snowDocument = require('./public/js/snow-agreement').read(quote);
+  if (snowDocument) {
+    return require('./lib/snow-agreement-pdf').generateSnowAgreementPDF(snowDocument, {
+      data: signatureData, name: signedBy, date: signedDate, hash: quote.contract_document_hash
+    });
+  }
   try {
     console.log('Starting PDF generation for contract...');
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');

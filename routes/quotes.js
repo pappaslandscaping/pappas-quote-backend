@@ -2733,10 +2733,31 @@ async function processRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit =
     const payload = homeWorksEstimatePayload(estimate);
     const estimateNumber = payload.estimate_number;
     const existing = await pool.query(
-      `SELECT id, sign_token FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
+      `SELECT id, sign_token, customer_email, contract_signed_at, contract_document FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
       [estimateNumber]
     );
     if (existing.rows.length > 0) {
+      const repairNumbers = String(process.env.SNOW_AGREEMENT_REPAIR_NUMBERS || '').split(',').map(s => s.trim());
+      const old = existing.rows[0];
+      if (repairNumbers.includes(estimateNumber) && !old.contract_signed_at && !old.contract_document &&
+          old.customer_email?.toLowerCase() === payload.email?.toLowerCase() && snowAgreement.isSnowEstimate({ services: payload.services })) {
+        try {
+          const doc = snowAgreement.create({ customer_name: payload.customer_name, customer_email: payload.email,
+            customer_phone: payload.phone, customer_address: payload.address, quote_number: estimateNumber,
+            total: payload.estimate_amount, services: payload.services },
+            { estimate_id: payload.homeworks_estimate_id, accepted_at: payload.accepted_at, terms: payload.estimate_terms, notes: payload.estimate_notes });
+          const hash = crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
+          const repaired = await pool.query(`UPDATE sent_quotes SET contract_document=$1, contract_document_hash=$2,
+            services=$3, total=$4, subtotal=$4 WHERE id=$5 AND contract_signed_at IS NULL AND contract_document IS NULL RETURNING id`,
+            [JSON.stringify(doc), hash, JSON.stringify(payload.services), payload.estimate_amount, old.id]);
+          if (repaired.rows.length) {
+            await logQuoteEvent(old.id, 'snow_agreement_repaired', 'Unsigned snow agreement refreshed from official HomeWorks estimate', { estimate_number: estimateNumber, document_hash: hash });
+            console.log(`Snow agreement repaired for estimate #${estimateNumber}; original signing link retained; no email sent.`);
+          }
+        } catch (error) {
+          console.error(`Snow agreement repair held for #${estimateNumber}: ${error.message}`);
+        }
+      }
       results.push({ estimate_number: estimateNumber, skipped: true, reason: 'contract_exists', quote_id: existing.rows[0].id });
       continue;
     }

@@ -49,7 +49,7 @@ test('keeps extended commercial dates and seasonal salt in the accepted scope', 
 test.each(['Snow Removal Contract (Monthly)', 'Snow Removal Per Push', 'Salt Application (Per Visit)'])('retains billing basis for %s', name => {
   const q = quote(); q.services[0].name = name;
   expect(agreement.render(create(q))).toContain(name);
-  expect(agreement.render(create(q))).toContain('not a promise of a full-season total');
+  expect(agreement.render(create(q))).toContain('Your accepted estimate lists the price and billing schedule for your services.');
 });
 test('zero-dollar included walkways remain zero rather than taking a fallback amount', () => {
   const q = quote(); q.services.push({ name: 'Snow Clearing Add-On', description: 'Front walkway included.', price: 0, amount: 0, property_id: 77 });

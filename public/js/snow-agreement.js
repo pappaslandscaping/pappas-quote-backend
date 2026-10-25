@@ -4,7 +4,7 @@
   else root.SnowAgreement = factory();
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'snow-2026-27-v5';
+  const VERSION = 'snow-2026-27-v6';
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function plain(value) {
     return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -92,7 +92,7 @@
           'Plowing and deicing do not guarantee continuously bare or ice-free pavement. Packed snow, residual snow, melting and refreezing can occur between visits. Continuous site monitoring is included only if expressly quoted. The Client should promptly report hazardous conditions or service concerns to 440-886-7318 or hello@pappaslandscaping.com.'
         ] },
         { title: '5. Price and payment', paragraphs: [
-          'The accepted estimate supplies the price and billing basis for each service. The estimate total shown above is not a promise of a full-season total for per-push, per-visit or monthly services unless the estimate expressly says so. The number of billable visits or months follows the accepted arrangement.',
+          'Your accepted estimate lists the price and billing schedule for your services.',
           'Seasonal service is a fixed price for the stated winter period and scope, not a purchase of a guaranteed number of visits. Monthly charges and installment payments are due on the schedule stated in the accepted estimate. Per-push or per-visit charges apply to service actually performed at the accepted rate.',
           'Payments are due on the date stated on the invoice. A lighter winter, fewer qualifying snowfalls or a Client-requested skip does not reduce an agreed fixed seasonal price or fixed monthly charge. Fees, surcharges and card authorization must be expressly disclosed and agreed; this agreement does not create a new fee or change the accepted billing arrangement.'
         ] },

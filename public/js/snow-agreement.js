@@ -4,7 +4,7 @@
   else root.SnowAgreement = factory();
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'snow-2026-27-v1';
+  const VERSION = 'snow-2026-27-v2';
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function plain(value) {
     return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -80,7 +80,7 @@
           'Please report suspected service-related damage or an incomplete visit promptly, with the property address and available photographs, so the Contractor can inspect and address the concern.'
         ] },
         { title: '7. Cancellation', paragraphs: [
-          "The Client may cancel service with 15 days' written notice. Services continue through the notice period, and the final invoice includes work completed and amounts due under the accepted payment schedule. No refunds are given for prepaid services or unused portions of seasonal contracts.",
+          "The Client may cancel service with 15 days' written notice. Services continue through the notice period, and the final invoice includes work completed and amounts due under the accepted payment schedule. Seasonal payments are nonrefundable. No refunds or credits will be issued for early cancellation, below-average snowfall, or fewer service visits due to weather conditions.",
           "Pappas & Co. Landscaping may cancel service with 15 days' written notice. Cancellation does not erase amounts already due. Written notices may be sent to hello@pappaslandscaping.com."
         ] },
         { title: '8. Performance and service concerns', paragraphs: [

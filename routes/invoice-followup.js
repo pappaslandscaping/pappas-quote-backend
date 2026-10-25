@@ -1,4 +1,5 @@
 const express = require('express');
+const { invoiceDetails, renderInvoiceFollowupTemplate } = require('../lib/invoice-followup-template');
 const crypto = require('crypto');
 const { queryHomeWorksGraphql } = require('../services/homeworks/client');
 
@@ -39,16 +40,8 @@ function openInvoiceRows(rows, customerId, portalKey) {
     }];
   }).sort((a, b) => Number(a.id) - Number(b.id));
 }
-function invoiceDetails(preview) {
-  return 'Open balance: ' + money(preview.balance) + '\n'
-    + preview.invoices.map(row => 'Invoice #' + row.number + ': ' + money(row.balance) + '\n' + row.url).join('\n');
-}
 function reminderBody(preview) {
-  const firstName = preview.customer_name.trim().split(/\s+/)[0] || 'there';
-  return 'Hi ' + firstName + '! This is Theresa from Pappas & Co. Landscaping. Following up on your open '
-    + (preview.invoices.length === 1 ? 'invoice.' : 'invoices.')
-    + '\n\n' + invoiceDetails(preview)
-    + "\n\nIf you've already sent payment, please disregard this. Thank you!";
+  return renderInvoiceFollowupTemplate(preview);
 }
 async function loadFollowup({ pool, invoiceId, scope = 'all', queryImpl = queryHomeWorksGraphql }) {
   if (!['all', 'single'].includes(scope)) throw new Error('Choose all open invoices or the selected invoice.');

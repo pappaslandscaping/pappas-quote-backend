@@ -11212,6 +11212,15 @@ async function ensureAppManagedTemplates() {
       ]
     );
 
+    const { INVOICE_FOLLOWUP_TEMPLATE: followup } = require('./lib/invoice-followup-template');
+    await pool.query(
+      `INSERT INTO email_templates (name, slug, category, channel, subject, body, sms_body, variables, options, is_default, is_active)
+       VALUES ($1, $2, $3, $4, '', '', $5, $6, $7, false, true)
+       ON CONFLICT (slug) DO NOTHING`,
+      [followup.name, followup.slug, followup.category, followup.channel, followup.sms_body,
+        JSON.stringify(followup.variables), JSON.stringify({ source: 'invoice-text-composer', purpose: 'invoice-followup' })]
+    );
+
     const invoiceReadySms = `Hi {customer_first_name}, this is Pappas & Co. Landscaping.
 
 Your invoice #{invoice_number} is ready for review.

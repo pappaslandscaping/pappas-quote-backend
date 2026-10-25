@@ -1176,6 +1176,7 @@ let invoiceTextPreview = null;
 let invoiceTextRequestId = 0;
 let invoiceTextAiRequestId = 0;
 let invoiceTextLoading = false;
+let invoiceTextAiPending = false;
 let invoiceTextSending = false;
 let invoiceTextInvoices = [];
 let smsTemplates = [];
@@ -2013,10 +2014,9 @@ async function openInvoiceTextComposer() {
     document.getElementById('sms-send-status').textContent = 'Loading invoices...';
     try {
         await loadSmsTemplates();
-        if (pendingInvoiceSmsTemplateId) {
-            document.getElementById('invoice-sms-template').value = pendingInvoiceSmsTemplateId;
-            pendingInvoiceSmsTemplateId = '';
-        }
+        const defaultFollowup = smsTemplates.find(template => template.slug === 'invoice_followup_sms');
+        document.getElementById('invoice-sms-template').value = pendingInvoiceSmsTemplateId || defaultFollowup?.id || '';
+        pendingInvoiceSmsTemplateId = '';
         const token = localStorage.getItem('adminToken');
         const res = await fetch('/api/invoice-followup/choices', {
             headers: token ? { Authorization: 'Bearer ' + token } : {}
@@ -2068,6 +2068,7 @@ function resetInvoiceTextPreview() {
     invoiceTextAiRequestId++;
     invoiceTextPreview = null;
     invoiceTextLoading = false;
+    invoiceTextAiPending = false;
     document.getElementById('sms-compose-body').value = '';
     document.getElementById('sms-ai-instructions').value = '';
     document.getElementById('sms-invoice-url').value = '';
@@ -2079,6 +2080,7 @@ function resetInvoiceTextPreview() {
 }
 function invoiceTextChanged() {
     invoiceTextAiRequestId++;
+    invoiceTextAiPending = false;
     document.getElementById('sms-reviewed').checked = false;
     updateInvoiceTextSendState();
 }
@@ -2090,8 +2092,8 @@ function buildInvoiceReminderDraft(preview) {
     return preview.body;
 }
 function invoiceTextDetails(preview) {
-    return 'Open balance: ' + formatCurrency(preview.balance) + '\n' + preview.invoices.map(row =>
-        'Invoice #' + row.number + ': ' + formatCurrency(row.balance) + '\n' + row.url).join('\n');
+    return preview.invoices.map(row =>
+        'Invoice #' + row.number + ': ' + formatCurrency(row.balance) + '\n' + row.url).join('\n\n');
 }
 function invoiceSmsTemplateVars(preview) {
     const money = value => Number(value || 0).toFixed(2);
@@ -2099,6 +2101,9 @@ function invoiceSmsTemplateVars(preview) {
     return {
         customer_name: preview.customer_name, customer_first_name: preview.customer_name.trim().split(/\s+/)[0] || 'there',
         customer_phone: preview.to, customer_account_balance: money(preview.total_outstanding),
+        invoice_word: preview.invoices.length === 1 ? 'invoice' : 'invoices',
+        payment_link_word: preview.invoices.length === 1 ? 'link' : 'links',
+        invoice_details: invoiceTextDetails(preview),
         invoice_number: preview.invoices.map(row => row.number).join(', '),
         invoice_total: money(preview.balance), balance_due: money(preview.balance),
         invoices_links: links, invoice_link: links, payment_link: links,
@@ -2109,7 +2114,15 @@ function invoiceSmsTemplateVars(preview) {
 function appendInvoiceTextDetails(text, preview) {
     // Keep the financial block outside AI output so every payment link survives a rewrite.
     const prose = String(text || '').replace(/https?:\/\/[^\s]+/gi, '').trim();
-    return prose + '\n\n' + invoiceTextDetails(preview);
+    return prose + '\n\nTotal balance due: ' + formatCurrency(preview.balance) + '\n\n' + invoiceTextDetails(preview);
+}
+function renderInvoiceSmsTemplate(template, preview) {
+    const rendered = renderSmsTemplate(template.sms_body, invoiceSmsTemplateVars(preview)).trim();
+    // A saved template already includes the balances and links it requests.
+    // Add only missing invoice references instead of repeating the whole account summary.
+    const missing = preview.invoices.filter(row => !rendered.includes(row.url) || !rendered.includes('#' + row.number));
+    return (rendered + (missing.length ? '\n\n' + invoiceTextDetails({ invoices: missing }) : ''))
+        .replace(/\n{3,}/g, '\n\n').trim();
 }
 function applyInvoiceSmsTemplate() {
     document.getElementById('sms-reviewed').checked = false;
@@ -2117,9 +2130,13 @@ function applyInvoiceSmsTemplate() {
         document.getElementById('sms-send-status').textContent = 'Choose an invoice to fill the template.';
         return updateInvoiceTextSendState();
     }
-    const template = findSmsTemplate(document.getElementById('invoice-sms-template').value);
+    let template = findSmsTemplate(document.getElementById('invoice-sms-template').value);
+    if (template?.slug === 'invoice_ready_sms' && invoiceTextPreview.invoices.length > 1) {
+        template = smsTemplates.find(item => item.slug === 'invoice_followup_sms') || null;
+        document.getElementById('invoice-sms-template').value = template?.id || '';
+    }
     document.getElementById('sms-compose-body').value = template
-        ? appendInvoiceTextDetails(renderSmsTemplate(template.sms_body, invoiceSmsTemplateVars(invoiceTextPreview)), invoiceTextPreview)
+        ? renderInvoiceSmsTemplate(template, invoiceTextPreview)
         : buildInvoiceReminderDraft(invoiceTextPreview);
     invoiceTextChanged();
 }
@@ -2188,9 +2205,10 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '', customerName = '', pr
     return preview ? appendInvoiceTextDetails(text, preview) : text + (invoiceUrl ? '\n\n' + invoiceUrl : '');
 }
 async function draftInvoiceTextWithAi() {
-    if (!invoiceTextPreview || invoiceTextLoading) return;
+    if (!invoiceTextPreview || invoiceTextLoading || invoiceTextAiPending) return;
     const preview = invoiceTextPreview;
     const requestId = ++invoiceTextAiRequestId;
+    invoiceTextAiPending = true;
     const instruction = document.getElementById('sms-ai-instructions').value.trim();
     const existingDraft = document.getElementById('sms-compose-body').value.trim();
     const status = document.getElementById('sms-send-status');
@@ -2218,22 +2236,27 @@ async function draftInvoiceTextWithAi() {
         const data = await res.json();
         if (requestId !== invoiceTextAiRequestId || preview !== invoiceTextPreview) return;
         if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
+        document.getElementById('sms-reviewed').checked = false;
         document.getElementById('sms-compose-body').value = formatInvoiceTextDraft(data.draft, preview.invoice_url, preview.customer_name, preview);
-        status.textContent = 'Draft ready. All invoice numbers, balances, and payment links are included.';
+        status.textContent = 'Draft ready. Review this updated message before sending.';
     } catch (error) {
         if (requestId === invoiceTextAiRequestId) status.textContent = error.message;
     } finally {
-        document.getElementById('sms-ai-btn').disabled = !invoiceTextPreview || invoiceTextLoading;
+        if (requestId === invoiceTextAiRequestId) invoiceTextAiPending = false;
+        document.getElementById('sms-ai-btn').disabled = !invoiceTextPreview || invoiceTextLoading || invoiceTextAiPending;
         updateInvoiceTextSendState();
     }
 }
 function updateInvoiceTextSendState() {
     const body = document.getElementById('sms-compose-body').value.trim();
+    const review = document.getElementById('sms-reviewed');
+    review.disabled = invoiceTextAiPending || invoiceTextLoading || invoiceTextSending;
+    if (invoiceTextAiPending) review.checked = false;
     const maxLength = invoiceTextPreview?.max_length || 1600;
     const links = body.match(/https?:\/\/[^\s]+/g) || [];
     const complete = invoiceTextPreview?.invoices.every(row => links.includes(row.url) && body.includes('#' + row.number))
         && links.every(url => invoiceTextPreview.invoices.some(row => row.url === url));
-    document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && !invoiceTextLoading && !invoiceTextSending
+    document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && !invoiceTextLoading && !invoiceTextSending && !invoiceTextAiPending
         && document.getElementById('sms-reviewed').checked && body && body.length <= maxLength && complete);
     document.getElementById('sms-char-count').textContent = body.length + ' / ' + maxLength + ' characters'
         + (body.length > maxLength ? '. Shorten the wording before sending; keep all invoice links.'

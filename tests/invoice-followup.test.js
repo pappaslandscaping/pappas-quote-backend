@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { INVOICE_FOLLOWUP_TEMPLATE, renderInvoiceFollowupTemplate } = require('../lib/invoice-followup-template');
 const { createFollowupRoutes, loadInvoiceChoices, loadFollowup, openInvoiceRows, reminderBody,
   signPreview, verifyPreview, validateBody, PAGE_SIZE } = require('../routes/invoice-followup');
 
@@ -154,7 +155,10 @@ function composer(fetchImpl = jest.fn()) {
   const context = vm.createContext({ document: { getElementById: node }, fetch: fetchImpl,
     localStorage: { getItem: () => '' }, formatCurrency: v => '$' + Number(v).toFixed(2),
     fmtPhone: v => v, esc: v => String(v), findSmsTemplate: () => null });
-  vm.runInContext('let invoiceTextPreview = null, invoiceTextInvoices = [], invoiceTextRequestId = 0, invoiceTextAiRequestId = 0, invoiceTextLoading = false, invoiceTextSending = false;\n' + html.slice(start, end), context);
+  const renderStart = html.indexOf('function renderSmsTemplate(');
+  const renderEnd = html.indexOf('function basicSmsTemplateVars', renderStart);
+  vm.runInContext(html.slice(renderStart, renderEnd), context);
+  vm.runInContext('let smsTemplates = [], invoiceTextPreview = null, invoiceTextInvoices = [], invoiceTextRequestId = 0, invoiceTextAiRequestId = 0, invoiceTextLoading = false, invoiceTextSending = false, invoiceTextAiPending = false;\n' + html.slice(start, end), context);
   return { context, node };
 }
 test('AI formatting preserves every invoice link even when its response drops or invents links', async () => {
@@ -244,4 +248,100 @@ test('templates receive all selected invoice numbers, exact links and separate a
   expect(vars.invoices_links).toBe(p.invoices.map(i => i.url).join('\n'));
   const single = await fixture().preview('single');
   expect(context.invoiceSmsTemplateVars(single)).toMatchObject({ balance_due: '100.00', customer_account_balance: '175.00' });
+});
+
+test('saved follow-up has one total, each invoice once and no empty payment labels', async () => {
+  const p = await fixture().preview();
+  const { context } = composer();
+  const text = context.renderInvoiceSmsTemplate(INVOICE_FOLLOWUP_TEMPLATE, p);
+  expect(text).toBe(renderInvoiceFollowupTemplate(p));
+  expect(text.match(/\$175\.00/g)).toHaveLength(1);
+  expect(text.match(/#12001/g)).toHaveLength(1);
+  expect(text.match(/#12002/g)).toHaveLength(1);
+  expect(text).toContain('open invoices');
+  expect(text).toContain('links above');
+  expect(text).not.toMatch(/ready for review|This invoice:|Open balance:|View and pay your invoice here:/);
+  expect(text).not.toMatch(/\{[a-z_]+\}|\n{3}/);
+  for (const invoice of p.invoices) expect(text.split(invoice.url)).toHaveLength(2);
+});
+test('saved follow-up uses singular wording and the selected amount for one invoice', async () => {
+  const p = await fixture().preview('single');
+  const { context } = composer();
+  const text = context.renderInvoiceSmsTemplate(INVOICE_FOLLOWUP_TEMPLATE, p);
+  expect(text).toContain('open invoice.');
+  expect(text).toContain('the link above');
+  expect(text).not.toContain('open invoices');
+  expect(text.match(/\$100\.00/g)).toHaveLength(2);
+  expect(text).not.toContain('$175.00');
+});
+test('multiple invoices replace the invoice-ready template with the saved follow-up', async () => {
+  const { context, node } = composer();
+  context.previewFixture = await fixture().preview();
+  context.followupFixture = { id: 2, ...INVOICE_FOLLOWUP_TEMPLATE };
+  context.findSmsTemplate = () => ({ id: 1, slug: 'invoice_ready_sms', sms_body: 'Your invoice is ready' });
+  vm.runInContext('invoiceTextPreview = previewFixture; smsTemplates = [followupFixture];', context);
+  node('invoice-sms-template').value = '1';
+  context.applyInvoiceSmsTemplate();
+  expect(node('invoice-sms-template').value).toBe(2);
+  expect(node('sms-compose-body').value).toBe(renderInvoiceFollowupTemplate(context.previewFixture));
+  expect(node('sms-reviewed').checked).toBe(false);
+});
+test('startup saves the named SMS template without overwriting user edits', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+  const start = source.indexOf("    const { INVOICE_FOLLOWUP_TEMPLATE: followup }");
+  const end = source.indexOf('    const invoiceReadySms =', start);
+  const pool = { query: jest.fn(async () => ({ rows: [] })) };
+  await new Function('pool', 'require', 'return (async () => {' + source.slice(start, end) + '})();')
+    (pool, () => ({ INVOICE_FOLLOWUP_TEMPLATE }));
+  expect(pool.query).toHaveBeenCalledTimes(1);
+  const [sql, values] = pool.query.mock.calls[0];
+  expect(sql).toMatch(/ON CONFLICT \(slug\) DO NOTHING/);
+  expect(values.slice(0, 4)).toEqual(['Invoice Follow-Up', 'invoice_followup_sms', 'invoices', 'sms']);
+  expect(values[4]).toBe(INVOICE_FOLLOWUP_TEMPLATE.sms_body);
+});
+
+test('an in-flight AI rewrite cannot be reviewed or sent and its result needs fresh approval', async () => {
+  let finish;
+  const fetchMock = jest.fn(() => new Promise(resolve => { finish = resolve; }));
+  const { context, node } = composer(fetchMock);
+  context.previewFixture = await fixture().preview();
+  vm.runInContext('invoiceTextPreview = previewFixture;', context);
+  node('sms-compose-body').value = context.previewFixture.body;
+  node('sms-reviewed').checked = true;
+  const rewriting = context.draftInvoiceTextWithAi();
+  expect(node('sms-reviewed').disabled).toBe(true);
+  expect(node('sms-reviewed').checked).toBe(false);
+  node('sms-reviewed').checked = true; // Simulate the reported approval race.
+  await context.sendReviewedInvoiceText();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(node('sms-send-btn').disabled).toBe(true);
+  finish({ ok: true, json: async () => ({ draft: 'Please let us know when payment can be expected.' }) });
+  await rewriting;
+  expect(node('sms-compose-body').value).toContain('when payment can be expected');
+  expect(node('sms-reviewed').checked).toBe(false);
+  expect(node('sms-reviewed').disabled).toBe(false);
+  expect(node('sms-send-btn').disabled).toBe(true);
+  node('sms-reviewed').checked = true;
+  context.updateInvoiceTextSendState();
+  expect(node('sms-send-btn').disabled).toBe(false);
+});
+test('a stale AI response cannot unlock review while a newer rewrite is pending', async () => {
+  const pending = [];
+  const fetchMock = jest.fn(() => new Promise(resolve => pending.push(resolve)));
+  const { context, node } = composer(fetchMock);
+  context.previewFixture = await fixture().preview();
+  vm.runInContext('invoiceTextPreview = previewFixture;', context);
+  node('sms-compose-body').value = context.previewFixture.body;
+  const first = context.draftInvoiceTextWithAi();
+  context.invoiceTextChanged(); // User edits the draft, invalidating the first request.
+  const second = context.draftInvoiceTextWithAi();
+  pending[0]({ ok: true, json: async () => ({ draft: 'Old result' }) });
+  await first;
+  expect(node('sms-reviewed').disabled).toBe(true);
+  expect(node('sms-compose-body').value).not.toContain('Old result');
+  pending[1]({ ok: true, json: async () => ({ draft: 'New result' }) });
+  await second;
+  expect(node('sms-reviewed').checked).toBe(false);
+  expect(node('sms-reviewed').disabled).toBe(false);
+  expect(node('sms-compose-body').value).toContain('New result');
 });

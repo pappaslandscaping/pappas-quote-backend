@@ -4,11 +4,11 @@
   else root.SnowAgreement = factory();
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'snow-2026-27-v4';
+  const VERSION = 'snow-2026-27-v5';
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function plain(value) {
     return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6])>/gi, '\n').replace(/<[^>]+>/g, '')
+      .replace(/<br\s*\/?>|<\/(?:p|div|li|td|tr|h[1-6])>/gi, '\n').replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
       .replace(/&#(\d+);/g, (_, n) => Number(n) <= 0x10ffff ? String.fromCodePoint(Number(n)) : '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
   }

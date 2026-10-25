@@ -9,6 +9,14 @@ function quote(overrides = {}) {
 }
 const create = q => agreement.create(q, { estimate_id: 888, accepted_at: '2026-10-25T18:00:00Z' });
 
+test('inline HTML table rows preserve walkway scope and seasonal price in the summary', () => {
+  const description = '<table><tr><td><strong>What\'s Included</strong><br>Seasonal snow clearing.</td></tr><tr><td><strong>Areas Included</strong><br>Front and back walkways.</td></tr><tr><td><strong>Season Coverage</strong><br>December 1, 2026 through March 31, 2027.</td></tr><tr><td><strong>Seasonal Price</strong><br>Full-season price, not per visit.</td></tr></table>';
+  const q=quote(); q.services.push({name:'Seasonal Walkway Snow Clearing',description,price:125,property_id:77});
+  const html=agreement.render(create(q));
+  expect(html).toContain('Front and back walkways');
+  expect(html).toContain('Full-season price, not per visit');
+});
+
 test('summary removes estimate boilerplate and preserves scope, dates and custom instructions', () => {
   const q = quote();
   q.services[0].description = "What's Included\nSeasonal driveway snow removal.\nAreas Included:\nDriveway and front walkway.\nSeason Coverage:\n2026-2027: December 1, 2026 through March 31, 2027.\nSnow Removal Timing:\nStandard route timing.\nGate instructions:\nClose gate after service.\nSalt & Deicing:\nSalt is included.";

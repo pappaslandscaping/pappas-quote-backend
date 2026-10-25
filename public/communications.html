@@ -997,7 +997,7 @@
     <div class="email-modal-card">
         <div class="email-modal-head">
             <div>
-                <div class="email-modal-title">Text an invoice reminder</div>
+                <div class="email-modal-title">Invoice follow-up text</div>
                 <div class="email-modal-subtitle">AI can help draft the message. Nothing sends until you review and confirm it.</div>
             </div>
             <button class="email-modal-close" type="button" onclick="closeInvoiceTextComposer()">×</button>
@@ -1010,9 +1010,16 @@
                         <option value="">Use the standard invoice reminder</option>
                     </select>
                 </div>
+                <div class="email-field">
+                    <label for="sms-invoice-scope">Include in this follow-up</label>
+                    <select class="email-select" id="sms-invoice-scope" onchange="handleInvoiceTextSelection()">
+                        <option value="all">All open invoices for this customer</option>
+                        <option value="single">Only the selected invoice</option>
+                    </select>
+                </div>
                 <div class="invoice-lookup-grid">
                     <div class="email-field">
-                        <label for="sms-invoice-search">Find an outstanding invoice</label>
+                        <label for="sms-invoice-search">Find a customer or invoice</label>
                         <input class="email-input" id="sms-invoice-search" type="search" placeholder="Customer, invoice number, or amount" oninput="filterInvoiceTextOptions(this.value)">
                     </div>
                     <div class="email-field">
@@ -1024,12 +1031,12 @@
                 </div>
                 <div class="invoice-contact-grid">
                     <div class="email-field">
-                        <label for="sms-invoice-url">Copilot customer invoice link</label>
-                        <input class="email-input" id="sms-invoice-url" type="url" placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
+                        <label for="sms-invoice-url">First invoice payment link</label>
+                        <input class="email-input" id="sms-invoice-url" type="url" readonly placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
                     </div>
                     <div class="email-field">
-                        <label for="sms-phone">Customer phone <span style="font-weight:400;text-transform:none">(if missing)</span></label>
-                        <input class="email-input" id="sms-phone" type="tel" placeholder="Phone number" oninput="invoiceTextChanged()">
+                        <label for="sms-phone">Customer phone</label>
+                        <input class="email-input" id="sms-phone" type="tel" readonly placeholder="Phone number" oninput="invoiceTextChanged()">
                     </div>
                 </div>
                 <div class="invoice-preview-row">
@@ -1056,10 +1063,11 @@
                 <div class="email-field">
                     <label for="sms-compose-body">Text message</label>
                     <textarea class="email-textarea" id="sms-compose-body" placeholder="Choose an invoice and refresh the customer details first." oninput="invoiceTextChanged()"></textarea>
+                    <div class="email-inline-note" id="sms-char-count" aria-live="polite">0 / 1600 characters</div>
                 </div>
                 <label class="sms-review-row">
                     <input id="sms-reviewed" type="checkbox" onchange="updateInvoiceTextSendState()">
-                    <span>I reviewed the customer, confirmed the phone number, past-due balance, invoice link, and message.</span>
+                    <span>I reviewed the customer, confirmed the phone number, open balances, payment links, and message.</span>
                 </label>
             </div>
             <div class="email-preview-panel">
@@ -1165,6 +1173,10 @@ let emailComposerState = {
     body: '',
 };
 let invoiceTextPreview = null;
+let invoiceTextRequestId = 0;
+let invoiceTextAiRequestId = 0;
+let invoiceTextLoading = false;
+let invoiceTextSending = false;
 let invoiceTextInvoices = [];
 let smsTemplates = [];
 let smsTemplatesLoaded = false;
@@ -1995,8 +2007,10 @@ async function sendReviewedGeneralText() {
 async function openInvoiceTextComposer() {
     document.getElementById('invoice-sms-modal').classList.add('open');
     document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'false');
-    document.getElementById('sms-send-status').textContent = 'Refreshing current invoices from Copilot...';
-    invoiceTextPreview = null;
+    resetInvoiceTextPreview();
+    invoiceTextInvoices = [];
+    document.getElementById('sms-invoice-select').innerHTML = '<option value="">Loading invoices...</option>';
+    document.getElementById('sms-send-status').textContent = 'Loading invoices...';
     try {
         await loadSmsTemplates();
         if (pendingInvoiceSmsTemplateId) {
@@ -2004,114 +2018,25 @@ async function openInvoiceTextComposer() {
             pendingInvoiceSmsTemplateId = '';
         }
         const token = localStorage.getItem('adminToken');
-        if (token) {
-            try {
-                const syncRes = await fetch('/api/copilot/invoices/sync', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ maxPages: 25, detailMode: 'missing', linkCustomers: true })
-                });
-                const syncData = await syncRes.json().catch(() => ({}));
-                if (!syncRes.ok || syncData.success === false) {
-                    console.warn('Copilot invoice refresh did not complete:', syncData.error || syncRes.status);
-                }
-            } catch (syncError) {
-                console.warn('Copilot invoice refresh failed; using saved invoices:', syncError);
-            }
-        }
-        document.getElementById('sms-send-status').textContent = 'Loading outstanding invoices...';
-        const res = await fetch('/api/invoices?limit=25000');
-        const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
-        const invoices = (data.invoices || []).filter(invoice => {
-            const status = String(invoice.status || '').trim().toLowerCase();
-            const balance = invoiceOutstandingAmount(invoice);
-            return balance > 0.005 && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
+        const res = await fetch('/api/invoice-followup/choices', {
+            headers: token ? { Authorization: 'Bearer ' + token } : {}
         });
-        invoiceTextInvoices = invoices;
+        const data = await res.json();
+        if (!res.ok || data.success === false || data.source !== 'official_homeworks_graphql') throw new Error(data.error || 'Unable to load current invoices');
+        invoiceTextInvoices = (data.invoices || []).filter(invoice =>
+            invoiceOutstandingAmount(invoice) > 0 && !['paid', 'void', 'draft', 'cancelled', 'canceled', 'write_off']
+                .includes(String(invoice.status || '').trim().toLowerCase()));
         document.getElementById('sms-invoice-search').value = '';
         filterInvoiceTextOptions('');
-        document.getElementById('sms-send-status').textContent = invoices.length
-            ? `${invoices.length} outstanding invoices loaded. Search by customer, invoice number, or amount.`
-            : 'No invoices with an outstanding balance were found.';
+        document.getElementById('sms-send-status').textContent = 'Find a customer or invoice. Selecting one loads the customer’s current open invoices.';
     } catch (error) {
         document.getElementById('sms-invoice-select').innerHTML = '<option value="">Unable to load invoices</option>';
-        document.getElementById('sms-send-status').textContent = error.message || 'Unable to load invoices.';
+        document.getElementById('sms-send-status').textContent = error.message;
     }
 }
-
-const verifiedInvoiceTextDetails = {
-    '11959': {
-        customerName: 'Kevin Hopp',
-        balance: 528.99,
-        totalOutstanding: 1009.89,
-        phone: '+14403100595',
-        invoiceUrl: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0?k=nlrplsnrjl'
-    }
-};
-
-function verifiedInvoiceTextDetail(invoice) {
-    const number = String(invoice?.display_invoice_number || invoice?.invoice_number || '').trim();
-    const verified = verifiedInvoiceTextDetails[number];
-    if (!verified) return null;
-    return String(invoice?.customer_name || '').trim().toLowerCase() === verified.customerName.toLowerCase()
-        ? verified
-        : null;
-}
-
 function invoiceOutstandingAmount(invoice) {
-    const verified = verifiedInvoiceTextDetail(invoice);
-    if (verified) return verified.balance;
-    const rowTotal = Math.max(Number(invoice?.total || 0), 0);
-    let metadata = invoice?.external_metadata || invoice?.metadata || {};
-    if (typeof metadata === 'string') {
-        try { metadata = JSON.parse(metadata); } catch (_error) { metadata = {}; }
-    }
-
-    const dueDate = new Date(invoice?.due_date || invoice?.invoice_date || '');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isPastDue = !Number.isNaN(dueDate.getTime()) && dueDate < today;
-    const customerPastDue = Number(metadata.customer_past_due_balance ?? metadata.past_due_balance);
-    const customerAccountBalance = Number(
-        metadata.total_due_on_account
-        ?? metadata.total_due
-        ?? metadata.customer_account_balance
-        ?? metadata.customer_outstanding_balance
-    );
-    const customerKey = String(invoice?.customer_name || '').trim().toLowerCase();
-    const openInvoiceKeys = new Set(invoiceTextInvoices.filter(candidate => {
-        const status = String(candidate?.status || '').trim().toLowerCase();
-        return String(candidate?.customer_name || '').trim().toLowerCase() === customerKey
-            && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
-    }).map(candidate => String(candidate?.display_invoice_number || candidate?.invoice_number || candidate?.id || '')));
-
-    // A Copilot list row can carry a stale invoice total even though its customer
-    // standing is current. With exactly one open invoice, the authoritative account
-    // balance is also the amount of that invoice. Never use it when multiple invoices
-    // are open because that would turn an account-wide balance into a single invoice.
-    if (openInvoiceKeys.size === 1 && Number.isFinite(customerAccountBalance) && customerAccountBalance > 0) {
-        return customerAccountBalance;
-    }
-
-    if (isPastDue && Number.isFinite(customerPastDue) && customerPastDue > 0) {
-        const overdueForCustomer = invoiceTextInvoices.filter(candidate => {
-            if (String(candidate?.customer_name || '').trim().toLowerCase() !== customerKey) return false;
-            const candidateDue = new Date(candidate?.due_date || candidate?.invoice_date || '');
-            const status = String(candidate?.status || '').trim().toLowerCase();
-            return !Number.isNaN(candidateDue.getTime())
-                && candidateDue < today
-                && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
-        });
-        if (overdueForCustomer.length === 1) return customerPastDue;
-    }
-
-    return rowTotal;
+    return Math.max(0, Number(invoice?.total || 0) - Number(invoice?.amount_paid || 0));
 }
-
 function filterInvoiceTextOptions(rawQuery) {
     const query = String(rawQuery || '').trim().toLowerCase();
     const select = document.getElementById('sms-invoice-select');
@@ -2122,293 +2047,229 @@ function filterInvoiceTextOptions(rawQuery) {
     }
     const matches = invoiceTextInvoices.filter(invoice => {
         const number = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '').toLowerCase();
-        const customer = String(invoice.customer_name || '').toLowerCase();
-        const balance = invoiceOutstandingAmount(invoice);
-        const amount = formatCurrency(balance).toLowerCase();
-        return customer.includes(query) || number.includes(query) || amount.includes(query);
+        return String(invoice.customer_name || '').toLowerCase().includes(query) || number.includes(query)
+            || formatCurrency(invoiceOutstandingAmount(invoice)).includes(query);
     }).slice(0, 50);
     select.innerHTML = matches.length
-        ? '<option value="">Select a matching invoice...</option>' + matches.map(invoice => {
-            const number = invoice.display_invoice_number || invoice.invoice_number || invoice.id;
-            const balance = invoiceOutstandingAmount(invoice);
-            return `<option value="${esc(invoice.id)}">${esc(invoice.customer_name || 'Unknown customer')} · #${esc(number)} · ${esc(formatCurrency(balance))}</option>`;
-        }).join('')
-        : '<option value="">No matching outstanding invoices</option>';
-    document.getElementById('sms-send-status').textContent = matches.length
-        ? `${matches.length} matching invoice${matches.length === 1 ? '' : 's'} found.`
-        : 'No matching outstanding invoices were found.';
+        ? '<option value="">Select a customer’s invoice...</option>' + matches.map(invoice =>
+            '<option value="' + esc(invoice.id) + '">' + esc(invoice.customer_name || 'Unknown customer') + ' · #'
+            + esc(invoice.display_invoice_number || invoice.invoice_number || invoice.id) + '</option>').join('')
+        : '<option value="">No matching invoices</option>';
+    document.getElementById('sms-send-status').textContent = matches.length + ' matching invoices found.';
 }
-
 function closeInvoiceTextComposer() {
+    invoiceTextRequestId++;
+    invoiceTextAiRequestId++;
     document.getElementById('invoice-sms-modal').classList.remove('open');
     document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'true');
 }
-
 function resetInvoiceTextPreview() {
+    invoiceTextRequestId++;
+    invoiceTextAiRequestId++;
     invoiceTextPreview = null;
+    invoiceTextLoading = false;
     document.getElementById('sms-compose-body').value = '';
     document.getElementById('sms-ai-instructions').value = '';
     document.getElementById('sms-invoice-url').value = '';
+    document.getElementById('sms-phone').value = '';
     document.getElementById('sms-reviewed').checked = false;
-    document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Choose an invoice, then refresh the customer details.';
+    document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Choose an invoice to load the customer’s current balances.';
     document.getElementById('sms-ai-btn').disabled = true;
     updateInvoiceTextSendState();
 }
-
 function invoiceTextChanged() {
+    invoiceTextAiRequestId++;
     document.getElementById('sms-reviewed').checked = false;
     updateInvoiceTextSendState();
 }
-
 function handleInvoiceTextSelection() {
     resetInvoiceTextPreview();
-    if (!document.getElementById('sms-invoice-select').value) return;
-    document.getElementById('sms-send-status').textContent = 'Loading phone number and invoice details...';
-    prepareInvoiceTextPreview();
+    if (document.getElementById('sms-invoice-select').value) prepareInvoiceTextPreview();
 }
-
 function buildInvoiceReminderDraft(preview) {
-    const firstName = String(preview.customer_name || '').trim().split(/\s+/)[0] || 'there';
-    const amount = preview.balance > 0 ? preview.balance : preview.total_outstanding;
-    const balanceLine = preview.balance > 0
-        ? `Just a friendly reminder that ${formatCurrency(amount)} is currently past due.`
-        : `Just a friendly reminder that you have an outstanding invoice for ${formatCurrency(amount)}.`;
-    const linkLine = preview.invoice_url ? `\n\nYou can view and pay it here:\n${preview.invoice_url}` : '';
-    return `Hi ${firstName}! This is Theresa from Pappas & Co. Landscaping. ${balanceLine}${linkLine}\n\nIf you've already sent payment, please disregard this message. Thank you!`;
+    return preview.body;
 }
-
+function invoiceTextDetails(preview) {
+    return 'Open balance: ' + formatCurrency(preview.balance) + '\n' + preview.invoices.map(row =>
+        'Invoice #' + row.number + ': ' + formatCurrency(row.balance) + '\n' + row.url).join('\n');
+}
 function invoiceSmsTemplateVars(preview) {
-    const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(preview?.invoice_id));
-    const customerKey = String(preview?.customer_name || '').trim().toLowerCase();
-    const customerOpenInvoices = new Set(invoiceTextInvoices.filter(invoice => {
-        const status = String(invoice?.status || '').trim().toLowerCase();
-        return String(invoice?.customer_name || '').trim().toLowerCase() === customerKey
-            && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
-    }).map(invoice => String(invoice?.display_invoice_number || invoice?.invoice_number || invoice?.id || '')));
-    const firstName = String(preview?.customer_name || '').trim().split(/\s+/)[0] || 'there';
-    const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const invoiceTotal = customerOpenInvoices.size === 1
-        ? preview?.total_outstanding
-        : (selectedInvoice?.total ?? preview?.balance);
+    const money = value => Number(value || 0).toFixed(2);
+    const links = preview.invoices.map(row => row.url).join('\n');
     return {
-        customer_name: preview?.customer_name || '',
-        customer_first_name: firstName,
-        customer_phone: preview?.to || '',
-        customer_account_balance: money(preview?.total_outstanding),
-        invoice_number: preview?.invoice_number || '',
-        invoice_total: money(invoiceTotal),
-        balance_due: money(preview?.balance),
-        invoices_links: preview?.invoice_url || '',
-        invoice_link: preview?.invoice_url || '',
-        payment_link: preview?.invoice_url || '',
-        company_name: 'Pappas & Co. Landscaping',
-        company_phone: '440-886-7318',
-        company_email: 'hello@pappaslandscaping.com',
-        company_website: 'https://www.pappaslandscaping.com',
+        customer_name: preview.customer_name, customer_first_name: preview.customer_name.trim().split(/\s+/)[0] || 'there',
+        customer_phone: preview.to, customer_account_balance: money(preview.total_outstanding),
+        invoice_number: preview.invoices.map(row => row.number).join(', '),
+        invoice_total: money(preview.balance), balance_due: money(preview.balance),
+        invoices_links: links, invoice_link: links, payment_link: links,
+        company_name: 'Pappas & Co. Landscaping', company_phone: '440-886-7318',
+        company_email: 'hello@pappaslandscaping.com', company_website: 'https://www.pappaslandscaping.com',
     };
 }
-
+function appendInvoiceTextDetails(text, preview) {
+    // Keep the financial block outside AI output so every payment link survives a rewrite.
+    const prose = String(text || '').replace(/https?:\/\/[^\s]+/gi, '').trim();
+    return prose + '\n\n' + invoiceTextDetails(preview);
+}
 function applyInvoiceSmsTemplate() {
     document.getElementById('sms-reviewed').checked = false;
     if (!invoiceTextPreview) {
-        document.getElementById('sms-send-status').textContent = 'Template selected. Choose an invoice to fill its live customer and balance details.';
-        updateInvoiceTextSendState();
-        return;
+        document.getElementById('sms-send-status').textContent = 'Choose an invoice to fill the template.';
+        return updateInvoiceTextSendState();
     }
     const template = findSmsTemplate(document.getElementById('invoice-sms-template').value);
     document.getElementById('sms-compose-body').value = template
-        ? renderSmsTemplate(template.sms_body, invoiceSmsTemplateVars(invoiceTextPreview))
+        ? appendInvoiceTextDetails(renderSmsTemplate(template.sms_body, invoiceSmsTemplateVars(invoiceTextPreview)), invoiceTextPreview)
         : buildInvoiceReminderDraft(invoiceTextPreview);
-    document.getElementById('sms-send-status').textContent = 'Template applied with the selected invoice details. Review it before sending.';
-    updateInvoiceTextSendState();
-}
-
-async function prepareInvoiceTextPreview() {
-    const invoiceId = document.getElementById('sms-invoice-select').value;
-    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    if (!invoiceId) return alert('Choose an outstanding invoice first.');
-    const status = document.getElementById('sms-send-status');
-    status.textContent = 'Preparing preview...';
-    try {
-        const token = localStorage.getItem('adminToken');
-        const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceId)}/sms-preview`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ invoice_url: invoiceUrl, phone: document.getElementById('sms-phone').value.trim() })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
-        const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(invoiceId));
-        const verifiedDetail = verifiedInvoiceTextDetail(selectedInvoice);
-        const selectedBalance = selectedInvoice
-            ? invoiceOutstandingAmount(selectedInvoice)
-            : Number(data.preview.balance || 0);
-        const refreshedPastDue = Number(data.preview.balance);
-        const refreshedTotalOutstanding = Number(data.preview.total_outstanding);
-        invoiceTextPreview = {
-            ...data.preview,
-            customer_name: verifiedDetail?.customerName || selectedInvoice?.customer_name || data.preview.customer_name,
-            invoice_number: selectedInvoice?.display_invoice_number || selectedInvoice?.invoice_number || data.preview.invoice_number,
-            balance: verifiedDetail?.balance
-                ?? (Number.isFinite(refreshedPastDue) ? refreshedPastDue : selectedBalance),
-            total_outstanding: verifiedDetail?.totalOutstanding
-                ?? (Number.isFinite(refreshedTotalOutstanding) ? refreshedTotalOutstanding : null),
-            to: verifiedDetail?.phone || data.preview.to,
-            invoice_url: verifiedDetail?.invoiceUrl || data.preview.invoice_url || invoiceUrl,
-        };
-        const customerKey = String(invoiceTextPreview.customer_name || '').trim().toLowerCase();
-        const seenInvoiceKeys = new Set();
-        const totalOutstanding = invoiceTextInvoices.reduce((sum, invoice) => {
-            if (String(invoice.customer_name || '').trim().toLowerCase() !== customerKey) return sum;
-            const key = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '');
-            if (seenInvoiceKeys.has(key)) return sum;
-            seenInvoiceKeys.add(key);
-            return sum + invoiceOutstandingAmount(invoice);
-        }, 0);
-        invoiceTextPreview.total_outstanding = invoiceTextPreview.total_outstanding
-            ?? Math.max(totalOutstanding, invoiceTextPreview.balance);
-        document.getElementById('sms-invoice-url').value = invoiceTextPreview.invoice_url || '';
-        document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
-        const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
-        const selectedTemplate = findSmsTemplate(document.getElementById('invoice-sms-template').value);
-        document.getElementById('sms-compose-body').value = previewMatchesSelection
-            ? (selectedTemplate
-                ? renderSmsTemplate(selectedTemplate.sms_body, invoiceSmsTemplateVars(invoiceTextPreview))
-                : buildInvoiceReminderDraft(invoiceTextPreview))
-            : '';
-        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(invoiceTextPreview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
-        document.getElementById('sms-ai-btn').disabled = false;
-        status.textContent = invoiceTextPreview.invoice_url
-            ? 'Preview ready. Review it or ask AI to help rewrite it.'
-            : 'Customer preview ready. AI can draft now; paste the Copilot invoice link before sending.';
-    } catch (error) {
-        invoiceTextPreview = null;
-        status.textContent = error.message || 'Unable to prepare preview.';
-    }
     invoiceTextChanged();
 }
-
+async function prepareInvoiceTextPreview() {
+    const invoiceId = document.getElementById('sms-invoice-select').value;
+    const scope = document.getElementById('sms-invoice-scope').value;
+    if (!invoiceId) return;
+    resetInvoiceTextPreview();
+    const requestId = invoiceTextRequestId;
+    invoiceTextLoading = true;
+    const status = document.getElementById('sms-send-status');
+    status.textContent = 'Checking current invoices and payment details...';
+    updateInvoiceTextSendState();
+    try {
+        const token = localStorage.getItem('adminToken');
+        const res = await fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/followup-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+            body: JSON.stringify({ scope })
+        });
+        const data = await res.json();
+        if (requestId !== invoiceTextRequestId) return;
+        if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
+        if (data.preview.source !== 'official_homeworks_graphql' || String(data.preview.invoice_id) !== String(invoiceId)
+            || data.preview.scope !== scope) throw new Error('The selected invoice could not be verified.');
+        invoiceTextPreview = data.preview;
+        document.getElementById('sms-invoice-url').value = data.preview.invoice_url;
+        document.getElementById('sms-phone').value = data.preview.to;
+        applyInvoiceSmsTemplate();
+        const p = invoiceTextPreview;
+        document.getElementById('sms-recipient-preview').innerHTML = '<strong>' + esc(p.customer_name) + '</strong>'
+            + esc(fmtPhone(p.to)) + '<br>' + p.invoices.length + ' open invoice' + (p.invoices.length === 1 ? '' : 's')
+            + '<br>Included balance: ' + esc(formatCurrency(p.balance))
+            + '<br>Past due: ' + esc(formatCurrency(p.past_due))
+            + (scope === 'single' ? '<br>All open invoices: ' + esc(formatCurrency(p.total_outstanding)) : '')
+            + '<div style="margin-top:12px;max-height:300px;overflow:auto">' + p.invoices.map(row =>
+                '<div style="padding:8px 0;border-top:1px solid #dbe3df"><strong>#' + esc(row.number) + ' · '
+                + esc(formatCurrency(row.balance)) + '</strong>'
+                + (row.past_due ? 'Past due' : 'Open')
+                + (row.due_date ? ' · Due ' + esc(String(row.due_date).slice(0, 10)) : '')
+                + '<br><a target="_blank" rel="noopener noreferrer" href="' + esc(row.url) + '">View / pay invoice</a></div>').join('') + '</div>';
+        status.textContent = 'Review the invoice list and message before sending.';
+    } catch (error) {
+        if (requestId !== invoiceTextRequestId) return;
+        invoiceTextPreview = null;
+        status.textContent = error.message;
+    } finally {
+        if (requestId === invoiceTextRequestId) {
+            invoiceTextLoading = false;
+            document.getElementById('sms-ai-btn').disabled = !invoiceTextPreview;
+            updateInvoiceTextSendState();
+        }
+    }
+}
 function applyInvoiceAiInstruction(instruction) {
-    const field = document.getElementById('sms-ai-instructions');
-    field.value = instruction;
+    document.getElementById('sms-ai-instructions').value = instruction;
     document.getElementById('sms-reviewed').checked = false;
     draftInvoiceTextWithAi();
 }
-
-function formatInvoiceTextDraft(rawDraft, invoiceUrl = '', customerName = '') {
-    let draft = String(rawDraft || '')
-        .replace(/\r\n?/g, '\n')
-        .replace(/[ \t]+\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-    draft = draft.replace(/https?:\/\/[^\s]+/gi, match => {
-        const normalized = match.replace(/[),.;!?]+$/, '');
-        return invoiceUrl && normalized === invoiceUrl ? invoiceUrl : '';
-    }).replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-
-    const signoffPattern = /\s*(?:[-–—]\s*)?Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*$/i;
-    draft = draft.replace(signoffPattern, '').trim();
-
-    if (invoiceUrl) {
-        draft = draft.split(invoiceUrl).join('').trim();
-        draft = draft.replace(/\s*(?:(?:You can )?(?:view|see) (?:your|the) invoice here|Invoice(?: link)?):\s*/ig, ' ').trim();
-    }
-
-    if (draft && !draft.includes('\n\n')) {
-        draft = draft.replace(/([.!?])\s+(?=(?:Could|Please|Would|When|If you(?:'ve| have))\b)/i, '$1\n\n');
-    }
-
+function formatInvoiceTextDraft(rawDraft, invoiceUrl = '', customerName = '', preview = invoiceTextPreview) {
+    let draft = String(rawDraft || '').replace(/https?:\/\/[^\s]+/gi, '').replace(/[—–]/g, ',').trim();
     const firstName = String(customerName || '').trim().split(/\s+/)[0] || 'there';
-    const requiredOpening = `Hi ${firstName}! This is Theresa from Pappas & Co. Landscaping.`;
-    draft = draft.replace(/^Hi\s+[^!\n]+[!,]?\s*(?:This is Theresa from Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*)?/i, '').trim();
-    const sections = [`${requiredOpening}${draft ? ` ${draft}` : ''}`];
-    if (invoiceUrl) sections.push(invoiceUrl);
-    return sections.filter(Boolean).join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+    const opening = 'Hi ' + firstName + '! This is Theresa from Pappas & Co. Landscaping.';
+    draft = draft.replace(/^Hi\s+[^!\n,]+[!,]\s*(?:This is Theresa from Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*)?/i, '').trim();
+    const text = opening + (draft ? ' ' + draft : '');
+    return preview ? appendInvoiceTextDetails(text, preview) : text + (invoiceUrl ? '\n\n' + invoiceUrl : '');
 }
-
 async function draftInvoiceTextWithAi() {
-    if (!invoiceTextPreview) return;
-    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    const aiInstruction = document.getElementById('sms-ai-instructions').value.trim();
+    if (!invoiceTextPreview || invoiceTextLoading) return;
+    const preview = invoiceTextPreview;
+    const requestId = ++invoiceTextAiRequestId;
+    const instruction = document.getElementById('sms-ai-instructions').value.trim();
     const existingDraft = document.getElementById('sms-compose-body').value.trim();
     const status = document.getElementById('sms-send-status');
-    status.textContent = 'AI is preparing a draft...';
+    status.textContent = 'Preparing a draft...';
     document.getElementById('sms-ai-btn').disabled = true;
+    document.getElementById('sms-reviewed').checked = false;
+    updateInvoiceTextSendState();
     try {
         const token = localStorage.getItem('adminToken');
         const res = await fetch('/api/app/ai/draft', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
             body: JSON.stringify({
-                contactName: invoiceTextPreview.customer_name,
-                prompt: invoiceTextPreview.balance > 0
-                    ? `Write a short, natural invoice reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceTextPreview.total_outstanding > invoiceTextPreview.balance ? ` Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding)}.` : ''} ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label, use em dashes, or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
-                    : `Write a short, natural reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say they have an outstanding invoice for ${formatCurrency(invoiceTextPreview.total_outstanding)}. Do not use the words "past due," "overdue," or "nothing currently past due." ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label, use em dashes, or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
+                contactName: preview.customer_name,
+                prompt: 'Write a short, natural payment follow-up from Theresa at Pappas & Co. Landscaping to '
+                    + preview.customer_name + ' about ' + preview.invoices.length + ' open invoice(s). '
+                    + 'Write only a greeting and brief follow-up. Do not include amounts, invoice numbers, dates, or links; '
+                    + 'the verified invoice breakdown will be appended separately. Do not call an open invoice past due. '
+                    + 'Do not use em dashes. End by saying to disregard if payment was already sent. '
+                    + (instruction || 'Use a friendly, concise tone.')
+                    + (existingDraft ? ' Preserve the intent of this editable draft, omitting its financial breakdown: ' + existingDraft : '')
+                    + ' Return only the message, no more than 55 words.'
             })
         });
         const data = await res.json();
+        if (requestId !== invoiceTextAiRequestId || preview !== invoiceTextPreview) return;
         if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
-        const draft = formatInvoiceTextDraft(data.draft, invoiceUrl, invoiceTextPreview.customer_name);
-        document.getElementById('sms-compose-body').value = draft;
-        status.textContent = invoiceUrl
-            ? 'AI draft prepared. Nothing was sent.'
-            : 'AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.';
+        document.getElementById('sms-compose-body').value = formatInvoiceTextDraft(data.draft, preview.invoice_url, preview.customer_name, preview);
+        status.textContent = 'Draft ready. All invoice numbers, balances, and payment links are included.';
     } catch (error) {
-        status.textContent = error.message || 'AI could not prepare a draft.';
+        if (requestId === invoiceTextAiRequestId) status.textContent = error.message;
     } finally {
-        document.getElementById('sms-ai-btn').disabled = false;
-        invoiceTextChanged();
+        document.getElementById('sms-ai-btn').disabled = !invoiceTextPreview || invoiceTextLoading;
+        updateInvoiceTextSendState();
     }
 }
-
 function updateInvoiceTextSendState() {
-    const reviewed = document.getElementById('sms-reviewed').checked;
     const body = document.getElementById('sms-compose-body').value.trim();
-    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && reviewed && body && invoiceUrl);
+    const maxLength = invoiceTextPreview?.max_length || 1600;
+    const links = body.match(/https?:\/\/[^\s]+/g) || [];
+    const complete = invoiceTextPreview?.invoices.every(row => links.includes(row.url) && body.includes('#' + row.number))
+        && links.every(url => invoiceTextPreview.invoices.some(row => row.url === url));
+    document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && !invoiceTextLoading && !invoiceTextSending
+        && document.getElementById('sms-reviewed').checked && body && body.length <= maxLength && complete);
+    document.getElementById('sms-char-count').textContent = body.length + ' / ' + maxLength + ' characters'
+        + (body.length > maxLength ? '. Shorten the wording before sending; keep all invoice links.'
+            : invoiceTextPreview && !complete ? '. Keep every invoice number and payment link in the text.' : '');
 }
-
 async function sendReviewedInvoiceText() {
-    if (!invoiceTextPreview) return;
+    updateInvoiceTextSendState();
+    if (document.getElementById('sms-send-btn').disabled) return;
+    const preview = invoiceTextPreview;
     const body = document.getElementById('sms-compose-body').value.trim();
-    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    if (!document.getElementById('sms-reviewed').checked) return;
-    if (!confirm(`Send this text to ${invoiceTextPreview.customer_name} at ${fmtPhone(invoiceTextPreview.to)}?`)) return;
-    const button = document.getElementById('sms-send-btn');
+    if (!confirm('Send this text to ' + preview.customer_name + ' at ' + fmtPhone(preview.to) + '?')) return;
+    invoiceTextSending = true;
+    updateInvoiceTextSendState();
     const status = document.getElementById('sms-send-status');
-    button.disabled = true;
-    status.textContent = 'Sending this text...';
+    status.textContent = 'Rechecking balances and sending this text...';
     try {
         const token = localStorage.getItem('adminToken');
-        const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceTextPreview.invoice_id)}/send-sms`, {
+        const res = await fetch('/api/invoices/' + encodeURIComponent(preview.invoice_id) + '/followup-sms', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({
-                body,
-                invoice_url: invoiceUrl,
-                phone: document.getElementById('sms-phone').value.trim(),
-                verification_receipt: invoiceTextPreview.verification_receipt,
-                confirm_send: true
-            })
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+            body: JSON.stringify({ body, scope: preview.scope, phone: preview.to,
+                verification_receipt: preview.verification_receipt, confirm_send: true })
         });
         const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');
-        status.textContent = 'Text sent manually.';
+        if (!res.ok || !data.success) throw new Error(data.error || 'Text failed to send');
         document.getElementById('sms-reviewed').checked = false;
-        showToast('Invoice reminder text sent');
-        setTimeout(closeInvoiceTextComposer, 700);
+        invoiceTextPreview = null;
+        status.textContent = data.warning || 'Text sent.';
+        showToast(data.warning || 'Invoice follow-up text sent');
+        if (!data.warning) setTimeout(closeInvoiceTextComposer, 700);
         loadFeed();
     } catch (error) {
-        status.textContent = error.message || 'Text failed to send.';
+        document.getElementById('sms-reviewed').checked = false;
+        status.textContent = error.message;
+    } finally {
+        invoiceTextSending = false;
         updateInvoiceTextSendState();
     }
 }

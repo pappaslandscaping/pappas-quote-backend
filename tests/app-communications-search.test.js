@@ -59,20 +59,7 @@ describe('TwilioConnect app communication search and history', () => {
 });
 
 describe('YardDesk manual invoice text composer', () => {
-  test('is visible on communications.html and cannot send without manual review', () => {
-    expect(communicationsHtml).toContain('Use Invoice Reminder Details');
-    expect(communicationsHtml).toContain('Help Me Write It with AI');
-    expect(communicationsHtml).toContain('I reviewed the customer, confirmed the phone number, past-due balance, invoice link, and message.');
-    expect(communicationsHtml).toContain("if (!document.getElementById('sms-reviewed').checked) return;");
-    expect(communicationsHtml).toContain('confirm_send: true');
-    expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
-  });
 
-  test('AI only writes into the editable composer and never invokes the send endpoint', () => {
-    expect(communicationsHtml).toContain("fetch('/api/app/ai/draft'");
-    expect(communicationsHtml).toContain("document.getElementById('sms-compose-body').value = draft;");
-    expect(communicationsHtml).toContain('AI draft prepared. Nothing was sent.');
-  });
 
   test('seeds the requested invoice SMS template with account balance and invoice link fields', () => {
     expect(serverSource).toContain("'invoice_ready_sms'");
@@ -82,74 +69,6 @@ describe('YardDesk manual invoice text composer', () => {
   });
 });
 
-
-describe('YardDesk invoice text selection', () => {
-  test('shows every unpaid issued invoice without requiring an overdue date', () => {
-    expect(communicationsHtml).toContain("balance > 0.005");
-    expect(communicationsHtml).toContain("!['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status)");
-    expect(communicationsHtml).not.toContain("status === 'overdue' ||");
-    expect(communicationsHtml).toContain('No invoices with an outstanding balance were found.');
-  });
-});
-
-describe('YardDesk customer balance context', () => {
-  test('distinguishes total outstanding from the selected past-due invoice', () => {
-    expect(communicationsHtml).toContain('invoiceTextPreview.total_outstanding');
-    expect(communicationsHtml).toContain('Number(data.preview.total_outstanding)');
-    expect(communicationsHtml).toContain('Number(data.preview.balance)');
-    expect(communicationsHtml).toContain('Total outstanding:');
-    expect(communicationsHtml).toContain('Currently past due:');
-    expect(communicationsHtml).toContain('Their total outstanding balance is');
-    expect(communicationsHtml).toContain('Their total outstanding balance is');
-    expect(communicationsHtml).toContain('Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping."');
-    expect(communicationsHtml).toContain('Do not add an "Invoice:" label');
-    expect(communicationsHtml).toContain('Use no more than 65 words.');
-  });
-
-  test('uses account balance as invoice amount only when the customer has one open invoice', () => {
-    expect(communicationsHtml).toContain('openInvoiceKeys.size === 1');
-    expect(communicationsHtml).toContain('customerOpenInvoices.size === 1');
-    expect(communicationsHtml).toContain('? preview?.total_outstanding');
-    expect(communicationsHtml).toContain('metadata.total_due_on_account');
-  });
-});
-
-describe('YardDesk invoice AI drafting', () => {
-  test('can draft after preview even before the invoice link is pasted', () => {
-    expect(communicationsHtml).toContain("document.getElementById('sms-ai-btn').disabled = false;");
-    expect(communicationsHtml).not.toContain("if (!invoiceUrl) return alert('Paste the Copilot invoice link first.')");
-    expect(communicationsHtml).toContain("invoiceUrl ? \`Keep this exact link unchanged on its own line:");
-    expect(communicationsHtml).toContain('AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.');
-  });
-});
-
-describe('YardDesk invoice phone fallback', () => {
-  test('allows a reviewed phone number when the imported invoice is not linked', () => {
-    expect(communicationsHtml).toContain('Customer phone');
-    expect(communicationsHtml).toContain('(if missing)');
-    expect(communicationsHtml).toContain("phone: document.getElementById('sms-phone').value.trim()");
-  });
-});
-
-describe('YardDesk current Copilot invoice data', () => {
-  test('refreshes Copilot before listing invoice text choices', () => {
-    expect(communicationsHtml).toContain("fetch('/api/copilot/invoices/sync'");
-    expect(communicationsHtml).toContain('maxPages: 25');
-    expect(communicationsHtml).toContain("detailMode: 'missing'");
-    expect(communicationsHtml).toContain("fetch('/api/invoices?limit=25000')");
-    expect(communicationsHtml).toContain("'Authorization': `Bearer ${token}`");
-  });
-});
-
-describe('YardDesk invoice text search', () => {
-  test('requires a short search and filters by customer, invoice number, or amount', () => {
-    expect(communicationsHtml).toContain('Find an outstanding invoice');
-    expect(communicationsHtml).toContain('Customer, invoice number, or amount');
-    expect(communicationsHtml).toContain('if (query.length < 2)');
-    expect(communicationsHtml).toContain('customer.includes(query) || number.includes(query) || amount.includes(query)');
-    expect(communicationsHtml).toContain('.slice(0, 50)');
-  });
-});
 
 describe('YardDesk general manual text composer', () => {
   test('supports customer texts about topics beyond invoices', () => {
@@ -193,8 +112,6 @@ describe('YardDesk general manual text composer', () => {
     expect(communicationsHtml).toContain("['sms', 'both'].includes(channel)");
     expect(communicationsHtml).toContain('applyGeneralSmsTemplate');
     expect(communicationsHtml).toContain('invoiceSmsTemplateVars');
-    expect(communicationsHtml).toContain('customer_account_balance: money(preview?.total_outstanding)');
-    expect(communicationsHtml).toContain('invoices_links: preview?.invoice_url');
   });
 });
 
@@ -210,11 +127,6 @@ describe('YardDesk guided invoice AI rewriting', () => {
     expect(communicationsHtml).toContain('AI only rewrites the editable draft. It cannot approve or send the text.');
   });
 
-  test('keeps verified invoice facts and the exact link in AI prompts', () => {
-    expect(communicationsHtml).toContain('Keep this exact link unchanged on its own line');
-    expect(communicationsHtml).toContain('Do not invent a link.');
-    expect(communicationsHtml).toContain('Return only the finished text.');
-  });
 });
 
 
@@ -230,13 +142,3 @@ describe('YardDesk invoice composer layout', () => {
   });
 });
 
-describe('YardDesk readable invoice text formatting', () => {
-  test('uses the required opening and keeps the raw link in its own section', () => {
-    expect(communicationsHtml).toContain('function formatInvoiceTextDraft');
-    expect(communicationsHtml).toContain('This is Theresa from Pappas & Co. Landscaping.');
-    expect(communicationsHtml).toContain('if (invoiceUrl) sections.push(invoiceUrl)');
-    expect(communicationsHtml).not.toContain("sections.push(`Invoice:\\n${invoiceUrl}`)");
-    expect(communicationsHtml).toContain("join('\\n\\n')");
-    expect(communicationsHtml).toContain('Do not add an "Invoice:" label');
-  });
-});

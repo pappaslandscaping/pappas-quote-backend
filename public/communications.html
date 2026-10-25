@@ -1019,7 +1019,7 @@
                 </div>
                 <div class="invoice-lookup-grid">
                     <div class="email-field">
-                        <label for="sms-invoice-search">Find an outstanding invoice</label>
+                        <label for="sms-invoice-search">Find a customer or invoice</label>
                         <input class="email-input" id="sms-invoice-search" type="search" placeholder="Customer, invoice number, or amount" oninput="filterInvoiceTextOptions(this.value)">
                     </div>
                     <div class="email-field">
@@ -1067,7 +1067,7 @@
                 </div>
                 <label class="sms-review-row">
                     <input id="sms-reviewed" type="checkbox" onchange="updateInvoiceTextSendState()">
-                    <span>I reviewed the customer, confirmed the phone number, past-due balance, invoice link, and message.</span>
+                    <span>I reviewed the customer, confirmed the phone number, open balances, payment links, and message.</span>
                 </label>
             </div>
             <div class="email-preview-panel">
@@ -2018,11 +2018,11 @@ async function openInvoiceTextComposer() {
             pendingInvoiceSmsTemplateId = '';
         }
         const token = localStorage.getItem('adminToken');
-        const res = await fetch('/api/invoices?limit=25000', {
+        const res = await fetch('/api/invoice-followup/choices', {
             headers: token ? { Authorization: 'Bearer ' + token } : {}
         });
         const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
+        if (!res.ok || data.success === false || data.source !== 'official_homeworks_graphql') throw new Error(data.error || 'Unable to load current invoices');
         invoiceTextInvoices = (data.invoices || []).filter(invoice =>
             invoiceOutstandingAmount(invoice) > 0 && !['paid', 'void', 'draft', 'cancelled', 'canceled', 'write_off']
                 .includes(String(invoice.status || '').trim().toLowerCase()));
@@ -2192,6 +2192,7 @@ async function draftInvoiceTextWithAi() {
     const preview = invoiceTextPreview;
     const requestId = ++invoiceTextAiRequestId;
     const instruction = document.getElementById('sms-ai-instructions').value.trim();
+    const existingDraft = document.getElementById('sms-compose-body').value.trim();
     const status = document.getElementById('sms-send-status');
     status.textContent = 'Preparing a draft...';
     document.getElementById('sms-ai-btn').disabled = true;
@@ -2209,7 +2210,9 @@ async function draftInvoiceTextWithAi() {
                     + 'Write only a greeting and brief follow-up. Do not include amounts, invoice numbers, dates, or links; '
                     + 'the verified invoice breakdown will be appended separately. Do not call an open invoice past due. '
                     + 'Do not use em dashes. End by saying to disregard if payment was already sent. '
-                    + (instruction || 'Use a friendly, concise tone.') + ' Return only the message, no more than 55 words.'
+                    + (instruction || 'Use a friendly, concise tone.')
+                    + (existingDraft ? ' Preserve the intent of this editable draft, omitting its financial breakdown: ' + existingDraft : '')
+                    + ' Return only the message, no more than 55 words.'
             })
         });
         const data = await res.json();
@@ -2233,7 +2236,8 @@ function updateInvoiceTextSendState() {
     document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && !invoiceTextLoading && !invoiceTextSending
         && document.getElementById('sms-reviewed').checked && body && body.length <= maxLength && complete);
     document.getElementById('sms-char-count').textContent = body.length + ' / ' + maxLength + ' characters'
-        + (body.length > maxLength ? '. Shorten the wording before sending; keep all invoice links.' : '');
+        + (body.length > maxLength ? '. Shorten the wording before sending; keep all invoice links.'
+            : invoiceTextPreview && !complete ? '. Keep every invoice number and payment link in the text.' : '');
 }
 async function sendReviewedInvoiceText() {
     updateInvoiceTextSendState();

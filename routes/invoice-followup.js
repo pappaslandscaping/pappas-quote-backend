@@ -52,8 +52,9 @@ function reminderBody(preview) {
 }
 async function loadFollowup({ pool, invoiceId, scope = 'all', queryImpl = queryHomeWorksGraphql }) {
   if (!['all', 'single'].includes(scope)) throw new Error('Choose all open invoices or the selected invoice.');
-  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [invoiceId]);
-  const local = result.rows[0];
+  const liveId = String(invoiceId).match(/^homeworks:(\d+)$/);
+  const local = liveId ? { id: invoiceId, external_invoice_id: liveId[1] }
+    : (await pool.query('SELECT * FROM invoices WHERE id = $1', [invoiceId])).rows[0];
   if (!local) throw new Error('Invoice not found.');
   const sourceId = Number(local.external_invoice_id);
   if (!Number.isSafeInteger(sourceId) || sourceId <= 0) throw new Error('This invoice needs a HomeWorks invoice link before preparing a follow-up.');
@@ -96,6 +97,37 @@ async function loadFollowup({ pool, invoiceId, scope = 'all', queryImpl = queryH
   };
   return preview;
 }
+async function loadInvoiceChoices({ pool, queryImpl = queryHomeWorksGraphql }) {
+  const rows = [];
+  let complete = false;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const data = await queryImpl({ pool, operationName: 'YardDeskFollowupChoices',
+      query: 'query YardDeskFollowupChoices($skip: SafeInt!, $take: SafeInt!) { invoices('
+        + 'where: { isArchived: false, deletedState: { equals: ACTIVE }, status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] } },'
+        + ' take: $take, skip: $skip, orderBy: [{ id: asc }]) { id number customerId status total paidAmount isSent isArchived deletedState } }',
+      variables: { skip: page * PAGE_SIZE, take: PAGE_SIZE } });
+    if (!Array.isArray(data.invoices)) throw new Error('Unable to load the current invoices.');
+    rows.push(...data.invoices.filter(row => row.isSent === true && row.isArchived === false
+      && row.deletedState === 'ACTIVE' && OPEN_STATUSES.has(row.status) && cents(row.total) > cents(row.paidAmount)));
+    if (data.invoices.length < PAGE_SIZE) { complete = true; break; }
+  }
+  if (!complete) throw new Error('The complete invoice list could not be loaded.');
+  const ids = [...new Set(rows.map(row => row.customerId))];
+  const names = new Map();
+  for (let offset = 0; offset < ids.length; offset += 200) {
+    const data = await queryImpl({ pool, operationName: 'YardDeskFollowupChoiceCustomers',
+      query: 'query YardDeskFollowupChoiceCustomers($ids: [SafeInt!]!) { customers(where: { id: { in: $ids }, isDeleted: false }, take: 200) { id fullName } }',
+      variables: { ids: ids.slice(offset, offset + 200) } });
+    if (!Array.isArray(data.customers)) throw new Error('Unable to load invoice customers.');
+    data.customers.forEach(customer => names.set(customer.id, customer.fullName));
+  }
+  return rows.filter(row => names.has(row.customerId)).map(row => ({
+    id: 'homeworks:' + row.id, invoice_number: String(row.number || row.id),
+    customer_name: names.get(row.customerId), total: row.total, amount_paid: row.paidAmount,
+    status: row.status.toLowerCase(),
+  }));
+}
+
 function fingerprint(preview) {
   return crypto.createHash('sha256').update(JSON.stringify(preview)).digest('hex');
 }
@@ -129,6 +161,11 @@ function createFollowupRoutes({ pool, authenticateToken, sendSms, isTwilioConfig
   queryImpl = queryHomeWorksGraphql }) {
   const router = express.Router();
   const attempted = new Map();
+  router.get('/api/invoice-followup/choices', authenticateToken, async (_req, res) => {
+    try {
+      res.json({ success: true, source: 'official_homeworks_graphql', invoices: await loadInvoiceChoices({ pool, queryImpl }) });
+    } catch (error) { res.status(409).json({ success: false, error: error.message }); }
+  });
   router.post('/api/invoices/:id/followup-preview', authenticateToken, async (req, res) => {
     try {
       const preview = await loadFollowup({ pool, invoiceId: req.params.id, scope: req.body?.scope, queryImpl });
@@ -172,5 +209,5 @@ function createFollowupRoutes({ pool, authenticateToken, sendSms, isTwilioConfig
   });
   return router;
 }
-module.exports = { createFollowupRoutes, loadFollowup, openInvoiceRows, invoiceDetails, reminderBody,
+module.exports = { createFollowupRoutes, loadInvoiceChoices, loadFollowup, openInvoiceRows, invoiceDetails, reminderBody,
   signPreview, verifyPreview, validateBody, phoneNumber, PAGE_SIZE, MAX_SMS_LENGTH };

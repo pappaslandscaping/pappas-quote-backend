@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { createFollowupRoutes, loadFollowup, openInvoiceRows, reminderBody,
+const { createFollowupRoutes, loadInvoiceChoices, loadFollowup, openInvoiceRows, reminderBody,
   signPreview, verifyPreview, validateBody, PAGE_SIZE } = require('../routes/invoice-followup');
 
 process.env.JWT_SECRET = 'invoice-followup-tests-only';
@@ -186,4 +186,62 @@ test('the composer defaults to all open invoices and uses the official preview f
   expect(html).not.toContain('verifiedInvoiceTextDetails');
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
   scripts.forEach(match => expect(() => new vm.Script(match[1])).not.toThrow());
+});
+
+test('invoice choices use live HomeWorks invoices and exclude unsent balances', async () => {
+  const pool = { query: jest.fn() };
+  const queryImpl = jest.fn(async ({ operationName }) => operationName === 'YardDeskFollowupChoices'
+    ? { invoices: [row(1), row(2, { isSent: false }), row(3, { paidAmount: '100' })] }
+    : { customers: [{ id: 51, fullName: 'Current Customer' }] });
+  const choices = await loadInvoiceChoices({ pool, queryImpl });
+  expect(choices).toEqual([expect.objectContaining({ id: 'homeworks:1', customer_name: 'Current Customer' })]);
+  expect(pool.query).not.toHaveBeenCalled();
+  const f = fixture();
+  const preview = await loadFollowup({ pool, invoiceId: choices[0].id, queryImpl: f.queryImpl });
+  expect(preview.invoice_id).toBe('homeworks:1');
+  expect(pool.query).not.toHaveBeenCalled();
+});
+test('client search matches name, invoice number, and remaining balance without an overdue requirement', () => {
+  const { context, node } = composer();
+  vm.runInContext("invoiceTextInvoices = [{ id: 'homeworks:1', customer_name: 'Test Customer', invoice_number: '12345', total: 100, amount_paid: 25 }];", context);
+  context.filterInvoiceTextOptions('t');
+  expect(node('sms-invoice-select').innerHTML).not.toContain('homeworks:1');
+  for (const term of ['customer', '12345', '75.00']) {
+    context.filterInvoiceTextOptions(term);
+    expect(node('sms-invoice-select').innerHTML).toContain('homeworks:1');
+  }
+  context.filterInvoiceTextOptions('100.00');
+  expect(node('sms-invoice-select').innerHTML).not.toContain('homeworks:1');
+});
+test('manual review is required in the UI before either send or confirmation is reached', async () => {
+  const fetchMock = jest.fn(); const { context, node } = composer(fetchMock);
+  context.previewFixture = await fixture().preview();
+  vm.runInContext('invoiceTextPreview = previewFixture;', context);
+  node('sms-compose-body').value = context.previewFixture.body;
+  node('sms-reviewed').checked = false;
+  await context.sendReviewedInvoiceText();
+  expect(node('sms-send-btn').disabled).toBe(true);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+test('AI drafts only and appends verified invoice facts without approving or sending', async () => {
+  const fetchMock = jest.fn(async () => ({ ok: true, json: async () => ({ draft: 'Please let us know when payment will arrive.' }) }));
+  const { context, node } = composer(fetchMock);
+  context.previewFixture = await fixture().preview();
+  vm.runInContext('invoiceTextPreview = previewFixture;', context);
+  node('sms-compose-body').value = context.previewFixture.body;
+  await context.draftInvoiceTextWithAi();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/app/ai/draft');
+  expect(node('sms-reviewed').checked).toBe(false);
+  for (const invoice of context.previewFixture.invoices) expect(node('sms-compose-body').value).toContain(invoice.url);
+});
+test('templates receive all selected invoice numbers, exact links and separate account balance', async () => {
+  const p = await fixture().preview();
+  const { context } = composer();
+  const vars = context.invoiceSmsTemplateVars(p);
+  expect(vars.invoice_number).toBe('12001, 12002');
+  expect(vars.balance_due).toBe('175.00');
+  expect(vars.invoices_links).toBe(p.invoices.map(i => i.url).join('\n'));
+  const single = await fixture().preview('single');
+  expect(context.invoiceSmsTemplateVars(single)).toMatchObject({ balance_due: '100.00', customer_account_balance: '175.00' });
 });

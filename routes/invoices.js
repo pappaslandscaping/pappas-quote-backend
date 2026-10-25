@@ -6,6 +6,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const { createFollowupRoutes } = require('./invoice-followup');
 const cheerio = require('cheerio');
 const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
 const { refreshHomeworksMailInvoices, resolveHomeworksMailFinancials } = require('../lib/homeworks-mail-invoices');
@@ -91,6 +92,7 @@ function createInvoiceRoutes({
   twilioPhoneNumber = DEFAULT_TWILIO_PHONE_NUMBER,
 }) {
   const router = express.Router();
+  router.use(createFollowupRoutes({ pool, authenticateToken, sendSms, isTwilioConfigured, twilioPhoneNumber }));
 
 let cachedCopilotStanding = null;
 let cachedCopilotAging = null;

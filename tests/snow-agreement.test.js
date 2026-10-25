@@ -9,6 +9,19 @@ function quote(overrides = {}) {
 }
 const create = q => agreement.create(q, { estimate_id: 888, accepted_at: '2026-10-25T18:00:00Z' });
 
+test('summary removes estimate boilerplate and preserves scope, dates and custom instructions', () => {
+  const q = quote();
+  q.services[0].description = "What's Included\nSeasonal driveway snow removal.\nAreas Included:\nDriveway and front walkway.\nSeason Coverage:\n2026-2027: December 1, 2026 through March 31, 2027.\nSnow Removal Timing:\nStandard route timing.\nGate instructions:\nClose gate after service.\nSalt & Deicing:\nSalt is included.";
+  const doc = agreement.create(q, { estimate_id:888, notes:'Thank You\nThank you for the opportunity.\nNext Step:\nOnce accepted, your service will be scheduled automatically.\nSpecial instructions:\nUse the side entrance.', terms:'Estimate Validity:\nThis estimate is valid for 30 days.\nPayment:\nTwo installments of $337.50.' });
+  const html = agreement.render(doc);
+  expect(html).not.toContain('Thank you for the opportunity');
+  expect(html).not.toContain('valid for 30 days');
+  expect(html).not.toContain('Standard route timing');
+  for (const phrase of ['Driveway and front walkway','March 31, 2027','Close gate after service','Salt is included','Use the side entrance','Two installments']) expect(html).toContain(phrase);
+  expect(doc.services[0].description).toBe(q.services[0].description);
+  expect(doc.estimate_terms).toContain('valid for 30 days');
+});
+
 test('preserves the accepted property, price and full service description', () => {
   const q = quote(); const doc = create(q);
   expect(doc.services[0]).toMatchObject({ amount: 675, property_id: 77, property_address: q.customer_address, description: q.services[0].description });

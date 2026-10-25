@@ -2738,12 +2738,13 @@ async function processRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit =
     );
     if (existing.rows.length > 0) {
       const repairNumbers = String(process.env.SNOW_AGREEMENT_REPAIR_NUMBERS || '').split(',').map(s => s.trim());
+      const repairTarget = `${estimateNumber}:${payload.homeworks_estimate_id}`;
       const old = existing.rows[0];
-      if (repairNumbers.includes(estimateNumber) && !old.contract_signed_at &&
+      if ((repairNumbers.includes(estimateNumber) || repairNumbers.includes(repairTarget)) && !old.contract_signed_at &&
           old.customer_email?.toLowerCase() === payload.email?.toLowerCase() && snowAgreement.isSnowEstimate({ services: payload.services })) {
         try {
           const previousDoc = snowAgreement.read(old);
-          if (old.contract_document && (!previousDoc || String(previousDoc.source?.estimate_id) !== String(payload.homeworks_estimate_id))) {
+          if (old.contract_document && (!previousDoc || (String(previousDoc.source?.estimate_id) !== String(payload.homeworks_estimate_id) && !repairNumbers.includes(repairTarget)))) {
             throw new Error('The existing agreement belongs to a different source estimate.');
           }
           const doc = snowAgreement.create({ customer_name: payload.customer_name, customer_email: payload.email,

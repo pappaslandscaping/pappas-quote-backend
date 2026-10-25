@@ -4,7 +4,7 @@
   else root.SnowAgreement = factory();
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'snow-2026-27-v3';
+  const VERSION = 'snow-2026-27-v4';
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function plain(value) {
     return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -21,6 +21,27 @@
   function read(quote) {
     const doc = typeof quote.contract_document === 'string' ? JSON.parse(quote.contract_document) : quote.contract_document;
     return doc && doc.kind === 'snow' ? doc : null;
+  }
+  // Keep the full accepted source in the snapshot; shorten only the display.
+  // Unknown headings and free-form instructions are retained for scope fidelity.
+  function compact(value, kind) {
+    const headings = new Set(["what's included", 'plowing service', 'service area', 'snow removal timing', 'extended snowfall',
+      'snow placement', 'customer responsibilities', 'season coverage', 'important terms', 'disclaimer', 'areas included',
+      'targeted areas', 'service timing', 'seasonal price', 'salt & deicing', 'optional', 'special instructions',
+      'thank you', 'next step', 'scheduling note', 'estimate terms', 'estimate validity', 'scope of work', 'payment',
+      'scheduling', 'cancellations', 'acceptance']);
+    const omit = new Set(kind === 'service'
+      ? ["what's included", 'snow removal timing', 'extended snowfall', 'snow placement', 'customer responsibilities', 'important terms', 'disclaimer', 'service timing']
+      : kind === 'notes' ? ['thank you', 'next step', 'scheduling note']
+      : ['estimate terms', 'estimate validity', 'scope of work', 'scheduling', 'cancellations', 'acceptance']);
+    const blocks = []; let current = { heading: '', lines: [] }; blocks.push(current);
+    for (const line of plain(value).split('\n').map(s => s.trim()).filter(Boolean)) {
+      const key = line.toLowerCase().replace(/:$/, '');
+      if (headings.has(key) || /^[^.!?]{1,65}:$/.test(line)) { current = { heading: key, label: line, lines: [] }; blocks.push(current); }
+      else current.lines.push(line);
+    }
+    return blocks.filter(b => !omit.has(b.heading) && b.lines.length).map(b =>
+      (b.label ? b.label.replace(/:$/, '') + ':\n' : '') + b.lines.join('\n')).join('\n\n');
   }
   function create(quote, source = {}) {
     const services = servicesOf(quote);
@@ -39,6 +60,7 @@
     if (!Number.isFinite(amount) || amount < 0) throw new Error('The snow agreement needs a valid accepted estimate total.');
     return {
       kind: 'snow', version: VERSION, title: 'Snow & Ice Service Agreement',
+      presentation: 'summary-v1',
       source: { system: 'HomeWorks', estimate_id: source.estimate_id || null, accepted_at: source.accepted_at || null },
       estimate_notes: plain(source.notes), estimate_terms: plain(source.terms),
       estimate_number: String(quote.quote_number || ''),
@@ -63,7 +85,7 @@
           'Unless the accepted estimate specifies a different trigger, plowing begins after an accumulation of two inches or more of new snowfall at the property. Ice-only conditions do not by themselves trigger a plowing visit.',
           'Service timing depends on when snow starts and ends, accumulation, road conditions and the route. An exact arrival or completion time is not promised unless expressly included in the accepted estimate.',
           'During extended storms, an initial pass may be made to maintain access, followed by final clearing after the storm, as route and weather conditions permit. For per-push or per-visit service, separately performed visits are billed at the accepted rate unless the estimate expressly includes multiple passes in one event price. Seasonal or monthly coverage follows the accepted scope.',
-          'Snow deposited after service by municipal plows, drifting or other sources is handled according to the accepted estimate. A separate return visit outside the agreed scope requires an approved additional price.'
+          'Unless the accepted estimate expressly includes return visits, snow deposited by municipal plows, drifting or other sources after a completed visit is not included in the seasonal price. Any requested return visit will be quoted separately and performed only after the Client approves the additional price.'
         ] },
         { title: '4. Salt, ice and winter conditions', paragraphs: [
           'Salt or other deicing materials are applied only when included in the accepted estimate or separately authorized. The covered areas, application terms and price are those stated in that estimate.',
@@ -99,10 +121,10 @@
     return '<h1>' + escape(doc.title) + '</h1><p>Estimate #' + escape(doc.estimate_number) + ' | Version ' + escape(doc.version) + '</p>' +
       '<h2>Client</h2>' + p([doc.customer.name, doc.customer.email, doc.customer.phone].filter(Boolean).join('\n')) +
       '<h2>Contractor</h2>' + p('Pappas & Co. Landscaping\nT T Pappas Enterprises LLC\nPO Box 770057, Lakewood, OH 44107\n440-886-7318 | hello@pappaslandscaping.com') +
-      '<h2>Accepted services and property details</h2>' + doc.services.map(s => '<h3>' + escape(s.name) + '</h3>' + p('Property: ' + s.property_address) + p('Quoted amount: ' + money(s.amount) + (s.quantity == null ? '' : ' | Quantity: ' + s.quantity)) + p(s.description)).join('') +
+      (doc.presentation === 'summary-v1' ? '<h2>Service summary</h2>' : '<h2>Accepted services and property details</h2>') + doc.services.map(s => '<h3>' + escape(s.name) + '</h3>' + p('Property: ' + s.property_address) + p('Quoted amount: ' + money(s.amount) + (doc.presentation !== 'summary-v1' && s.quantity != null ? ' | Quantity: ' + s.quantity : '')) + p(doc.presentation === 'summary-v1' ? compact(s.description, 'service') : s.description)).join('') +
       '<p><strong>Accepted estimate total: ' + money(doc.total) + '</strong></p>' +
-      (doc.estimate_notes ? '<h2>Accepted estimate notes</h2>' + p(doc.estimate_notes) : '') +
-      (doc.estimate_terms ? '<h2>Accepted estimate terms</h2>' + p(doc.estimate_terms) : '') +
+      ((doc.presentation === 'summary-v1' ? compact(doc.estimate_notes, 'notes') : doc.estimate_notes) ? (doc.presentation === 'summary-v1' ? '<h2>Property notes</h2>' : '<h2>Accepted estimate notes</h2>') + p(doc.presentation === 'summary-v1' ? compact(doc.estimate_notes, 'notes') : doc.estimate_notes) : '') +
+      ((doc.presentation === 'summary-v1' ? compact(doc.estimate_terms, 'terms') : doc.estimate_terms) ? (doc.presentation === 'summary-v1' ? '<h2>Estimate-specific details</h2>' : '<h2>Accepted estimate terms</h2>') + p(doc.presentation === 'summary-v1' ? compact(doc.estimate_terms, 'terms') : doc.estimate_terms) : '') +
       doc.sections.map(s => '<h2>' + escape(s.title) + '</h2>' + s.paragraphs.map(p).join('')).join('');
   }
   function html(doc, signature = {}) {
@@ -110,5 +132,5 @@
     return '<!doctype html><html><head><meta charset="utf-8"><title>' + escape(doc.title) + '</title><style>body{font:14px/1.55 Arial,sans-serif;color:#273b36;max-width:760px;margin:36px auto;padding:24px}h1{font-size:27px}h2{font-size:17px;margin-top:25px}h3{font-size:15px}h1,h2,h3{break-after:avoid}p{orphans:3;widows:3}img{display:block}</style></head><body>' + render(doc) +
       '<h2>Client signature</h2>' + image + '<p>' + escape(signature.name || '____________________________') + '</p><p>Date: ' + escape(signature.date || '__________________') + '</p></body></html>';
   }
-  return { VERSION, create, read, render, html, plain, isSnowEstimate };
+  return { VERSION, create, read, render, html, plain, isSnowEstimate, compact };
 }));

@@ -7,6 +7,7 @@ async function postQuote({ secret, token, verification }) {
   const verifyRecaptcha = jest.fn().mockResolvedValue(verification);
   const router = createQuoteRoutes({
     pool, sendEmail, verifyRecaptcha, RECAPTCHA_SECRET_KEY: secret,
+    authenticateToken: (_req, _res, next) => next(),
     serverError: (_res, error) => { throw error; },
   });
   const app = express();

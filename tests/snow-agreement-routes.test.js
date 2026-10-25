@@ -3,6 +3,54 @@ jest.mock('../services/copilot/website-leads', () => ({ classifyServiceArea: jes
 jest.mock('../lib/email-renderer', () => ({ buildServiceAgreementEmailV4: jest.fn() }));
 const createRoutes = require('../routes/quotes');
 const agreement = require('../public/js/snow-agreement');
+const { queryHomeWorksGraphql, formatPropertyAddress } = require('../services/homeworks/client');
+
+describe('explicitly selected unsigned snow agreement repairs', () => {
+  const originalRepair = process.env.SNOW_AGREEMENT_REPAIR_NUMBERS;
+  const originalSecret = process.env.CRON_SECRET;
+  afterEach(() => {
+    if (originalRepair === undefined) delete process.env.SNOW_AGREEMENT_REPAIR_NUMBERS;
+    else process.env.SNOW_AGREEMENT_REPAIR_NUMBERS = originalRepair;
+    if (originalSecret === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = originalSecret;
+  });
+  async function poll(overrides = {}, selected = true) {
+    process.env.SNOW_AGREEMENT_REPAIR_NUMBERS = selected ? '1726' : '';
+    process.env.CRON_SECRET = 'test-secret';
+    const old = { id: 42, customer_email: 'test@example.com', contract_signed_at: null,
+      contract_document_hash: 'old-hash', contract_document: { kind: 'snow', source: { estimate_id: 888 } }, ...overrides };
+    formatPropertyAddress.mockReturnValue('Example property');
+    queryHomeWorksGraphql.mockResolvedValue({ estimates: [{ id:888, number:1726, total:'864', acceptedAt:'2026-10-25T21:40:49Z',
+      customer:{fullName:'Test Client',email:'test@example.com'}, lineItems:[{name:'Snow Removal Contract',
+        description:'2026-2027: December 1, 2026 through March 31, 2027. Seasonal price.', subtotalWithTax:'864', quantity:'1', property:{id:77}}] }] });
+    const pool = { query: jest.fn(async sql => ({rows: sql.startsWith('SELECT') ? [old] : sql.startsWith('UPDATE') ? [{id:42}] : []})) };
+    const sendEmail = jest.fn();
+    const router = createRoutes({pool, sendEmail, authenticateToken:(req,res,next)=>next(), ensureQuoteEventsTable:jest.fn()});
+    const route = router.stack.find(l => l.route?.path === '/api/cron/homeworks-accepted-estimates').route;
+    const res = { status:jest.fn().mockReturnThis(),json:jest.fn() };
+    await route.stack[0].handle({get:()=> 'test-secret',query:{},body:{}},res);
+    return {pool,sendEmail,res};
+  }
+  test('refreshes a selected unsigned snapshot with optimistic concurrency and no duplicate email', async () => {
+    const {pool,sendEmail} = await poll();
+    const update = pool.query.mock.calls.find(([sql]) => sql.startsWith('UPDATE'));
+    expect(update[0]).toContain('contract_signed_at IS NULL');
+    expect(update[0]).toContain('contract_document_hash IS NOT DISTINCT FROM $6');
+    expect(update[1][5]).toBe('old-hash');
+    expect(JSON.parse(update[1][0]).total).toBe(864);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+  test.each([
+    [{contract_signed_at:'2026-10-25'},true],
+    [{},false],
+    [{customer_email:'someone-else@example.com'},true],
+    [{contract_document:{kind:'snow',source:{estimate_id:999}}},true]
+  ])('does not modify signed, unselected, or mismatched agreements (%j)', async (overrides,selected) => {
+    const {pool,sendEmail} = await poll(overrides,selected);
+    expect(pool.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
 
 function setup(quote) {
   const pool = { query: jest.fn(async () => ({ rows: [quote] })) };

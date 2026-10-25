@@ -4,7 +4,7 @@
   else root.SnowAgreement = factory();
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'snow-2026-27-v2';
+  const VERSION = 'snow-2026-27-v3';
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function plain(value) {
     return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -52,7 +52,7 @@
       sections: [
         { title: '1. Agreement and service period', paragraphs: [
           'This agreement is between T T Pappas Enterprises LLC, doing business as Pappas & Co. Landscaping (Contractor), and the Client named above. It incorporates the accepted HomeWorks estimate identified above, including its property addresses, service descriptions, prices, season dates and payment schedule.',
-          'Service is limited to the winter period stated in the accepted estimate. Coverage does not extend outside those dates unless agreed in writing. There is no automatic March renewal under this snow agreement. A future season requires a new accepted estimate and agreement.',
+          'Service is limited to the winter period stated in the accepted estimate. Coverage does not extend outside those dates unless agreed in writing. A future season requires a new accepted estimate and agreement.',
           'Property-specific terms in the accepted estimate control the service area, season dates, snowfall trigger, service level and billing arrangement if they differ from the general winter terms below. Questions or missing details must be resolved in writing before signing.'
         ] },
         { title: '2. Areas included and additional work', paragraphs: [

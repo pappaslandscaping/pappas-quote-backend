@@ -69,7 +69,7 @@ test('contains winter terms and omits mowing fees, skip rules and renewal', () =
   const html = agreement.render(create(quote()));
   expect(html).toContain('15 days'); expect(html).toContain('two inches');
   expect(html).not.toContain('courtesy skips'); expect(html).not.toContain('Mowing Services'); expect(html).not.toContain('2.9%');
-  expect(html).toContain('no automatic March renewal');
+  expect(html).not.toContain('automatic March renewal');
 });
 test('PDF uses stored text, includes typed signature and paginates long scopes', async () => {
   const doc = create(quote()); doc.sections[0].paragraphs.push('A'.repeat(1400));

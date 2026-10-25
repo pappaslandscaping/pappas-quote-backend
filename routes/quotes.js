@@ -328,18 +328,23 @@ router.post('/api/quotes', async (req, res) => {
       return res.json({ success: true, testMode: true, quote: testQuote });
     }
     
-    // Verify reCAPTCHA if token provided
-    if (recaptchaToken) {
-      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-      if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
-        console.log('reCAPTCHA failed - likely bot. Score:', recaptchaResult.score);
-        return res.status(403).json({ success: false, error: 'Spam detection triggered. Please try again.' });
-      }
-      console.log('reCAPTCHA passed. Score:', recaptchaResult.score);
-    } else if (RECAPTCHA_SECRET_KEY) {
-      // If reCAPTCHA is configured but no token provided, reject
-      console.log('No reCAPTCHA token provided');
+    // Public requests must be verified before creating a quote or sending alerts.
+    // The website has already saved the request through Netlify Forms at this point.
+    if (!RECAPTCHA_SECRET_KEY) {
+      console.error('Public quote verification is not configured');
+      return res.status(503).json({ success: false, error: 'Quote verification unavailable' });
+    }
+    if (typeof recaptchaToken !== 'string' || !recaptchaToken.trim()) {
       return res.status(400).json({ success: false, error: 'Security verification required' });
+    }
+    const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+    if (!recaptchaResult.success || !Number.isFinite(recaptchaResult.score) ||
+        recaptchaResult.score < 0.5 || recaptchaResult.action !== 'quote_submit') {
+      console.log('Quote reCAPTCHA failed:', {
+        score: recaptchaResult.score,
+        action: recaptchaResult.action,
+      });
+      return res.status(403).json({ success: false, error: 'Spam detection triggered. Please try again.' });
     }
     
     if (!fullName || !email || !phone || !address) {

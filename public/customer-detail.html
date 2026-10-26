@@ -659,15 +659,40 @@ async function loadQuotes() {
     try {
         const res = await fetch('/api/customers/' + customerId + '/quotes');
         const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Unable to load estimates.');
         const quotes = data.quotes || [];
         document.getElementById('panel-quotes').innerHTML = quotes.length ? quotes.map(q => {
-            const date = q.created_at ? new Date(q.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-            return `<div class="list-item" onclick="window.location.href='sent-quote-detail.html?id=${q.id}'">
-                <div class="li-info"><div class="li-title">Quote #${esc(q.quote_number||String(q.id))}</div><div class="li-sub">${date}</div></div>
-                <div class="li-right"><div class="li-amount">$${parseFloat(q.total||0).toFixed(2)}</div><div class="li-status ${q.status||'draft'}">${q.status||'draft'}</div></div>
+            const date = q.created_at ? new Date(String(q.created_at).slice(0,10) + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            const id = Number(q.homeworks_id);
+            if (!Number.isSafeInteger(id) || id <= 0) return '';
+            return `<div class="list-item" style="cursor:default">
+                <div class="li-info"><div class="li-title"><a href="https://secure.copilotcrm.com/finances/estimates/view/${id}" target="_blank" rel="noopener">Estimate #${esc(q.quote_number||String(id))}</a></div><div class="li-sub">${esc(q.title||'')} &middot; ${date}</div><button type="button" class="btn btn-sm" style="margin-top:8px" onclick="printEstimateForMail(${id})">Print for mailing</button></div>
+                <div class="li-right"><div class="li-amount">$${parseFloat(q.total).toFixed(2)}</div><div class="li-status ${esc(q.status||'draft')}">${esc(q.status||'draft')}</div></div>
             </div>`;
-        }).join('') : '<div class="empty-list">No quotes yet.</div>';
-    } catch (e) { document.getElementById('panel-quotes').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
+        }).join('') : '<div class="empty-list">No estimates yet.</div>';
+    } catch (e) { document.getElementById('panel-quotes').innerHTML = '<div class="empty-list">' + esc(e.message || 'Unable to load estimates.') + '</div>'; }
+}
+
+async function printEstimateForMail(estimateId) {
+    const printWindow = window.open('about:blank', '_blank');
+    if (!printWindow) { showToast('Allow pop-ups to open the mailing copy.'); return; }
+    printWindow.document.body.textContent = 'Preparing estimate for mailing…';
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/estimates/' + estimateId + '/print');
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Unable to prepare this estimate.');
+        }
+        const html = await res.text();
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    } catch (e) {
+        printWindow.document.body.textContent = e.message;
+        showToast(e.message);
+    }
 }
 
 async function loadInvoices() {

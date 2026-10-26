@@ -7,6 +7,7 @@
 const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
+const { loadCustomerEstimates, renderMailEstimate } = require('../lib/homeworks-customer-estimates');
 const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances } = require('../lib/homeworks-customer-billing');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
@@ -905,32 +906,36 @@ router.delete('/api/customers/:id', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
-// GET /api/customers/:id/quotes - Get all quotes for a customer
-router.get('/api/customers/:id/quotes', async (req, res) => {
+// Live HomeWorks estimates also work for customers without email.
+router.get('/api/customers/:id/quotes', authenticateToken, async (req, res) => {
   try {
-    // First get the customer's email
-    const customerResult = await pool.query('SELECT email FROM customers WHERE id = $1', [req.params.id]);
-    if (customerResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Customer not found' });
-    }
-    const customerEmail = customerResult.rows[0].email;
-    
-    // Get all quotes for this customer by email
-    const quotesResult = await pool.query(
-      `SELECT id, quote_number, customer_name, customer_email, customer_address,
-              services, subtotal, tax_amount, total, monthly_payment, quote_type,
-              status, created_at, sent_at, viewed_at, contract_signed_at
-       FROM sent_quotes
-       WHERE LOWER(customer_email) = LOWER($1)
-       ORDER BY created_at DESC`,
-      [customerEmail]
-    );
-    
-    res.json({ success: true, quotes: quotesResult.rows });
-  } catch (error) { 
-    console.error('Error fetching customer quotes:', error);
-    serverError(res, error); 
+    const local = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
+    if (!local.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const result = await loadCustomerEstimates({ customer: local.rows[0], getCopilotToken });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, source: 'homeworks', quotes: result.estimates.map(estimate => ({
+      id: estimate.id, homeworks_id: estimate.id, quote_number: estimate.number,
+      title: estimate.title, status: estimate.status.toLowerCase(), total: estimate.total,
+      created_at: estimate.date, source: 'homeworks',
+    })) });
+  } catch (error) {
+    console.error('Customer estimates unavailable:', error.message);
+    res.status(503).json({ success: false, error: 'Unable to verify estimates with Homeworks. Please try again.' });
   }
+});
+
+router.get('/api/customers/:id/estimates/:estimateId/print', authenticateToken, async (req, res) => {
+  try {
+    const estimateId = Number(req.params.estimateId);
+    if (!Number.isSafeInteger(estimateId) || estimateId <= 0) return res.status(400).json({ success:false, error:'Invalid estimate' });
+    const local = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
+    if (!local.rows.length) return res.status(404).json({ success:false, error:'Customer not found' });
+    const result = await loadCustomerEstimates({ customer: local.rows[0], getCopilotToken });
+    const estimate = result.estimates.find(item => item.id === estimateId);
+    if (!estimate) return res.status(404).json({ success:false, error:'Estimate not found for this customer' });
+    res.set('Cache-Control', 'no-store');
+    res.type('html').send(renderMailEstimate({ customer: result.customer, estimate }));
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/customers/:id/jobs - Get all scheduled jobs for a customer

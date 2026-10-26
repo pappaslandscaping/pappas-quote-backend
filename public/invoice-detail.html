@@ -693,7 +693,7 @@
                 ${inv.notes_unavailable ? '<div class="detail-card full-width"><h3>Notes</h3><p>Homeworks notes are temporarily unavailable. Reload to try again.</p></div>' : ''}
                 ${notes ? `<div class="detail-card full-width customer-note">
                     <h3>A note from Pappas &amp; Co.</h3>
-                    <p class="customer-note-body">${esc(notes)}</p>
+                    <p class="customer-note-body">${esc(notes).replace(/Fall Cleanups &amp; Snow Removal|Plan Ahead:/g, text => `<strong>${text}</strong>`)}</p>
                 </div>` : ''}
 
                 ${terms ? `<div class="detail-card full-width" style="margin-bottom:20px;">

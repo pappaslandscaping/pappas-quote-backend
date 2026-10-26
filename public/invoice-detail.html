@@ -681,6 +681,7 @@
                     </div>
                 </div>` : ''}
 
+                ${inv.notes_unavailable ? '<div class="detail-card full-width"><h3>Notes</h3><p>Homeworks notes are temporarily unavailable. Reload to try again.</p></div>' : ''}
                 ${notes ? `<div class="detail-card full-width" style="margin-bottom:20px;">
                     <h3>Notes</h3>
                     <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(notes)}</p>

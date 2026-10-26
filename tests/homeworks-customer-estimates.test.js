@@ -54,3 +54,11 @@ test('snow estimates with incomplete or conflicting terms cannot print a packet 
   assert.throws(()=>subject().renderMailEstimate({customer,estimate:{...estimate,terms}}), error=>error.code==='SNOW_ESTIMATE_NEEDS_REVIEW');
  }
 });
+
+test('landscaping estimates include the existing landscaping clauses and one paper signature instead of snow terms',()=>{
+ const landscaping={...estimate,title:'Fall cleanup',terms:'Payment is due upon receipt.',lineItems:[{...estimate.lineItems[0],name:'Fall Cleanup',description:'Clear leaves from lawn and beds.'}]};
+ const html=subject().renderMailEstimate({customer,estimate:landscaping});
+ for(const value of ['Landscaping Services Agreement','I. Scope of Agreement','XII. Acceptance of Agreement','Automatic Renewal','sign and return the agreement’s signature page']) assert(html.includes(value),value);
+ assert(!html.includes('Snow &amp; Ice Service Agreement'));
+ assert.equal((html.match(/class="paper-signature-fields"/g)||[]).length,1);
+});

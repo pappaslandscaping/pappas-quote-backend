@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { createFollowupRoutes } = require('./invoice-followup');
 const cheerio = require('cheerio');
 const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
-const { refreshHomeworksMailInvoices, resolveHomeworksMailFinancials } = require('../lib/homeworks-mail-invoices');
+const { refreshHomeworksMailInvoices, resolveHomeworksMailFinancials, refreshHomeworksInvoiceText } = require('../lib/homeworks-mail-invoices');
 const { validate, schemas } = require('../lib/validate');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 const {
@@ -4518,6 +4518,22 @@ router.get('/api/invoices/:id', async (req, res) => {
     const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     const inv = r.rows[0];
+    if (inv.external_invoice_id) {
+      try {
+        const tokenInfo = typeof getCopilotToken === 'function' ? await getCopilotToken() : null;
+        const match = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
+        if (!match) throw new Error('HomeWorks connection unavailable');
+        const refreshedText = await refreshHomeworksInvoiceText(inv,
+          (name, query, variables) => queryCopilotGraphql(decodeURIComponent(match[1]), name, query, variables));
+        inv.notes = refreshedText.notes;
+        inv.terms = refreshedText.terms;
+      } catch (error) {
+        console.error('HomeWorks invoice notes unavailable:', error.message);
+        inv.notes = '';
+        inv.terms = '';
+        inv.notes_unavailable = true;
+      }
+    }
     // Fetch payment history
     try {
       const payments = await pool.query(

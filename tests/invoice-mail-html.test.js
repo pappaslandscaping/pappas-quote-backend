@@ -42,7 +42,7 @@ function runAssertions() {
   assert(!html.includes("What's Included"));
   assert(html.includes('Completed services billed for the current route cycle.'));
   assert(html.includes('Detach and return with payment'));
-  assert(!html.includes('Other Services Available'));
+  assert(html.includes('Other Services Available')); // Preserve the customer-facing HomeWorks note.
   assert(html.includes('Please return the remittance stub with your payment. Make checks payable to Pappas &amp; Co. Landscaping.'));
   assert(html.includes('class="window-recipient"'));
   assert(!html.includes('<div class="eyebrow">Mail To</div>'));

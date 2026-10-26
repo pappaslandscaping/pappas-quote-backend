@@ -118,3 +118,34 @@ test('an official accepted snow estimate creates a versioned document when enabl
     else process.env.SNOW_AGREEMENT_ENABLED = oldFlag;
   }
 });
+
+test('a held estimate explains its validation failure and does not resend the office alert after a restart', async () => {
+  const previousSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'test-secret';
+  try {
+    queryHomeWorksGraphql.mockResolvedValue({ estimates: [{ id: 724440, number: 1715, total: '864', acceptedAt: '2026-10-26T14:48:49Z',
+      terms: "Please provide at least 24 hours' notice to cancel or reschedule.",
+      customer: { fullName: 'Test Client', email: 'test@example.com' }, lineItems: [{ name: 'Snow Removal Contract',
+        description: 'December 1 through March 31, seasonal driveway service.', subtotalWithTax: '864', quantity: '1', property: { id: 77 } }] }] });
+    formatPropertyAddress.mockReturnValue('Example property');
+    // New route instances model separate process lifetimes. Only durable send history survives.
+    for (let restart = 0; restart < 2; restart++) {
+      const pool = { query: jest.fn(async sql => ({ rows: sql.includes('FROM email_log') ? [{ id: 10 }] : sql.includes('FROM customers') ? [{ id: 3 }] : [] })) };
+      const sendEmail = jest.fn(), serverError = jest.fn();
+      const router = createRoutes({ pool, sendEmail, serverError, escapeHtml: String,
+        authenticateToken: (req,res,next) => next(), ensureQuoteEventsTable: jest.fn() });
+      const route = router.stack.find(l => l.route?.path === '/api/cron/homeworks-accepted-estimates').route;
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      await route.stack[0].handle({ get: () => 'test-secret', query: {}, body: {} }, res);
+      expect(res.json.mock.calls[0][0].results[0].error).toContain('24-hour cancellation');
+      expect(res.json.mock.calls[0][0].results[0].statusCode).toBe(422);
+      expect(pool.query.mock.calls.some(([sql]) => sql.includes('FROM email_log'))).toBe(true);
+      expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO sent_quotes'))).toBe(false);
+      expect(sendEmail).not.toHaveBeenCalled();
+      expect(serverError).not.toHaveBeenCalled();
+    }
+  } finally {
+    if (previousSecret === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = previousSecret;
+  }
+});

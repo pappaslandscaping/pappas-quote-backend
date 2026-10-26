@@ -2502,9 +2502,14 @@ async function handleCopilotEstimateAccepted(req, res) {
       quantity: s.quantity ?? null, property_id: s.property_id || null,
       property_address: s.property_address || address || ''
     }));
-    const contractDocument = process.env.SNOW_AGREEMENT_ENABLED !== 'false' && integrationSource === 'homeworks'
-      ? snowAgreement.create({ customer_name, customer_email: email, customer_phone: phone, customer_address: address, quote_number: estimate_number, total: estimate_amount, services: serviceItems }, { estimate_id: payload.homeworks_estimate_id, accepted_at: payload.accepted_at, terms: payload.estimate_terms, notes: payload.estimate_notes })
-      : null;
+    let contractDocument = null;
+    if (process.env.SNOW_AGREEMENT_ENABLED !== 'false' && integrationSource === 'homeworks') {
+      try {
+        contractDocument = snowAgreement.create({ customer_name, customer_email: email, customer_phone: phone, customer_address: address, quote_number: estimate_number, total: estimate_amount, services: serviceItems }, { estimate_id: payload.homeworks_estimate_id, accepted_at: payload.accepted_at, terms: payload.estimate_terms, notes: payload.estimate_notes });
+      } catch (validationError) {
+        return res.status(422).json({ success: false, error: validationError.message, code: 'SNOW_ESTIMATE_NEEDS_REVIEW' });
+      }
+    }
     const contractDocumentHash = contractDocument ? crypto.createHash('sha256').update(JSON.stringify(contractDocument)).digest('hex') : null;
     if (!contractDocument && snowAgreement.isSnowEstimate({ services: serviceItems })) {
       return res.status(422).json({ success: false, error: 'A snow agreement is required. Refresh this estimate through the official HomeWorks connection before sending.' });
@@ -2649,9 +2654,17 @@ async function alertCopilotAcceptedEstimateFailure({ estimate_number, source, er
   `;
 
   try {
+    const subject = `HomeWorks accepted estimate contract failed${estimate_number ? `: #${estimate_number}` : ''}`;
+    // The in-memory guard resets on every deployment. Use the persisted send
+    // history so an unresolved estimate produces one office alert across restarts.
+    const priorAlert = await pool.query(
+      `SELECT id FROM email_log WHERE recipient_email = $1 AND subject = $2 AND status = 'sent' LIMIT 1`,
+      [recipient, subject]
+    );
+    if (priorAlert.rows.length) return;
     await sendEmail(
       recipient,
-      `HomeWorks accepted estimate contract failed${estimate_number ? `: #${estimate_number}` : ''}`,
+      subject,
       emailTemplate(content, { showSignature: false }),
       null,
       { type: 'admin_notification', source: 'homeworks_accepted_estimate', estimate_number }

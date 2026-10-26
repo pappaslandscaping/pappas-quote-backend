@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const filename = path.join(__dirname, '../lib/homeworks-customer-estimates.js');
 function subject(resolve) {
-  const sandbox = {module:{exports:{}},require:()=>({resolveHomeworksCustomer:resolve})};
+  const sandbox = {module:{exports:{}},__dirname:path.dirname(filename),require:name=>name==='./homeworks-customer-billing' ? {resolveHomeworksCustomer:resolve} : require(name.startsWith('.') ? path.join(path.dirname(filename),name) : name)};
   vm.runInNewContext(fs.readFileSync(filename,'utf8'),sandbox,{filename});
   return sandbox.module.exports;
 }
@@ -26,10 +26,16 @@ test('mixed customer results and printing a different customer’s estimate fail
 test('mailing copy preserves live totals, service dates, recipient and terms while hiding internal and excluded data',()=>{
  const html=subject().renderMailEstimate({customer,estimate:{...estimate,internalNotes:'PRIVATE REVIEW',notes:'<img src=x onerror=alert(2)><p>Call office &amp; ask</p>'}});
  for(const text of ['Rose Marie Amato','1485 West 116th Street','$675.00','$50.00','December 1 through March 31','Payment is due upon receipt.','Call office &amp; ask']) assert(html.includes(text),text);
- assert(!/PRIVATE REVIEW|Removed salt|alert\(|onerror=|<script|<img/.test(html));
+ assert(!/PRIVATE REVIEW|Removed salt|alert\(|onerror=|<script|<img src=x/.test(html));
 });
 test('incomplete postal addresses and financial amounts cannot produce a misleading printout',()=>{
  const api=subject();
  assert.throws(()=>api.renderMailEstimate({customer:{...customer,address:null},estimate}),/mailing address/);
  assert.throws(()=>api.renderMailEstimate({customer,estimate:{...estimate,total:null}}),/amount/);
+});
+
+test('mailing estimates reuse the invoice paper, logo, envelope address position and contract heading font',()=>{
+ const html=subject().renderMailEstimate({customer,estimate});
+ for(const text of ['class="masthead"','class="summary-panel"','class="window-recipient"','class="totals-box"','class="contract-bar"','font-family:Maison','data:font/otf;base64,','data:image/png;base64,','Print Estimate','height:auto','overflow:visible']) assert(html.includes(text),text);
+ assert(!html.includes('Services Performed'));assert(!html.includes('Total Due'));
 });

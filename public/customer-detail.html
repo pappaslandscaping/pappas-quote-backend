@@ -687,6 +687,8 @@ async function printEstimateForMail(estimateId) {
         printWindow.document.open();
         printWindow.document.write(html);
         printWindow.document.close();
+        if (printWindow.document.fonts) await printWindow.document.fonts.ready;
+        await Promise.all(Array.from(printWindow.document.images).map(image => image.decode ? image.decode().catch(() => {}) : Promise.resolve()));
         printWindow.focus();
         printWindow.print();
     } catch (e) {

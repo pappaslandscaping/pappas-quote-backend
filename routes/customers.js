@@ -935,7 +935,10 @@ router.get('/api/customers/:id/estimates/:estimateId/print', authenticateToken, 
     if (!estimate) return res.status(404).json({ success:false, error:'Estimate not found for this customer' });
     res.set('Cache-Control', 'no-store');
     res.type('html').send(renderMailEstimate({ customer: result.customer, estimate }));
-  } catch (error) { serverError(res, error); }
+  } catch (error) {
+    if (error.code === 'SNOW_ESTIMATE_NEEDS_REVIEW') return res.status(422).json({ success:false, error:error.message });
+    serverError(res, error);
+  }
 });
 
 // GET /api/customers/:id/jobs - Get all scheduled jobs for a customer

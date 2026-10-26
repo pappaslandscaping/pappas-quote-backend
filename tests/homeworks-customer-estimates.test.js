@@ -10,7 +10,7 @@ function subject(resolve) {
   return sandbox.module.exports;
 }
 const customer = {id:1053343,fullName:'Rose Marie Amato',address:{street1:'1485 West 116th Street',city:'Cleveland',state:'OH',zip:'44102'}};
-const estimate = {id:746214,number:1826,customerId:1053343,date:'2026-10-25',title:'Seasonal snow',subtotal:'625',tax:'50',total:'675',discountAmount:'0',notes:'',terms:'Payment is due upon receipt.',lineItems:[{name:'Snow Removal Contract',description:'<p>December 1 through March 31</p><script>alert(1)</script>',price:'625',quantity:'1',subtotal:'625',isIncluded:true,property:{address:customer.address}},{name:'Removed salt',price:'100',subtotal:'100',isIncluded:false}]};
+const estimate = {id:746214,number:1826,customerId:1053343,date:'2026-10-25',title:'Seasonal snow',subtotal:'625',tax:'50',total:'675',discountAmount:'0',notes:'',terms:'Winter season: 2026-2027. Coverage: December 1, 2026 through March 31, 2027.\nPayment is due upon receipt.',lineItems:[{name:'Snow Removal Contract',description:'<p>December 1 through March 31</p><script>alert(1)</script>',price:'625',quantity:'1',subtotal:'625',isIncluded:true,property:{id:950933,address:customer.address}},{name:'Removed salt',price:'100',subtotal:'100',isIncluded:false}]};
 test('blank email is resolved by verified identity; estimates are scoped to the canonical customer ID',async()=>{
  let called;
  const api=subject(async options=>{assert.equal(options.customer.email,'');return {owner:customer,query:async(op,query,variables)=>{called={op,query,variables};return {customer,estimates:[estimate]};}};});
@@ -38,4 +38,19 @@ test('mailing estimates reuse the invoice paper, logo, envelope address position
  const html=subject().renderMailEstimate({customer,estimate});
  for(const text of ['class="masthead"','class="summary-panel"','class="window-recipient"','class="totals-box"','class="contract-bar"','font-family:Maison','data:font/otf;base64,','data:image/png;base64,','Print Estimate','height:auto','overflow:visible']) assert(html.includes(text),text);
  assert(!html.includes('Services Performed'));assert(!html.includes('Total Due'));
+});
+
+test('snow mailing includes the full agreement and one identified paper signature page',()=>{
+ const html=subject().renderMailEstimate({customer,estimate});
+ for(const text of ['ACTION REQUIRED: SIGN AND RETURN','<strong>sign and return the agreement’s signature page</strong>', 'Snow &amp; Ice Service Agreement', '1. Agreement and service period', '8. Performance and service concerns', '9. Acceptance', 'Agreement acceptance and signature','Estimate #1826 dated October 25, 2026','Packet reference:', 'RETURN THIS SIGNED PAGE']) assert(html.includes(text),text);
+ assert.equal((html.match(/class="paper-signature-fields"/g)||[]).length,1);
+ assert(!html.includes('Estimate Acceptance'));
+ assert(!html.includes('consents to using an electronic signature'));
+ const changed=subject().renderMailEstimate({customer,estimate:{...estimate,total:'700'}});
+ assert.notEqual(html.match(/Packet reference: ([^ ]+)/)[1],changed.match(/Packet reference: ([^ ]+)/)[1]);
+});
+test('snow estimates with incomplete or conflicting terms cannot print a packet missing its agreement',()=>{
+ for(const terms of ['Payment due upon receipt.', "2026-2027. December 1, 2026 through March 31, 2027. Please provide at least 24 hours' notice to cancel."]) {
+  assert.throws(()=>subject().renderMailEstimate({customer,estimate:{...estimate,terms}}), error=>error.code==='SNOW_ESTIMATE_NEEDS_REVIEW');
+ }
 });

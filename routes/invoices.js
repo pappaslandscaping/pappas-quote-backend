@@ -847,6 +847,7 @@ function logMailDebug(label, row, extra = {}) {
 }
 
 function canIncludeInMailBatch(invoice) {
+  if (invoice.homeworks_print_exclusion) return false;
   const status = cleanStatusValue(invoice.status).toLowerCase();
   return !invoice.mailed_at && !['paid', 'void', 'draft'].includes(status);
 }
@@ -1174,7 +1175,7 @@ async function attachMailPriorBalances(rows) {
   return enriched;
 }
 
-async function refreshMailInvoiceRows(rows) {
+async function refreshMailInvoiceRows(rows, options) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
   const liveRows = list.filter(row => row.external_source === 'copilotcrm' || row.external_invoice_id);
   if (!liveRows.length) return attachMailPriorBalances(list);
@@ -1184,7 +1185,7 @@ async function refreshMailInvoiceRows(rows) {
   if (!match) throw new Error('Connect HomeWorks before printing live invoices.');
   const token = decodeURIComponent(match[1]);
   const refreshed = await refreshHomeworksMailInvoices(liveRows,
-    (name, query, variables) => queryCopilotGraphql(token, name, query, variables));
+    (name, query, variables) => queryCopilotGraphql(token, name, query, variables), options);
   const byId = new Map(refreshed.map(row => [row.id, row]));
   return attachMailCustomerMatches(list.map(row => byId.get(row.id) || row));
 }
@@ -4294,7 +4295,7 @@ router.post('/api/invoices/mail-batch', authenticateToken, async (req, res) => {
       mailed: req.body.mailed || 'unmailed',
       limit: req.body.limit || 200,
     });
-    const freshInvoices = await refreshMailInvoiceRows(selectedInvoices);
+    const freshInvoices = await refreshMailInvoiceRows(selectedInvoices, { skipDeleted: true });
 
     const eligible = freshInvoices.filter(canIncludeInMailBatch);
     const skipped = freshInvoices
@@ -4302,7 +4303,7 @@ router.post('/api/invoices/mail-batch', authenticateToken, async (req, res) => {
       .map((invoice) => ({
         id: invoice.id,
         invoice_number: invoice.invoice_number,
-        reason: invoice.mailed_at ? 'Already marked mailed' : 'Not eligible for mailing',
+        reason: invoice.homeworks_print_exclusion || (invoice.mailed_at ? 'Already marked mailed' : 'Not eligible for mailing'),
       }));
 
     if (!eligible.length) {
@@ -5508,6 +5509,7 @@ router.get('/api/invoices/:id/mail-pdf', authenticateToken, async (req, res) => 
     res.send(Buffer.from(pdfBytes));
   } catch (error) {
     console.error('Mail invoice PDF error:', error);
+    if (error.code === 'HOMEWORKS_INVOICE_DELETED') return res.status(409).json({ success: false, error: error.message });
     serverError(res, error);
   }
 });
@@ -5543,6 +5545,7 @@ router.get('/api/invoices/:id/mail-html', authenticateToken, async (req, res) =>
     res.send(html);
   } catch (error) {
     console.error('Mail invoice HTML error:', error);
+    if (error.code === 'HOMEWORKS_INVOICE_DELETED') return res.status(409).json({ success: false, error: error.message });
     serverError(res, error);
   }
 });
@@ -5790,3 +5793,4 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
 }
 
 module.exports = createInvoiceRoutes;
+

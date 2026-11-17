@@ -16,7 +16,7 @@ async function getHomeWorksAccessToken(pool) {
   );
   const values = Object.fromEntries(result.rows.map((row) => [row.key, row.value]));
   return extractAccessToken(
-    values.homeworks_api_token || values.copilot_token || values.copilot_cookies || '',
+    values.homeworks_api_token || values.copilot_cookies || values.copilot_token || '',
   );
 }
 

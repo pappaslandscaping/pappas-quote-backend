@@ -11818,73 +11818,15 @@ app.get('/api/customers/:id/timeline', async (req, res) => {
 // Phase 7: CRM Intelligence (Rule-based AI features)
 // ═══════════════════════════════════════════════════════════════
 
-// 7.1 Lead Scoring — All leads
-app.get('/api/ai/lead-scores', async (req, res) => {
-  try {
-    const customers = await pool.query('SELECT id, name, email, phone, mobile, created_at FROM customers ORDER BY name ASC');
-    const results = [];
-    for (const c of customers.rows) {
-      const scoreData = await computeLeadScore(c);
-      results.push({ id: c.id, name: c.name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
-    }
-    results.sort((a, b) => b.score - a.score || String(a.name || '').localeCompare(String(b.name || '')));
-    res.json({ success: true, customers: results.filter((customer) => customer.score > 0) });
-  } catch (error) {
-    serverError(res, error);
-  }
+// Legacy lead scores used YardDesk import tables, which do not reflect live HomeWorks history.
+// Keep the routes explicit so clients cannot mistake missing scores for "cold" leads.
+const unavailableCrmScore = (_req, res) => res.status(503).json({
+  success: false,
+  available: false,
+  error: 'CRM scoring is unavailable until it can be verified against live HomeWorks records.'
 });
-
-// 7.1 Lead Scoring — Single customer
-app.get('/api/customers/:id/lead-score', async (req, res) => {
-  try {
-    const cust = await pool.query('SELECT id, name, email, phone, mobile, created_at FROM customers WHERE id = $1', [req.params.id]);
-    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
-    const scoreData = await computeLeadScore(cust.rows[0]);
-    res.json({ success: true, id: cust.rows[0].id, name: cust.rows[0].name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-async function computeLeadScore(c) {
-  let score = 0;
-  const factors = [];
-
-  // Has email AND phone
-  if (c.email && (c.phone || c.mobile)) { score += 10; factors.push('Has email and phone (+10)'); }
-
-  // Has property with address
-  const props = await pool.query('SELECT id, street FROM properties WHERE customer_id = $1', [c.id]);
-  const hasProperty = props.rows.some(p => p.street);
-  if (hasProperty) { score += 10; factors.push('Has property with address (+10)'); }
-
-  // Multiple properties
-  if (props.rows.length > 1) { score += 10; factors.push('Multiple properties (+10)'); }
-
-  // Has been quoted
-  const quotes = await pool.query('SELECT id, status FROM sent_quotes WHERE customer_id = $1', [c.id]);
-  if (quotes.rows.length > 0) { score += 15; factors.push('Has been quoted (+15)'); }
-
-  // Quote was viewed
-  const viewed = quotes.rows.some(q => q.status === 'viewed' || q.status === 'signed' || q.status === 'contracted');
-  if (viewed) { score += 10; factors.push('Quote was viewed (+10)'); }
-
-  // Quote was signed/contracted
-  const contracted = quotes.rows.some(q => q.status === 'signed' || q.status === 'contracted');
-  if (contracted) { score += 20; factors.push('Quote signed/contracted (+20)'); }
-
-  // Had a job completed
-  const completedJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND status = 'completed' LIMIT 1", [c.id]);
-  if (completedJobs.rows.length > 0) { score += 15; factors.push('Completed job (+15)'); }
-
-  // Recent activity (last 30 days)
-  const recentJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND (created_at >= NOW() - INTERVAL '30 days' OR job_date >= NOW() - INTERVAL '30 days') LIMIT 1", [c.id]);
-  const recentQuotes = await pool.query("SELECT id FROM sent_quotes WHERE customer_id = $1 AND created_at >= NOW() - INTERVAL '30 days' LIMIT 1", [c.id]);
-  if (recentJobs.rows.length > 0 || recentQuotes.rows.length > 0) { score += 10; factors.push('Recent activity (+10)'); }
-
-  const grade = score >= 50 ? 'Hot' : score >= 25 ? 'Warm' : 'Cold';
-  return { score, grade, factors };
-}
+app.get('/api/ai/lead-scores', unavailableCrmScore);
+app.get('/api/customers/:id/lead-score', unavailableCrmScore);
 
 // 7.2 Smart Scheduling Suggestions
 app.get('/api/ai/schedule-suggestions', async (req, res) => {
@@ -12129,75 +12071,8 @@ app.post('/api/referrals/:id/apply-credit', authenticateToken, async (req, res) 
   } catch (error) { serverError(res, error, 'Apply referral credit error'); }
 });
 
-// 7.4 Churn Prediction
-app.get('/api/ai/churn-risk', async (req, res) => {
-  try {
-    const customers = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
-    const results = [];
-
-    for (const c of customers.rows) {
-      let riskScore = 0;
-      const factors = [];
-
-      // No jobs in last 90 days but had jobs before
-      const recentJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '90 days' LIMIT 1", [c.id]);
-      const anyJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 LIMIT 1", [c.id]);
-      if (anyJobs.rows.length > 0 && recentJobs.rows.length === 0) {
-        riskScore += 30; factors.push('No jobs in last 90 days (+30)');
-      }
-
-      // Has unpaid invoices over 60 days
-      const overdueInv = await pool.query(
-        "SELECT id FROM invoices WHERE customer_id = $1 AND status NOT IN ('paid', 'draft') AND due_date < NOW() - INTERVAL '60 days' LIMIT 1",
-        [c.id]
-      );
-      if (overdueInv.rows.length > 0) {
-        riskScore += 25; factors.push('Unpaid invoices over 60 days (+25)');
-      }
-
-      // Had a cancellation
-      const cancellations = await pool.query(
-        "SELECT id FROM cancellations WHERE LOWER(customer_name) = LOWER($1) LIMIT 1",
-        [c.name || '']
-      );
-      if (cancellations.rows.length > 0) {
-        riskScore += 20; factors.push('Has cancellation record (+20)');
-      }
-
-      // No upcoming scheduled jobs
-      const upcomingJobs = await pool.query(
-        "SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= CURRENT_DATE AND status != 'completed' LIMIT 1",
-        [c.id]
-      );
-      if (anyJobs.rows.length > 0 && upcomingJobs.rows.length === 0) {
-        riskScore += 15; factors.push('No upcoming scheduled jobs (+15)');
-      }
-
-      // Declining job frequency
-      const thisQ = await pool.query(
-        "SELECT COUNT(*) FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '90 days'", [c.id]
-      );
-      const lastQ = await pool.query(
-        "SELECT COUNT(*) FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '180 days' AND job_date < NOW() - INTERVAL '90 days'", [c.id]
-      );
-      const thisQCount = parseInt(thisQ.rows[0].count);
-      const lastQCount = parseInt(lastQ.rows[0].count);
-      if (lastQCount > 0 && thisQCount < lastQCount) {
-        riskScore += 10; factors.push('Declining job frequency (+10)');
-      }
-
-      if (riskScore > 0) {
-        const risk_level = riskScore >= 50 ? 'High' : riskScore >= 25 ? 'Medium' : 'Low';
-        results.push({ id: c.id, name: c.name, risk_level, risk_score: riskScore, factors });
-      }
-    }
-
-    results.sort((a, b) => b.risk_score - a.risk_score);
-    res.json({ success: true, customers: results });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+// Seasonal gaps and locally imported jobs cannot establish customer churn.
+app.get('/api/ai/churn-risk', unavailableCrmScore);
 
 // 7.5 Revenue Forecasting
 app.get('/api/ai/revenue-forecast', async (req, res) => {

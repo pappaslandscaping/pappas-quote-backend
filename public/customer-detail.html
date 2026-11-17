@@ -993,11 +993,14 @@ async function loadAIIntel() {
         const pending = Number(data.pendingEstimateCount) || 0;
         const drafts = Number(data.draftEstimateCount) || 0;
         const pastDue = Number(data.pastDue);
+        const waitlisted = data.waitlistedVisitToReview;
         let html = scoreRow('Lead score', data.leadScore) + scoreRow('Churn risk', data.churnRisk)
             + section('Needs review');
-        if (!pending && !drafts && !(pastDue > 0)) {
-            html += '<div style="font-size:12px;color:var(--gray-500);padding:8px 0;">No pending estimates, drafts, or past-due balance found.</div>';
+        if (!pending && !drafts && !(pastDue > 0) && !waitlisted) {
+            html += '<div style="font-size:12px;color:var(--gray-500);padding:8px 0;">No pending estimates, waitlisted visits, drafts, or past-due balance found.</div>';
         } else {
+            if (waitlisted) html += row('Waitlisted visit to check', esc(formatDate(waitlisted.startDate))
+                + ' · ' + esc(waitlisted.title || 'Visit'));
             if (pending) {
                 html += row('Pending estimates', pending + (data.estimateHistoryLimited ? ' in recent history' : ''));
                 (data.pendingEstimates || []).forEach(estimate => {

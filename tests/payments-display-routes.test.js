@@ -97,165 +97,28 @@ async function invokeRoute(router, path, method, reqOverrides = {}) {
   return res;
 }
 
-it('prefers extracted customer-facing invoice numbers over Copilot external ids in /api/payments', async () => {
-  const pool = createPool(async (sql) => {
-    if (sql.includes('FROM payments p') && sql.includes('ORDER BY COALESCE(p.paid_at, p.created_at) DESC')) {
-      return {
-        rows: [{
-          payment_record_id: 301,
-          id: 91,
-          invoice_id: 91,
-          payment_id: null,
-          invoice_number: 'Sep 19, 2025',
-          external_source: 'copilotcrm',
-          external_invoice_id: '2329272',
-          external_metadata: {
-            extracted_invoice_number: '9835',
-          },
-          customer_id: 10,
-          customer_name: 'Linda Scamaldo',
-          customer_email: 'linda@example.com',
-          amount: 9.6,
-          method: 'Check',
-          total: 120,
-          amount_paid: 9.6,
-          status: 'completed',
-          paid_at: '2026-04-16T21:14:00.000Z',
-          due_date: null,
-          created_at: '2025-09-19T12:00:00.000Z',
-          updated_at: '2026-04-16T21:14:00.000Z',
-          payment_date: '2026-04-16T21:14:00.000Z',
-          qb_invoice_id: null,
-          payment_token: null,
-        }],
-      };
-    }
-    if (sql.includes('COUNT(*) as cnt')) {
-      return { rows: [{ cnt: '1', total_received: '9.6' }] };
-    }
-    if (sql.includes('SELECT to_char(COALESCE(paid_at, created_at)')) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL in payments display test: ${sql}`);
-  });
+const records=require('../services/homeworks/records');
+const {payments}=require('../services/homeworks/invoice-views');
+afterEach(()=>jest.restoreAllMocks());
+const payment=(overrides={})=>({id:41,paid_at:'2026-11-01',customer_name:'Jane',amount:108,is_refund:false,extracted_invoice_number:'12345',homeworks:{invoiceId:99999,invoiceAmount:'108',creditAmount:'0'},...overrides});
 
-  const router = createRouter({ pool });
-  const res = await invokeRoute(router, '/api/payments', 'get');
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.success, true);
-  assert.strictEqual(res.body.payments.length, 1);
-  assert.strictEqual(res.body.payments[0].display_invoice_number, '9835');
-  assert.strictEqual(res.body.payments[0].method, 'check');
-  assert.strictEqual(res.body.payments[0].status, 'paid');
+it('shows the customer-facing invoice number and canonical payment ID from Homeworks',async()=>{
+ jest.spyOn(records,'loadPayments').mockResolvedValue([payment()]);
+ const res=await invokeRoute(createRouter(),'/api/payments','get');
+ assert.strictEqual(res.statusCode,200);assert.strictEqual(res.body.source,records.SOURCE);
+ assert.strictEqual(res.body.payments[0].display_invoice_number,'12345');assert.strictEqual(res.body.payments[0].payment_record_id,41);assert.strictEqual(res.body.payments[0].read_only,true);
+});
+it('never substitutes an internal invoice ID for a missing public number',async()=>{
+ jest.spyOn(records,'loadPayments').mockResolvedValue([payment({extracted_invoice_number:null})]);
+ const result=await payments({});assert.strictEqual(result.payments[0].display_invoice_number,null);assert.strictEqual(result.payments[0].invoice_number,null);
+});
+it('keeps an invoice and account credit allocation on one payment instead of double counting',async()=>{
+ jest.spyOn(records,'loadPayments').mockResolvedValue([payment({amount:200,homeworks:{invoiceId:99999,invoiceAmount:'108',creditAmount:'92'}})]);
+ const result=await payments({});assert.strictEqual(result.payments.length,1);assert.strictEqual(result.totalReceived,200);
+});
+it('does not present unavailable payment data as an empty account',async()=>{
+ jest.spyOn(records,'loadPayments').mockRejectedValue(new Error('Homeworks unavailable'));
+ const res=await invokeRoute(createRouter(),'/api/payments','get');assert.strictEqual(res.statusCode,500);assert.strictEqual(res.body.success,false);
 });
 
-it('does not fall back to Copilot external invoice ids in /api/payments when no real invoice number exists', async () => {
-  const pool = createPool(async (sql) => {
-    if (sql.includes('FROM payments p') && sql.includes('ORDER BY COALESCE(p.paid_at, p.created_at) DESC')) {
-      return {
-        rows: [{
-          payment_record_id: 302,
-          id: 92,
-          invoice_id: 92,
-          payment_id: null,
-          invoice_number: 'Sep 19, 2025',
-          external_source: 'copilotcrm',
-          external_invoice_id: '1234269',
-          external_metadata: {},
-          customer_id: 11,
-          customer_name: 'Example Customer',
-          customer_email: 'example@example.com',
-          amount: 50,
-          method: 'Check',
-          total: 50,
-          amount_paid: 50,
-          status: 'completed',
-          paid_at: '2026-04-16T12:00:00.000Z',
-          due_date: null,
-          created_at: '2025-09-19T12:00:00.000Z',
-          updated_at: '2026-04-16T12:00:00.000Z',
-          payment_date: '2026-04-16T12:00:00.000Z',
-          qb_invoice_id: null,
-          payment_token: null,
-        }],
-      };
-    }
-    if (sql.includes('COUNT(*) as cnt')) {
-      return { rows: [{ cnt: '1', total_received: '50' }] };
-    }
-    if (sql.includes('SELECT to_char(COALESCE(paid_at, created_at)')) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL in payments display test: ${sql}`);
-  });
-
-  const router = createRouter({ pool });
-  const res = await invokeRoute(router, '/api/payments', 'get');
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.success, true);
-  assert.strictEqual(res.body.payments.length, 1);
-  assert.strictEqual(res.body.payments[0].display_invoice_number, null);
-});
-
-it('shows one Copilot payment row even when Copilot details include invoice and account credit allocations', async () => {
-  const pool = createPool(async (sql) => {
-    if (sql.includes('FROM payments p') && sql.includes('ORDER BY COALESCE(p.paid_at, p.created_at) DESC')) {
-      return {
-        rows: [{
-          payment_record_id: 303,
-          id: 10511,
-          invoice_id: 10511,
-          payment_id: null,
-          invoice_number: '10511',
-          external_source: 'copilotcrm',
-          external_invoice_id: 'copilot-10511',
-          external_metadata: {
-            extracted_invoice_number: '10511',
-            raw_details: '$79.76 for Invoice #10511 Apr 28, 2026 $2.00 added to credit of Martia Paolettto account',
-          },
-          customer_id: 1053620,
-          customer_name: 'Martia Paolettto',
-          customer_email: 'martia@example.com',
-          amount: 81.76,
-          method: 'Check',
-          details: '$79.76 for Invoice #10511 Apr 28, 2026 $2.00 added to credit of Martia Paolettto account',
-          total: 79.76,
-          amount_paid: 79.76,
-          status: 'completed',
-          paid_at: '2026-05-05T16:00:00.000Z',
-          due_date: null,
-          created_at: '2026-05-05T16:00:00.000Z',
-          updated_at: '2026-05-05T16:00:00.000Z',
-          payment_date: '2026-05-05T16:00:00.000Z',
-          qb_invoice_id: null,
-        }],
-      };
-    }
-    if (sql.includes('COUNT(*) as cnt')) {
-      return { rows: [{ cnt: '1', total_received: '81.76' }] };
-    }
-    if (sql.includes('SELECT to_char(COALESCE(paid_at, created_at)')) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL in payments display test: ${sql}`);
-  });
-
-  const router = createRouter({ pool });
-  const res = await invokeRoute(router, '/api/payments', 'get', {
-    query: { search: 'martia', year: '2026', month: '5' },
-  });
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.payments.length, 1);
-  assert.strictEqual(res.body.payments[0].amount, 81.76);
-  assert.strictEqual(res.body.payments[0].display_invoice_number, '10511');
-  assert.strictEqual(res.body.totalReceived, 81.76);
-});
-
-describe('payments-display-routes', () => {
-  for (const { name, fn } of tests) {
-    test(name, fn);
-  }
-});
+describe('official payment display',()=>{for(const {name,fn}of tests)test(name,fn);});

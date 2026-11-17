@@ -21,7 +21,7 @@ describe('explicitly selected unsigned snow agreement repairs', () => {
       contract_document_hash: 'old-hash', contract_document: { kind: 'snow', source: { estimate_id: 888 } }, ...overrides };
     formatPropertyAddress.mockReturnValue('Example property');
     queryHomeWorksGraphql.mockResolvedValue({ estimates: [{ id:888, number:1726, total:'864', acceptedAt:'2026-10-25T21:40:49Z',
-      customer:{fullName:'Test Client',email:'test@example.com'}, lineItems:[{name:'Snow Removal Contract',
+      customer:{fullName:'Test Client',email:'test@example.com'}, lineItems:[{isIncluded:true,name:'Snow Removal Contract',
         description:'2026-2027: December 1, 2026 through March 31, 2027. Seasonal price.', subtotalWithTax:'864', quantity:'1', property:{id:77}}] }] });
     const pool = { query: jest.fn(async sql => ({rows: sql.startsWith('SELECT') ? [old] : sql.startsWith('UPDATE') ? [{id:42}] : []})) };
     const sendEmail = jest.fn();
@@ -99,6 +99,8 @@ test('an official accepted snow estimate creates a versioned document when enabl
     const serverError = jest.fn();
     const router = createRoutes({ pool, sendEmail, serverError, authenticateToken: (req, res, next) => next(), ensureQuoteEventsTable: jest.fn() });
     const route = router.stack.find(layer => layer.route?.path === '/api/copilotcrm/estimate-accepted').route;
+    queryHomeWorksGraphql.mockResolvedValue({estimates:[{id:888,number:1500,status:'ACCEPTED',total:'675',customer:{fullName:'Preview Client',email:'preview@example.com'},lineItems:[{isIncluded:true,name:'Snow Removal Contract',description:'2026-2027: December 1, 2026 through March 31, 2027. Seasonal total, due November 1.',subtotalWithTax:'675',quantity:'1',property:{id:77}}]}]});
+    formatPropertyAddress.mockReturnValue('Actual service property');
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     await route.stack[route.stack.length - 1].handle({ body: {
       integration_source: 'homeworks_official', homeworks_estimate_id: 888, estimate_number: '1500', estimate_amount: 675,
@@ -125,7 +127,7 @@ test('a held estimate explains its validation failure and does not resend the of
   try {
     queryHomeWorksGraphql.mockResolvedValue({ estimates: [{ id: 724440, number: 1715, total: '864', acceptedAt: '2026-10-26T14:48:49Z',
       terms: "Please provide at least 24 hours' notice to cancel or reschedule.",
-      customer: { fullName: 'Test Client', email: 'test@example.com' }, lineItems: [{ name: 'Snow Removal Contract',
+      customer: { fullName: 'Test Client', email: 'test@example.com' }, lineItems: [{ isIncluded: true, name: 'Snow Removal Contract',
         description: 'December 1 through March 31, seasonal driveway service.', subtotalWithTax: '864', quantity: '1', property: { id: 77 } }] }] });
     formatPropertyAddress.mockReturnValue('Example property');
     // New route instances model separate process lifetimes. Only durable send history survives.

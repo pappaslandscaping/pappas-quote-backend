@@ -1,67 +1,9 @@
-const assert = require('assert');
-const { discoverInvoicePdf } = require('../lib/copilot-live-invoices');
-
-async function runAssertions() {
-  const originalFetch = global.fetch;
-  const calls = [];
-
-  global.fetch = async (url) => {
-    calls.push(String(url));
-    return {
-      ok: true,
-      url: String(url),
-      headers: {
-        get(name) {
-          if (String(name).toLowerCase() === 'content-type') return 'text/html; charset=utf-8';
-          return null;
-        },
-      },
-      async text() {
-        return `
-          <html>
-            <body>
-              <div>Invoice #10956</div>
-              <div>Superior Industrial</div>
-              <div>3855 West 150th Street</div>
-              <div>Cleveland, OH 44111</div>
-            </body>
-          </html>
-        `;
-      },
-    };
-  };
-
-  try {
-    const result = await discoverInvoicePdf(
-      { cookies: 'copilotApiAccessToken=fake', invoiceListPath: '/finances/invoices' },
-      {
-        external_invoice_id: '10956',
-        invoice_number: '10956',
-        customer_name: 'Superior Industrial',
-        customer_address: '3855 West 150th Street\nCleveland, OH 44111',
-        metadata: {},
-      }
-    );
-
-    assert.strictEqual(calls.length, 1);
-    assert(calls[0].includes('/finances/invoices/view/10956'));
-    assert(!calls[0].includes('print=1'));
-    assert.strictEqual(result.pdfUrlUsed, null);
-    assert.strictEqual(result.parsedInvoice.metadata.detail_fetch_mode, 'html-only');
-  } finally {
-    global.fetch = originalFetch;
-  }
-}
-
-if (typeof test === 'function') {
-  test('discoverInvoicePdf uses a single read-only invoice detail fetch', runAssertions);
-} else {
-  runAssertions()
-    .then(() => {
-      console.log('copilot-invoice-refresh-readonly.test.js passed');
-    })
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
-}
+const {discoverInvoicePdf}=require('../lib/copilot-live-invoices');
+test('compatibility invoice detail refresh only queries the official API',async()=>{
+ const original=global.fetch,calls=[];
+ global.fetch=async(url,options)=>{const request=JSON.parse(options.body);calls.push({url,request,headers:options.headers});return {ok:true,json:async()=>({data:request.operationName==='YardDeskInvoiceOwners'?{customers:[{id:9,fullName:'Jane'}]}:{invoices:[{id:101,number:123,customerId:9,date:'2026-11-01',isSent:true,status:'PENDING',subtotal:'100',tax:'8',total:'108',paidAmount:'0',lineItems:[]}]}})};};
+ try{const result=await discoverInvoicePdf({accessToken:'fake'},{external_invoice_id:'101'});
+ expect(result.source).toBe('official_homeworks_graphql');expect(result.parsedInvoice.total_due).toBe(108);expect(calls).toHaveLength(2);
+ for(const call of calls){expect(call.url).toBe('https://api.copilotcrm.com/graphql');expect(call.request.query.trim()).toMatch(/^query /);expect(call.headers.Cookie).toBeUndefined();}
+ }finally{global.fetch=original;}
+});

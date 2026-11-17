@@ -227,8 +227,8 @@ describe('copilot live jobs service', () => {
       },
       resolved: {
         effective_address: '123 Main St, Lakewood, OH',
-        effective_crew_name: 'Rob Mowing Crew',
-        effective_route_order: 1,
+        effective_crew_name: 'Jobs',
+        effective_route_order: 3,
         included_in_dispatch: true,
         map_lat: 41.4767,
         map_lng: -81.8123,
@@ -537,30 +537,12 @@ describe('copilot live jobs service', () => {
     ]);
   });
 
-  test('fetchCopilotScheduleGridJobsForDate uses the browser-visible grid/day surface', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue({
-      ok: true,
-      text: async () => scheduleGridHtml,
-    });
-
-    const result = await fetchCopilotScheduleGridJobsForDate({
-      cookieHeader: 'copilotApiAccessToken=test',
-      syncDate: '2026-04-17',
-      fetchImpl,
-    });
-
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://secure.copilotcrm.com/scheduler/grid/day/?d=2026-04-17',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Cookie: 'copilotApiAccessToken=test',
-        }),
-      })
-    );
-    expect(result.jobs).toHaveLength(2);
-    expect(result.diagnostics.parsed_row_count_before_filtering).toBe(2);
-    expect(result.diagnostics.parsed_row_count_after_filtering).toBe(2);
-  });
+  test('schedule compatibility adapter uses official Homeworks JSON and no browser session',async()=>{
+ const fetchImpl=jest.fn().mockResolvedValue({ok:true,json:async()=>({data:{events:[{id:101,startDate:'2026-04-17',status:'OPEN',title:'Mowing',isInvoiceable:false}]}})});
+ const result=await fetchCopilotScheduleGridJobsForDate({cookieHeader:'copilotApiAccessToken=test',syncDate:'2026-04-17',fetchImpl});
+ expect(fetchImpl).toHaveBeenCalledWith('https://api.copilotcrm.com/graphql',expect.objectContaining({headers:expect.objectContaining({Authorization:'Bearer test'})}));
+ expect(fetchImpl.mock.calls[0][1].headers.Cookie).toBeUndefined();expect(result.jobs).toHaveLength(1);expect(result.diagnostics.source).toBe('official_homeworks_graphql');
+});
 
   test('mapResolvedLiveJobToScheduleJob flattens the live mirror into the Schedule contract', () => {
     const mapped = mapResolvedLiveJobToScheduleJob(normalizeResolvedRow({
@@ -645,8 +627,8 @@ describe('copilot live jobs service', () => {
       status: 'in_progress',
       status_raw: 'Started',
       last_serviced: 'Apr 10, 2026',
-      route_order: 2,
-      stop_order: 2,
+      route_order: 3,
+      stop_order: 3,
       tracked_time: '01:05',
       budgeted_hours: '1.0',
       special_notes: 'Gate code on file',

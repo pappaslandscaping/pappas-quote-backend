@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Homeworks Review | YardDesk</title>
+    <link rel="stylesheet" href="/shared.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #f5f6f3;
+        color: #263932;
+        font-family: Arial, sans-serif;
+      }
+      main {
+        padding: 32px;
+        max-width: 1250px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+      h2 {
+        font-size: 19px;
+      }
+      .panel {
+        background: white;
+        border: 1px solid #d9dfd7;
+        border-radius: 12px;
+        padding: 24px;
+        margin: 20px 0;
+      }
+      .muted {
+        color: #65726a;
+        font-size: 14px;
+      }
+      button {
+        background: #304e40;
+        color: white;
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 16px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      input {
+        padding: 9px;
+        border: 1px solid #c9d2c8;
+        border-radius: 5px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      td,
+      th {
+        text-align: left;
+        padding: 12px 8px;
+        border-bottom: 1px solid #e5e9e3;
+      }
+      a {
+        color: #315b45;
+      }
+      .error {
+        color: #973e32;
+      }
+      #summary {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .metric {
+        font-size: 24px;
+      }
+      .scroll {
+        overflow: auto;
+      }
+      pre {
+        white-space: pre-wrap;
+        font: 14px Arial;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Homeworks review</h1>
+      <p class="muted">Check current records, resolve exceptions, and prepare the snow season.</p>
+      <p>
+        <label>Review from <input id="since" type="date" value="2026-10-01" /></label>
+        <button id="refresh">Refresh</button> <span id="updated" class="muted"></span>
+      </p>
+      <div id="status" role="status" aria-live="polite"></div>
+      <div id="summary"></div>
+      <section class="panel">
+        <h2>Invoices marked unsent</h2>
+        <p class="muted">
+          Confirm service, credits, and prior delivery before sending. Marked sent does not confirm delivery.
+        </p>
+        <div id="invoices" class="scroll"></div>
+      </section>
+      <section class="panel">
+        <h2>Past visits still open</h2>
+        <p class="muted">
+          Check whether work was performed, postponed, or skipped. Completing a billable visit can create an
+          invoice.
+        </p>
+        <div id="visits" class="scroll"></div>
+      </section>
+      <section class="panel">
+        <h2>Estimate changes</h2>
+        <p class="muted">Read the current service lines and conversation before following up.</p>
+        <div id="estimates" class="scroll"></div>
+      </section>
+      <section class="panel">
+        <h2>Failed texts</h2>
+        <div id="messages" class="scroll"></div>
+      </section>
+      <section class="panel">
+        <h2>Snow readiness</h2>
+        <p>
+          <label>Season <input id="season" value="2026-2027" size="10" /></label>
+          <button id="snow-refresh">Check snow lists</button>
+        </p>
+        <div id="snow"></div>
+      </section>
+      <section class="panel">
+        <h2>Signed agreements</h2>
+        <p class="muted">
+          Agreement PDFs attach to service properties. Homeworks does not currently support attaching them
+          directly to estimates through the API.
+        </p>
+        <button id="agreement-refresh">Check agreements</button>
+        <div id="agreements"></div>
+      </section>
+      <p class="muted">Reviewing this page does not change business records or send messages.</p>
+    </main>
+    <script src="/shell.js"></script>
+    <script src="/js/homeworks-review.js"></script>
+  </body>
+</html>

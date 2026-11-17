@@ -1,4 +1,4 @@
-const test = require('node:test');
+const test = typeof global.test === 'function' ? global.test : require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances, matchHomeworksCustomer, summarizeBilling } = require('../lib/homeworks-customer-billing');

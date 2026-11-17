@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const { saveRouteOrder, saveAssignments } = require('../services/homeworks/dispatch');
 const { DISPATCH_ROUTE_TEMPLATE_SEEDS } = require('../lib/dispatch-route-template-seeds');
 const {
   getCopilotToken,
@@ -1011,6 +1012,7 @@ async function transitionScheduledJobStatus({
 
 function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload, fetchImpl = fetch }) {
   const router = express.Router();
+  router.post('/api/jobs/:id/photos', upload?.array ? upload.array('photos',10) : (_req,_res,next)=>next(), async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').uploadPhotos({pool,fetchImpl},req.params.id,req.files));}catch(error){res.status(409).json({success:false,error:error.message});}});
 
   function normalizeLiveDispatchJobKey(value) {
     if (value == null) return null;
@@ -1104,105 +1106,10 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     return (result.rows || []).map((row) => row.job_key).filter(Boolean);
   }
 
-  async function maybeAutoApplyCanonicalTemplates({ targetDate, startDate, endDate, livePayload }) {
-    if (!targetDate || targetDate !== startDate || targetDate !== endDate) {
-      return { livePayload, statuses: [] };
-    }
-
-    const templates = await fetchApplicableCanonicalTemplates(targetDate);
-    if (!templates.length) return { livePayload, statuses: [] };
-
-    const statuses = [];
-    let didApply = false;
-
-    for (const template of templates) {
-      const liveJobs = livePayload.jobs || [];
-      const candidateCount = liveJobs.filter((job) => (job.crew_assigned || null) === template.crew_name || !job.crew_assigned).length;
-      if (candidateCount === 0) continue;
-
-      const overrideState = await getRouteOverrideStateForCrewDate(targetDate, template.crew_name);
-      if (overrideState.hasOverrides) {
-        statuses.push({
-          template_id: template.id,
-          crew_name: template.crew_name,
-          template_name: template.name,
-          status: overrideState.reapplied
-            ? 'reapplied'
-            : (overrideState.canonicalAppliedOnly ? 'already_applied' : 'manual_overrides'),
-          can_reapply: !overrideState.canonicalAppliedOnly,
-          message: overrideState.reapplied
-            ? `Canonical Monday pattern was re-applied for ${template.crew_name}.`
-            : (overrideState.canonicalAppliedOnly
-            ? `Canonical Monday pattern already applied for ${template.crew_name}.`
-            : `Manual route overrides already exist for ${template.crew_name}; canonical Monday auto-apply skipped.`),
-        });
-        continue;
-      }
-
-      const stopsResult = await pool.query(
-        `SELECT * FROM dispatch_route_template_stops WHERE template_id = $1 ORDER BY position ASC`,
-        [template.id]
-      );
-      const applyResult = applyDispatchRouteTemplate({
-        template,
-        templateStops: stopsResult.rows,
-        liveJobs,
-      });
-
-      if (applyResult.patches.length === 0) {
-        statuses.push({
-          template_id: template.id,
-          crew_name: template.crew_name,
-          template_name: template.name,
-          status: 'partial_match',
-          can_reapply: false,
-          message: `Canonical Monday pattern exists for ${template.crew_name}, but no live stops could be matched automatically.`,
-          matched_count: 0,
-          appended_count: 0,
-          unmatched_count: applyResult.unmatched_template_stops.length,
-          ambiguous_count: applyResult.ambiguous.length,
-          ambiguous: applyResult.ambiguous,
-          unmatched_template_stops: applyResult.unmatched_template_stops,
-        });
-        continue;
-      }
-
-      await patchDispatchPlanItems(pool, {
-        patches: applyResult.patches,
-        updatedByUserId: null,
-        updatedByName: DISPATCH_AUTO_APPLY_NAME,
-      });
-      didApply = true;
-      const partial = applyResult.unmatched_template_stops.length > 0 || applyResult.ambiguous.length > 0;
-      statuses.push({
-        template_id: template.id,
-        crew_name: template.crew_name,
-        template_name: template.name,
-        status: partial ? 'partial_match' : 'applied',
-        can_reapply: false,
-        message: partial
-          ? `Canonical Monday pattern auto-applied for ${template.crew_name} with ${applyResult.unmatched_template_stops.length} unmatched and ${applyResult.ambiguous.length} ambiguous stop(s).`
-          : `Canonical Monday pattern auto-applied for ${template.crew_name}.`,
-        matched_count: applyResult.matched.length,
-        appended_count: applyResult.appended.length,
-        unmatched_count: applyResult.unmatched_template_stops.length,
-        ambiguous_count: applyResult.ambiguous.length,
-        ambiguous: applyResult.ambiguous,
-        unmatched_template_stops: applyResult.unmatched_template_stops,
-      });
-    }
-
-    if (!didApply) return { livePayload, statuses };
-
-    const refreshedPayload = await getCopilotLiveJobs({
-      poolClient: pool,
-      date: targetDate,
-      startDate,
-      endDate,
-      fetchImpl,
-    });
-    return { livePayload: refreshedPayload, statuses };
-  }
+  async function maybeAutoApplyCanonicalTemplates({livePayload}) {
+  // Reads never write a competing crew/order plan. Templates remain explicit proposals.
+  return {livePayload,statuses:[]};
+}
 
   function getCrewDispatchJobs(jobs, crewName) {
     return jobs
@@ -1928,299 +1835,32 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     return { orderedIds, ...stats };
   }
 
-router.get('/api/jobs', async (req, res) => {
-  try {
-    const { date, status, crew, start_date, end_date, search, limit } = req.query;
-    // LEFT JOIN customers so we can decide server-side whether each job has
-    // a real street-level address. The frontend uses this to decide whether
-    // it's safe to client-geocode (skips bare city/state/zip).
-    let query = `SELECT sj.*,
-                        c.street AS cust_street, c.city AS cust_city,
-                        c.state AS cust_state, c.postal_code AS cust_zip
-                 FROM scheduled_jobs sj
-                 LEFT JOIN customers c ON sj.customer_id = c.id
-                 WHERE 1=1`;
-    const params = [];
-    let p = 1;
-    if (date) { query += ` AND sj.job_date::date = $${p++}::date`; params.push(date); }
-    if (start_date && end_date) { query += ` AND sj.job_date::date BETWEEN $${p++}::date AND $${p++}::date`; params.push(start_date, end_date); }
-    if (status) { query += ` AND sj.status = $${p++}`; params.push(status); }
-    if (crew) { query += ` AND sj.crew_assigned = $${p++}`; params.push(crew); }
-    if (search) { query += ` AND (sj.customer_name ILIKE $${p} OR sj.service_type ILIKE $${p} OR sj.address ILIKE $${p})`; params.push(`%${search}%`); p++; }
-    query += ' ORDER BY sj.job_date ASC, sj.route_order ASC NULLS LAST';
-    if (limit) { query += ` LIMIT $${p++}`; params.push(parseInt(limit)); }
-    const result = await pool.query(query, params);
-    // Strip the joined customer columns from the response and replace them
-    // with two derived fields so the client and backend agree on what to
-    // geocode:
-    //   has_street_address: true only when a real street number is available
-    //     somewhere (customer.street, customer_name, service_type, or a
-    //     leading number on job.address).
-    //   geocode_address: the exact same string the backend would feed to
-    //     Google. The frontend MUST use this when client-geocoding so its
-    //     input matches the backend's quality gate. Empty when the job has
-    //     no usable street-level address.
-    const jobs = result.rows.map(row => {
-      const { address, source } = buildBestJobGeocodeAddress(row);
-      const { cust_street, cust_city, cust_state, cust_zip, ...clean } = row;
-      return {
-        ...clean,
-        has_street_address: source === 'street',
-        geocode_address: source === 'street' ? address : '',
-      };
-    });
-    res.json({ success: true, jobs });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').list({pool,fetchImpl},req.query));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-router.get('/api/jobs/stats', async (req, res) => {
-  try {
-    const { date } = req.query;
-    let filter = '';
-    const params = [];
-    if (date) { filter = ' WHERE job_date::date = $1::date'; params.push(date); }
-    const [total, byStatus, revenue, byCrew] = await Promise.all([
-      pool.query(`SELECT COUNT(*) FROM scheduled_jobs${filter}`, params),
-      pool.query(`SELECT status, COUNT(*) FROM scheduled_jobs${filter} GROUP BY status`, params),
-      pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params),
-      pool.query(`SELECT COALESCE(crew_assigned, 'Unassigned') as crew, COUNT(*) FROM scheduled_jobs${filter} GROUP BY crew_assigned`, params)
-    ]);
-    res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), totalRevenue: parseFloat(revenue.rows[0].total), byCrew: Object.fromEntries(byCrew.rows.map(r => [r.crew, parseInt(r.count)])) } });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs/stats', async(req,res)=>{try{res.json(await require('../services/homeworks/job-reports').stats({pool,fetchImpl},req.query));}catch(error){serverError(res,error,'Homeworks visit report is unavailable');}});
 
-router.get('/api/jobs/dashboard', async (req, res) => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const [todayCount, weekCount, pending, upcoming] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date = $1::date', [today]),
-      pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date BETWEEN $1::date AND ($1::date + interval '7 days')", [today]),
-      pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE status = $1 AND job_date::date >= $2::date', ['pending', today]),
-      pool.query(`SELECT id, job_date, customer_name, service_type, address, status, service_price FROM scheduled_jobs WHERE job_date::date >= $1::date ORDER BY job_date ASC LIMIT 5`, [today])
-    ]);
-    res.json({ success: true, stats: { today: parseInt(todayCount.rows[0].count), thisWeek: parseInt(weekCount.rows[0].count), pending: parseInt(pending.rows[0].count) }, upcoming: upcoming.rows });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs/dashboard', async(req,res)=>{try{res.json(await require('../services/homeworks/job-reports').dashboard({pool,fetchImpl}));}catch(error){serverError(res,error,'Homeworks visit report is unavailable');}});
 
 // GET /api/jobs/calendar-summary?month=YYYY-MM - Day-by-day job counts with crew colors (Phase 5)
-router.get('/api/jobs/calendar-summary', async (req, res) => {
-  try {
-    const { month } = req.query;
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return res.status(400).json({ success: false, error: 'Provide month as YYYY-MM' });
-    }
-    const startDate = month + '-01';
-    const [year, mon] = month.split('-').map(Number);
-    const lastDay = new Date(year, mon, 0).getDate();
-    const endDate = month + '-' + String(lastDay).padStart(2, '0');
-
-    const result = await pool.query(
-      `SELECT
-         job_date::date AS day,
-         COUNT(*) AS total_jobs,
-         COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-         COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-         COUNT(*) FILTER (WHERE status IN ('in_progress')) AS in_progress,
-         COALESCE(SUM(service_price), 0) AS revenue,
-         json_agg(json_build_object(
-           'crew', COALESCE(crew_assigned, 'Unassigned'),
-           'count', 1
-         )) AS crew_details
-       FROM scheduled_jobs
-       WHERE job_date::date BETWEEN $1::date AND $2::date
-       GROUP BY job_date::date
-       ORDER BY job_date::date`,
-      [startDate, endDate]
-    );
-
-    const days = result.rows.map(row => {
-      const crewCounts = {};
-      (row.crew_details || []).forEach(d => {
-        crewCounts[d.crew] = (crewCounts[d.crew] || 0) + d.count;
-      });
-      return {
-        day: row.day,
-        total_jobs: parseInt(row.total_jobs),
-        completed: parseInt(row.completed),
-        pending: parseInt(row.pending),
-        in_progress: parseInt(row.in_progress),
-        revenue: parseFloat(row.revenue),
-        crews: crewCounts
-      };
-    });
-
-    res.json({ success: true, month, days });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+router.get('/api/jobs/calendar-summary', async(req,res)=>{try{res.json(await require('../services/homeworks/job-reports').calendar({pool,fetchImpl},req.query.month));}catch(error){serverError(res,error,'Homeworks visit report is unavailable');}});
 
 // GET /api/jobs/completed-uninvoiced - Completed jobs without invoices (must be before :id)
-router.get('/api/jobs/completed-uninvoiced', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT id, job_date, customer_name, customer_id, service_type, service_price, address
-      FROM scheduled_jobs
-      WHERE status IN ('completed', 'done')
-        AND (invoice_id IS NULL OR invoice_id = 0)
-      ORDER BY job_date DESC LIMIT 200
-    `);
-    res.json({ success: true, jobs: result.rows });
-  } catch (error) {
-    console.error('Error fetching completed uninvoiced jobs:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/jobs/completed-uninvoiced', async(req,res)=>{try{res.json(await require('../services/homeworks/job-reports').completedUninvoiced({pool,fetchImpl},req.query));}catch(error){serverError(res,error,'Homeworks visit report is unavailable');}});
 
 // GET /api/jobs/pipeline - Jobs grouped by pipeline stage (must be before :id route)
-router.get('/api/jobs/pipeline', async (req, res) => {
-  try {
-    const stages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
-    // Map existing statuses to pipeline stages
-    const result = await pool.query(`
-      SELECT *,
-        CASE
-          WHEN pipeline_stage IS NOT NULL AND pipeline_stage != '' THEN pipeline_stage
-          WHEN status = 'completed' THEN 'completed'
-          WHEN status = 'in-progress' THEN 'in_progress'
-          WHEN status = 'confirmed' THEN 'scheduled'
-          ELSE 'new'
-        END as stage
-      FROM scheduled_jobs
-      WHERE status != 'cancelled'
-      ORDER BY job_date DESC
-    `);
-    const grouped = {};
-    stages.forEach(s => grouped[s] = []);
-    result.rows.forEach(j => {
-      const s = stages.includes(j.stage) ? j.stage : 'new';
-      grouped[s].push(j);
-    });
-    const counts = {};
-    stages.forEach(s => counts[s] = grouped[s].length);
-    res.json({ success: true, stages, pipeline: grouped, counts });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs/pipeline', async(req,res)=>{try{res.json(await require('../services/homeworks/job-reports').pipeline({pool,fetchImpl},req.query));}catch(error){serverError(res,error,'Homeworks visit report is unavailable');}});
 
-router.get('/api/jobs/:id', async (req, res) => {
-  try {
-    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid job ID' });
-    const result = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs/:id', async(req,res)=>{try{res.json(({success:true,source:'official_homeworks_graphql',job:require('../services/homeworks/jobs').map(await require('../services/homeworks/jobs').detail({pool,fetchImpl},req.params.id))}));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-router.post('/api/jobs', validate(schemas.createJob), async (req, res) => {
-  try {
-    const { job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, route_order, estimated_duration, crew_assigned, latitude, longitude } = req.body;
-    const result = await pool.query(
-      `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, route_order, estimated_duration, crew_assigned, latitude, longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-      [job_date, customer_name, customer_id, service_type, service_frequency, service_price || 0, address, phone, special_notes, property_notes, status || 'pending', route_order, estimated_duration || 30, crew_assigned, latitude, longitude]
-    );
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/jobs', validate(schemas.createJob), async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').create({pool,fetchImpl},req.body));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-router.post('/api/jobs/bulk', async (req, res) => {
-  try {
-    const { jobs } = req.body;
-    if (!jobs || !Array.isArray(jobs)) return res.status(400).json({ success: false, error: 'Must provide jobs array' });
-    const created = [], errors = [];
-    for (const job of jobs) {
-      try {
-        const result = await pool.query(
-          `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, route_order, estimated_duration, crew_assigned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-          [job.job_date, job.customer_name, job.customer_id, job.service_type, job.service_frequency, job.service_price || 0, job.address, job.phone, job.special_notes, job.property_notes, job.status || 'pending', job.route_order, job.estimated_duration || 30, job.crew_assigned]
-        );
-        created.push(result.rows[0]);
-      } catch (err) { errors.push({ customer: job.customer_name, error: err.message }); }
-    }
-    res.json({ success: true, created: created.length, errors: errors.length, jobs: created, errorDetails: errors });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/jobs/bulk', async(req,res)=>res.status(409).json({success:false,error:'Use the live Homeworks workflow for this operation. CSV scheduling and separate local recurring jobs have been retired.',destination:'homeworks'}));
 
-router.patch('/api/jobs/:id', async (req, res) => {
-  try {
-    const allowed = ['job_date', 'customer_name', 'service_type', 'service_price', 'address', 'phone', 'special_notes', 'property_notes', 'status', 'route_order', 'crew_assigned', 'completed_at', 'pipeline_stage', 'is_recurring', 'recurring_pattern', 'recurring_day_of_week', 'recurring_start_date', 'recurring_end_date', 'material_cost', 'labor_cost', 'expense_total', 'invoice_id', 'property_id', 'estimated_duration'];
-    const sets = [], vals = [];
-    let p = 1;
-    Object.keys(req.body).forEach(k => { if (allowed.includes(k)) { sets.push(`${k} = $${p++}`); vals.push(req.body[k]); } });
-    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
-    sets.push('updated_at = CURRENT_TIMESTAMP');
-    vals.push(req.params.id);
-    const result = await pool.query(`UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.patch('/api/jobs/:id', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').update({pool,fetchImpl},req.params.id,req.body));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-router.patch('/api/jobs/:id/complete', async (req, res) => {
-  try {
-    if (!/^\d+$/.test(req.params.id)) {
-      return res.status(400).json({ success: false, error: 'Invalid job ID' });
-    }
+router.patch('/api/jobs/:id/complete', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').changeStatus({pool,fetchImpl},req.params.id,'completed',req.body));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-    const actorName = req.body.actor_name || req.body.completed_by || null;
-    const job = await transitionScheduledJobStatus({
-      jobId: req.params.id,
-      nextStatus: 'completed',
-      actorName,
-      source: req.body.source || 'api',
-      completionNotes: req.body.completion_notes,
-      completionPhotos: req.body.completion_photos,
-      completionLat: req.body.completion_lat,
-      completionLng: req.body.completion_lng,
-      dispatchIssue: req.body.dispatch_issue,
-      dispatchIssueReason: req.body.dispatch_issue_reason,
-      poolClient: pool,
-      invoiceSideEffectFn: (completedJob, { poolClient }) => applyCompletedJobInvoiceSideEffects(completedJob, {
-        poolClient,
-        nextInvoiceNumberFn: nextInvoiceNumber,
-      }),
-    });
-
-    res.json({ success: true, job });
-  } catch (error) {
-    if (error instanceof JobStatusTransitionError) {
-      return res.status(error.statusCode).json({ success: false, error: error.message });
-    }
-    serverError(res, error, 'Job completion failed');
-  }
-});
-
-router.patch('/api/jobs/:id/status', async (req, res) => {
-  try {
-    if (!/^\d+$/.test(req.params.id)) {
-      return res.status(400).json({ success: false, error: 'Invalid job ID' });
-    }
-
-    const actorName = req.body.actor_name || req.body.completed_by || null;
-    const job = await transitionScheduledJobStatus({
-      jobId: req.params.id,
-      nextStatus: req.body.status,
-      actorName,
-      source: req.body.source || 'api',
-      completionNotes: req.body.completion_notes,
-      completionPhotos: req.body.completion_photos,
-      completionLat: req.body.completion_lat,
-      completionLng: req.body.completion_lng,
-      dispatchIssue: req.body.dispatch_issue,
-      dispatchIssueReason: req.body.dispatch_issue_reason,
-      poolClient: pool,
-      invoiceSideEffectFn: (completedJob, { poolClient }) => applyCompletedJobInvoiceSideEffects(completedJob, {
-        poolClient,
-        nextInvoiceNumberFn: nextInvoiceNumber,
-      }),
-    });
-
-    res.json({ success: true, job });
-  } catch (error) {
-    if (error instanceof JobStatusTransitionError) {
-      return res.status(error.statusCode).json({ success: false, error: error.message });
-    }
-    serverError(res, error, 'Job status transition failed');
-  }
-});
+router.patch('/api/jobs/:id/status', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').changeStatus({pool,fetchImpl},req.params.id,req.body.status,req.body));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
 router.post('/api/copilot/dispatch-execution/sync', authenticateToken, async (req, res) => {
   try {
@@ -2264,452 +1904,32 @@ router.post('/api/copilot/dispatch-execution/sync', authenticateToken, async (re
   }
 });
 
-router.patch('/api/jobs/reorder', async (req, res) => {
-  try {
-    const { jobs } = req.body;
-    for (const job of jobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
-    res.json({ success: true, updated: jobs.length });
-  } catch (error) { serverError(res, error); }
-});
+router.patch('/api/jobs/reorder', async(req,res)=>res.status(409).json({success:false,destination:'/dispatch.html',error:'Reorder the complete live crew route on the Dispatch board. Local job ordering has been retired.'}));
 
-router.post('/api/jobs/optimize-route', async (req, res) => {
-  try {
-    const { date, crew, jobIds } = req.body;
+router.post('/api/jobs/optimize-route', async(req,res)=>{try{const {date,crew_name}=req.body;const live=await fetchLiveDispatchJobsForDate(date);const jobs=getCrewDispatchJobs(live,crew_name);const keys=jobs.map(row=>row.job_key||row.id);const saved=await require('../services/homeworks/dispatch').saveRouteOrder({pool,fetchImpl},{date,crewName:crew_name,orderedKeys:keys,optimize:true});res.json({...saved,updated:saved.eventIds.length,optimized:saved.eventIds.map((id,index)=>({job_key:'copilot:'+date+':'+id,route_order:index+1})),totalDistance:saved.totalMiles,totalDuration:saved.totalDriveSeconds,ordered:saved.eventIds.map((id,index)=>({job_key:'copilot:'+date+':'+id,route_order:index+1}))});}catch(error){serverError(res,error,'Homeworks route optimization failed');}});
 
-    // Build the candidate set:
-    //   1. If the client passed an explicit jobIds list, optimize only those.
-    //   2. Otherwise fall back to date + optional crew filter.
-    let jobs;
-    if (Array.isArray(jobIds) && jobIds.length > 0) {
-      const intIds = jobIds.map(id => parseInt(id)).filter(id => !isNaN(id));
-      if (intIds.length < 2) {
-        return res.status(400).json({ success: false, error: 'Need at least 2 jobs to optimize' });
-      }
-      // JOIN customers so the geocoder can build street-level addresses.
-      const r = await pool.query(
-        `SELECT sj.*,
-                c.street AS cust_street, c.city AS cust_city,
-                c.state AS cust_state, c.postal_code AS cust_zip
-         FROM scheduled_jobs sj
-         LEFT JOIN customers c ON sj.customer_id = c.id
-         WHERE sj.id = ANY($1::int[]) AND sj.status != 'completed'
-         ORDER BY sj.route_order ASC NULLS LAST`,
-        [intIds]
-      );
-      jobs = r.rows;
-    } else {
-      let query = `SELECT sj.*,
-                          c.street AS cust_street, c.city AS cust_city,
-                          c.state AS cust_state, c.postal_code AS cust_zip
-                   FROM scheduled_jobs sj
-                   LEFT JOIN customers c ON sj.customer_id = c.id
-                   WHERE sj.job_date::date = $1::date AND sj.status != $2`;
-      const params = [date, 'completed'];
-      if (crew) { query += ' AND sj.crew_assigned = $3'; params.push(crew); }
-      query += ' ORDER BY sj.route_order ASC NULLS LAST';
-      const r = await pool.query(query, params);
-      jobs = r.rows;
-    }
+router.delete('/api/jobs/bulk', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').remove({pool,fetchImpl},req.body.ids||req.body.job_ids||[]));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-    if (jobs.length < 2) {
-      return res.json({ success: true, message: 'Not enough jobs to optimize', jobs, stats: { totalStops: jobs.length, optimized: 0, skipped: 0 } });
-    }
-
-    // The optimizer is a READ-ONLY consumer of stored coordinates.
-    // POST /api/dispatch/geocode is the ONLY endpoint that writes
-    // scheduled_jobs.lat/lng anywhere in the app. Jobs without trusted
-    // street-level coords are bucketed into `skippedJobs` so the user can
-    // fix them via the "Fix Map Pins" UI before re-running optimize.
-    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
-    const isUsableCoord = (j) =>
-      j.lat && j.lng && j.geocode_quality !== 'city' && j.geocode_quality !== 'failed' && j.geocode_quality !== 'no_street';
-    const geocodedJobs = jobs.filter(isUsableCoord);
-    const skippedJobs = jobs.filter(j => !isUsableCoord(j));
-    if (geocodedJobs.length < 2) {
-      return res.status(400).json({
-        success: false,
-        error: 'Not enough geocoded jobs to build a route. Run "Fix Map Pins" on the schedule map view to populate coordinates, or update customer street addresses.',
-        skipped: skippedJobs.length,
-      });
-    }
-
-    // Home base — used as the route's starting point only (forward route, no return).
-    let startLat = 41.4268;
-    let startLng = -81.7356;
-    try {
-      const hbResult = await pool.query("SELECT value FROM business_settings WHERE key = 'home_base'");
-      if (hbResult.rows.length > 0) {
-        const hb = hbResult.rows[0].value;
-        if (hb.lat) startLat = parseFloat(hb.lat);
-        if (hb.lng) startLng = parseFloat(hb.lng);
-      }
-    } catch(e) { /* defaults */ }
-
-    // ─── Google Directions: try every job as the endpoint, pick the best ───
-    // Forward route, no return-to-origin loop. We compare N candidate routes
-    // (one per possible destination) and pick the lowest total drive time.
-    if (GMAPS_KEY && geocodedJobs.length >= 2) {
-      try {
-        const stops = geocodedJobs.map(j => ({
-          id: j.id,
-          lat: parseFloat(j.lat),
-          lng: parseFloat(j.lng),
-        }));
-        const best = await pickBestForwardRoute(stops, startLat, startLng, GMAPS_KEY);
-        if (best && best.orderedIds.length === stops.length) {
-          // Map ordered IDs back to full job records and assign route_order.
-          const byId = new Map(geocodedJobs.map(j => [j.id, j]));
-          const optimizedJobs = best.orderedIds.map((id, i) => ({
-            ...byId.get(id),
-            route_order: i + 1,
-          }));
-          // Persist route_order ONLY for the optimized jobs.
-          for (const job of optimizedJobs) {
-            await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]);
-          }
-          return res.json({
-            success: true,
-            message: 'Route optimized via Google Directions',
-            jobs: optimizedJobs,
-            stats: {
-              totalStops: optimizedJobs.length,
-              optimized: optimizedJobs.length,
-              skipped: skippedJobs.length,
-              totalDistance: (best.totalDistance / 1609.34).toFixed(1) + ' miles',
-              totalDriveTime: Math.round(best.totalDuration / 60) + ' minutes',
-            },
-          });
-        }
-        console.error('Google Directions returned no usable candidate routes; falling back to nearest-neighbor.');
-      } catch (e) {
-        console.error('Google Directions optimize failed, using fallback:', e.message);
-      }
-    }
-
-    // ─── Fallback: nearest-neighbor (forward, no return) ──────
-    const stops = geocodedJobs.map(j => ({ ...j, lat: parseFloat(j.lat), lng: parseFloat(j.lng) }));
-    const visited = new Set();
-    const order = [];
-    let curLat = startLat, curLng = startLng;
-    while (order.length < stops.length) {
-      let nearest = null, nearestDist = Infinity;
-      for (const s of stops) {
-        if (visited.has(s.id)) continue;
-        const d = haversineDistance(curLat, curLng, s.lat, s.lng);
-        if (d < nearestDist) { nearestDist = d; nearest = s; }
-      }
-      if (!nearest) break;
-      visited.add(nearest.id);
-      order.push(nearest);
-      curLat = nearest.lat; curLng = nearest.lng;
-    }
-    const optimizedJobs = order.map((j, i) => ({ ...j, route_order: i + 1 }));
-    for (const job of optimizedJobs) {
-      await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]);
-    }
-    res.json({
-      success: true,
-      message: 'Route optimized (nearest-neighbor)',
-      jobs: optimizedJobs,
-      stats: {
-        totalStops: optimizedJobs.length,
-        optimized: optimizedJobs.length,
-        skipped: skippedJobs.length,
-      },
-    });
-  } catch (error) { serverError(res, error); }
-});
-
-router.delete('/api/jobs/bulk', async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ success: false, error: 'ids must be a non-empty array' });
-    }
-    const intIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
-    if (intIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid job IDs provided' });
-    }
-    const result = await pool.query('DELETE FROM scheduled_jobs WHERE id = ANY($1::int[]) RETURNING id', [intIds]);
-    res.json({ success: true, deleted: result.rowCount });
-  } catch (error) { serverError(res, error, 'Bulk delete jobs'); }
-});
-
-router.delete('/api/jobs/:id', async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM scheduled_jobs WHERE id = $1 RETURNING *', [req.params.id]);
-    res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.delete('/api/jobs/:id', async(req,res)=>{try{res.json(await require('../services/homeworks/jobs').remove({pool,fetchImpl},[req.params.id]));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
 // ═══════════════════════════════════════════════════════════
 // CREWS ENDPOINTS
 // ═══════════════════════════════════════════════════════════
 
-router.get('/api/crews', async (req, res) => {
-  try {
-    const { active_only } = req.query;
-    let query = 'SELECT * FROM crews';
-    if (active_only === 'true') query += ' WHERE is_active = true';
-    query += ' ORDER BY name ASC';
-    const result = await pool.query(query);
-    res.json({ success: true, crews: result.rows });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/crews', async(req,res)=>{try{res.json(({success:true,source:'official_homeworks_graphql',crews:(await require('../services/homeworks/records').call({pool,fetchImpl},'YardDeskCrews','query YardDeskCrews{crews{id name notes color users{id firstName lastName}}}')).crews.map(row=>({...row,members:row.users.map(user=>user.firstName+' '+user.lastName).join(', ')}))}));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
-router.post('/api/crews', validate(schemas.createCrew), async (req, res) => {
-  try {
-    const { name, members, crew_type, notes } = req.body;
-    const result = await pool.query('INSERT INTO crews (name, members, crew_type, notes) VALUES ($1, $2, $3, $4) RETURNING *', [name, members, crew_type, notes]);
-    res.json({ success: true, crew: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/crews', validate(schemas.createCrew), async(req,res)=>{try{res.json(await require('../services/homeworks/team').saveCrew({pool,fetchImpl},req.body));}catch(error){serverError(res,error,'Homeworks crew operation failed');}});
 
-router.patch('/api/crews/:id', async (req, res) => {
-  try {
-    const { name, members, crew_type, notes, is_active } = req.body;
-    const sets = [], vals = [];
-    let p = 1;
-    if (name !== undefined) { sets.push(`name = $${p++}`); vals.push(name); }
-    if (members !== undefined) { sets.push(`members = $${p++}`); vals.push(members); }
-    if (crew_type !== undefined) { sets.push(`crew_type = $${p++}`); vals.push(crew_type); }
-    if (notes !== undefined) { sets.push(`notes = $${p++}`); vals.push(notes); }
-    if (is_active !== undefined) { sets.push(`is_active = $${p++}`); vals.push(is_active); }
-    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
-    sets.push('updated_at = CURRENT_TIMESTAMP');
-    vals.push(req.params.id);
-    const result = await pool.query(`UPDATE crews SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
-    res.json({ success: true, crew: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.patch('/api/crews/:id', async(req,res)=>{try{res.json(await require('../services/homeworks/team').saveCrew({pool,fetchImpl},req.body,req.params.id));}catch(error){serverError(res,error,'Homeworks crew operation failed');}});
 
-router.delete('/api/crews/:id', async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM crews WHERE id = $1 RETURNING *', [req.params.id]);
-    res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.delete('/api/crews/:id', async(req,res)=>{try{res.json(await require('../services/homeworks/team').deleteCrew({pool,fetchImpl},req.params.id));}catch(error){serverError(res,error,'Homeworks crew operation failed');}});
 
-router.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'No CSV file' });
-    const csvContent = req.file.buffer.toString('utf-8');
-    const lines = csvContent.split('\n');
-    const headers = parseCSVLine(lines[0]);
-    
-    const jobs = [];
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        const values = parseCSVLine(line);
-        const job = {};
-        headers.forEach((h, idx) => { job[h] = values[idx] || ''; });
-        job.__row_index = i;
-        jobs.push(job);
-      } catch (e) {}
-    }
-    
-    function parseDate(dateStr) {
-      if (!dateStr) return null;
-      let cleaned = dateStr.replace(/^="?"?/, '').replace(/"?"?$/, '').trim();
-      try { const d = new Date(cleaned); return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0]; } catch { return null; }
-    }
-    
-    function parseNameAddress(details) {
-      if (!details) return { name: '', address: '' };
-      // Format: "FirstName LastName 1234 Street Name  City State Zip, Country"
-      // Split on 2+ spaces first to separate street from city
-      const parts = details.split(/\s{2,}/);
-      const nameAndStreet = parts[0] || '';
-      const cityStateZip = parts.slice(1).join(' ').trim();
-      // Split name from street: name ends before the first house number (digits)
-      const match = nameAndStreet.match(/^(.*?)\s+(\d+\s+.*)$/);
-      if (match) {
-        const street = cityStateZip ? match[2] + ', ' + cityStateZip : match[2];
-        return { name: match[1].trim(), address: street };
-      }
-      return { name: nameAndStreet.trim(), address: cityStateZip };
-    }
-    
-    let skipped = 0;
-    const importRows = [];
-    for (const job of jobs) {
-      const jobDate = parseDate(job['Date of Service']);
-      if (!jobDate) {
-        skipped += 1;
-        continue;
-      }
-      const { name, address } = parseNameAddress(job['Name / Details']);
-      const rawTitle = job['Title'] || 'Service';
-      const crewMatch = rawTitle.match(/^(.+?)\s{1,2}(\w+\s+(?:Mowing|Cleanup|Lawn|Landscape|Plow|Snow)\s+Crew)$/i);
-      importRows.push({
-        source_row: job.__row_index || null,
-        job_date: jobDate,
-        customer_name: name,
-        address,
-        raw_title: rawTitle.trim(),
-        service_type: crewMatch ? crewMatch[1].trim() : rawTitle.trim(),
-        crew_assigned: crewMatch ? crewMatch[2].trim() : null,
-        service_price: parseFloat((job['Visit Total'] || '0').replace(/[^0-9.]/g, '')) || 0,
-      });
-    }
+router.post('/api/import-scheduling', upload.single('csvfile'), async(req,res)=>res.status(409).json({success:false,error:'Use the live Homeworks workflow for this operation. CSV scheduling and separate local recurring jobs have been retired.',destination:'homeworks'}));
 
-    const uniqueSyncDates = [...new Set(importRows.map((row) => row.job_date).filter(isValidIsoDate))].sort();
-    const copilotHydration = await hydrateCopilotScheduleDates({
-      syncDates: uniqueSyncDates,
-      poolClient: pool,
-      fetchImpl,
-    });
-    const linkagePlan = planCopilotImportLinkage(importRows, copilotHydration.rowsByDate);
-    for (const diagnostic of linkagePlan.diagnostics) {
-      console.warn(
-        `[import-scheduling] Copilot linkage ${diagnostic.status} for row ${diagnostic.row_index} (${diagnostic.job_date} ${diagnostic.customer_name || 'Unknown'}): ${diagnostic.reason}`
-      );
-    }
-
-    let imported = 0, updated = 0;
-    const importedJobs = [];
-    const linkageSummary = {
-      attempted: linkagePlan.summary.attempted,
-      linked: 0,
-      already_linked: 0,
-      unmatched: 0,
-      ambiguous: 0,
-      conflict: 0,
-    };
-    const linkageDiagnostics = [];
-
-    for (const [rowIndex, row] of importRows.entries()) {
-      try {
-        const jobDate = row.job_date;
-        const name = row.customer_name;
-        const address = row.address;
-        const serviceType = row.service_type;
-        const crewAssigned = row.crew_assigned;
-        const price = row.service_price;
-
-        // Try to match customer by name
-        const nameParts = name.split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-        let customerId = null, customerPhone = null, customerMobile = null;
-
-        const custMatch = await pool.query(
-          `SELECT id, phone, mobile FROM customers
-           WHERE LOWER(TRIM(name)) = LOWER($1)
-              OR (LOWER(TRIM(first_name)) = LOWER($2) AND LOWER(TRIM(last_name)) = LOWER($3))
-           LIMIT 1`,
-          [name, firstName, lastName]
-        );
-        if (custMatch.rows.length > 0) {
-          customerId = custMatch.rows[0].id;
-          customerPhone = custMatch.rows[0].phone;
-          customerMobile = custMatch.rows[0].mobile;
-        }
-
-        // Check for existing by date + customer (ignore old service_type with crew name)
-        const existing = await pool.query(
-          'SELECT id, copilot_visit_id, copilot_job_id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2',
-          [jobDate, name]
-        );
-        let jobId;
-        let currentJobRow = null;
-        if (existing.rows.length > 0) {
-          jobId = existing.rows[0].id;
-          currentJobRow = existing.rows[0];
-          await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2, customer_id = COALESCE($3, customer_id), service_type = $4, crew_assigned = COALESCE($5, crew_assigned) WHERE id = $6', [address, price, customerId, serviceType, crewAssigned, jobId]);
-          updated++;
-        } else {
-          const insertResult = await pool.query(
-            'INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status, crew_assigned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, copilot_visit_id, copilot_job_id',
-            [jobDate, name, customerId, serviceType, price, address, 'pending', crewAssigned]
-          );
-          jobId = insertResult.rows[0].id;
-          currentJobRow = insertResult.rows[0];
-          imported++;
-        }
-
-        const rowPlan = linkagePlan.plan[rowIndex];
-        const linkageResult = await applyCopilotImportLinkage({
-          scheduledJobId: jobId,
-          currentJob: currentJobRow,
-          linkagePlan: rowPlan,
-          poolClient: pool,
-        });
-        if (linkageResult.status === 'linked') linkageSummary.linked += 1;
-        else if (linkageResult.status === 'already_linked') linkageSummary.already_linked += 1;
-        else if (linkageResult.status === 'conflict') linkageSummary.conflict += 1;
-        else if (linkageResult.status === 'ambiguous') linkageSummary.ambiguous += 1;
-        else linkageSummary.unmatched += 1;
-
-        if (linkageResult.status !== 'linked' && linkageResult.status !== 'already_linked') {
-          linkageDiagnostics.push({
-            row_index: rowPlan?.row_index || row.source_row || null,
-            job_date: jobDate,
-            customer_name: name,
-            service_type: serviceType,
-            address,
-            status: linkageResult.status,
-            reason: linkageResult.reason,
-            candidate_visit_ids: rowPlan?.candidate_visit_ids || [],
-          });
-        }
-
-        importedJobs.push({
-          id: jobId,
-          job_date: jobDate,
-          customer_name: name,
-          customer_id: customerId,
-          service_type: serviceType,
-          service_price: price,
-          address,
-          phone: customerMobile || customerPhone || null,
-          copilot_visit_id: linkageResult.copilot_visit_id,
-          copilot_job_id: linkageResult.copilot_job_id,
-          copilot_linkage_status: linkageResult.status,
-          copilot_linkage_reason: linkageResult.reason,
-        });
-      } catch (e) { skipped++; }
-    }
-    res.json({
-      success: true,
-      message: 'Import complete',
-      stats: { total: jobs.length, imported, updated, skipped },
-      copilot_hydration: copilotHydration.summary,
-      copilot_linkage: {
-        ...linkageSummary,
-        diagnostics: linkageDiagnostics,
-      },
-      jobs: importedJobs,
-    });
-  } catch (error) { serverError(res, error); }
-});
-
-router.get('/api/jobs/recurring', async (req, res) => {
-  try {
-    // Check if is_recurring column exists before querying
-    const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'scheduled_jobs' AND column_name = 'is_recurring'`);
-    if (colCheck.rows.length === 0) {
-      return res.json({ success: true, jobs: [] });
-    }
-    const result = await pool.query(`SELECT * FROM scheduled_jobs WHERE is_recurring = true ORDER BY customer_name ASC`);
-    res.json({ success: true, jobs: result.rows });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/jobs/recurring', async(req,res)=>{try{res.json(({success:true,source:'official_homeworks_graphql',jobs:(await require('../services/homeworks/records').call({pool,fetchImpl},'YardDeskRecurring','query YardDeskRecurring{recurringEvents(where:{isCancelled:false},take:2000){id title frequency weeklyCount status startDate endDate customerId crewId}}')).recurringEvents}));}catch(error){serverError(res,error,'Homeworks visit operation failed');}});
 
 // PATCH /api/jobs/:id/recurring - Configure recurring pattern
-router.patch('/api/jobs/:id/recurring', async (req, res) => {
-  try {
-    const { is_recurring, recurring_pattern, recurring_end_date } = req.body;
-    const result = await pool.query(
-      `UPDATE scheduled_jobs SET is_recurring = COALESCE($1, is_recurring), recurring_pattern = COALESCE($2, recurring_pattern), recurring_end_date = COALESCE($3, recurring_end_date), updated_at = NOW() WHERE id = $4 RETURNING *`,
-      [is_recurring, recurring_pattern, recurring_end_date, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Job not found' });
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.patch('/api/jobs/:id/recurring', async(req,res)=>res.status(409).json({success:false,error:'Use the live Homeworks workflow for this operation. CSV scheduling and separate local recurring jobs have been retired.',destination:'homeworks'}));
 
 router.get('/api/dispatch/board', async (req, res) => {
   try {
@@ -3133,87 +2353,7 @@ router.post('/api/dispatch/geocode', async (req, res) => {
 // extractStreetAddress moved to top of closure as a shared helper.
 
 // POST /api/dispatch/optimize-route - Optimize live route order for a crew
-router.post('/api/dispatch/optimize-route', async (req, res) => {
-  try {
-    const { date, crew_name, start_lat, start_lng } = req.body;
-    if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
-    const actor = getDispatchActor(req);
-    const crewJobs = getCrewDispatchJobs(await fetchLiveDispatchJobsForDate(date), crew_name)
-      .filter((job) => job.lat != null && job.lng != null);
-
-    if (crewJobs.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
-
-    const stops = crewJobs.map((job) => ({
-      id: normalizeLiveDispatchJobKey(job.job_key || job.id),
-      lat: parseFloat(job.lat),
-      lng: parseFloat(job.lng),
-      duration: parseInt(job.estimated_duration, 10) || 30,
-    }));
-    // Get home base from settings (default: Pappas HQ)
-    let defaultLat = 41.4268, defaultLng = -81.7356;
-    try {
-      const hbResult = await pool.query("SELECT value FROM business_settings WHERE key = 'home_base'");
-      if (hbResult.rows.length > 0) {
-        const hb = hbResult.rows[0].value;
-        if (hb.lat) defaultLat = parseFloat(hb.lat);
-        if (hb.lng) defaultLng = parseFloat(hb.lng);
-      }
-    } catch(e) { /* use defaults */ }
-    const sLat = start_lat ? parseFloat(start_lat) : defaultLat;
-    const sLng = start_lng ? parseFloat(start_lng) : defaultLng;
-
-    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
-    if (GMAPS_KEY && stops.length >= 2) {
-      try {
-        // Use the shared best-forward-route picker so this endpoint matches
-        // /api/jobs/optimize-route (no destination = origin loop).
-        const best = await pickBestForwardRoute(stops, sLat, sLng, GMAPS_KEY);
-        if (best && best.orderedIds.length === stops.length) {
-          await patchDispatchPlanItems(pool, {
-            patches: best.orderedIds.map((id, index) => ({
-              jobKey: id,
-              patch: { route_order_override: index + 1 },
-            })),
-            ...actor,
-          });
-          return res.json({
-            success: true,
-            optimized: best.orderedIds.map((id, i) => ({ job_key: id, job_id: id, route_order: i + 1 })),
-            stats: {
-              totalDistance: (best.totalDistance / 1609.34).toFixed(1) + ' miles',
-              totalDriveTime: Math.round(best.totalDuration / 60) + ' minutes',
-            },
-          });
-        }
-      } catch (e) { console.error('Google Directions optimize failed, using fallback:', e.message); }
-    }
-
-    // Fallback: nearest-neighbor TSP
-    const visited = new Set();
-    const order = [];
-    let curLat = sLat, curLng = sLng;
-    while (order.length < stops.length) {
-      let nearest = null, nearestDist = Infinity;
-      for (const s of stops) {
-        if (visited.has(s.id)) continue;
-        const d = haversine(curLat, curLng, s.lat, s.lng);
-        if (d < nearestDist) { nearestDist = d; nearest = s; }
-      }
-      if (!nearest) break;
-      visited.add(nearest.id);
-      order.push(nearest.id);
-      curLat = nearest.lat; curLng = nearest.lng;
-    }
-    await patchDispatchPlanItems(pool, {
-      patches: order.map((id, index) => ({
-        jobKey: id,
-        patch: { route_order_override: index + 1 },
-      })),
-      ...actor,
-    });
-    res.json({ success: true, optimized: order.map((id, i) => ({ job_key: id, job_id: id, route_order: i + 1 })) });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/dispatch/optimize-route', async(req,res)=>{try{const {date,crew_name}=req.body;const live=await fetchLiveDispatchJobsForDate(date);const jobs=getCrewDispatchJobs(live,crew_name);const keys=jobs.map(row=>row.job_key||row.id);const saved=await require('../services/homeworks/dispatch').saveRouteOrder({pool,fetchImpl},{date,crewName:crew_name,orderedKeys:keys,optimize:true});res.json({...saved,updated:saved.eventIds.length,optimized:saved.eventIds.map((id,index)=>({job_key:'copilot:'+date+':'+id,route_order:index+1})),totalDistance:saved.totalMiles,totalDuration:saved.totalDriveSeconds,ordered:saved.eventIds.map((id,index)=>({job_key:'copilot:'+date+':'+id,route_order:index+1}))});}catch(error){serverError(res,error,'Homeworks route optimization failed');}});
 
 router.get('/api/dispatch/route-templates', async (req, res) => {
   try {
@@ -3458,61 +2598,7 @@ router.post('/api/dispatch/route-templates/:id/reapply-canonical', async (req, r
 });
 
 // POST /api/dispatch/apply-future-weeks - Apply route order to future recurring visits
-router.post('/api/dispatch/apply-future-weeks', async (req, res) => {
-  try {
-    const { date, crew_name, frequency } = req.body;
-    if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
-
-    const sourceJobs = await pool.query(
-      `SELECT id, route_order, parent_job_id, is_recurring, customer_id, service_type, address
-       FROM scheduled_jobs
-       WHERE job_date::date = $1::date AND crew_assigned = $2 AND route_order IS NOT NULL
-       ORDER BY route_order ASC`,
-      [date, crew_name]
-    );
-
-    if (sourceJobs.rows.length === 0) {
-      return res.json({ success: false, error: 'No ordered jobs found for this date and crew. Save the route order for today first.' });
-    }
-
-    const sourceDate = new Date(date + 'T00:00:00');
-    const sourceDayOfWeek = sourceDate.getDay();
-    let totalUpdated = 0;
-
-    for (const job of sourceJobs.rows) {
-      const seriesRootId = job.parent_job_id || (job.is_recurring ? job.id : null);
-      if (!seriesRootId) continue;
-
-      const futureJobs = await pool.query(
-        `SELECT id, job_date FROM scheduled_jobs
-         WHERE (parent_job_id = $1 OR (id = $1 AND is_recurring = true))
-           AND crew_assigned = $2
-           AND job_date::date > $3::date
-           AND EXTRACT(DOW FROM job_date::date) = $4
-         ORDER BY job_date ASC`,
-        [seriesRootId, crew_name, date, sourceDayOfWeek]
-      );
-
-      for (const futureJob of futureJobs.rows) {
-        if (frequency === 'biweekly') {
-          const futureDate = new Date(futureJob.job_date);
-          const weeksDiff = Math.round((futureDate - sourceDate) / (7 * 24 * 60 * 60 * 1000));
-          if (weeksDiff % 2 !== 0) continue;
-        }
-        await pool.query(
-          'UPDATE scheduled_jobs SET route_order = $1, updated_at = NOW() WHERE id = $2',
-          [job.route_order, futureJob.id]
-        );
-        totalUpdated++;
-      }
-    }
-
-    res.json({ success: true, updated: totalUpdated, message: `Applied route order to ${totalUpdated} future visits (${frequency})` });
-  } catch (err) {
-    console.error('Apply future weeks error:', err);
-    serverError(res, err);
-  }
-});
+router.post('/api/dispatch/apply-future-weeks', async(req,res)=>{try{res.json(await require('../services/homeworks/dispatch').repeatRoute({pool,fetchImpl},{date:req.body.date,crewName:req.body.crew_name,frequency:req.body.frequency}));}catch(error){serverError(res,error,'Homeworks recurring route save failed');}});
 
 // Haversine distance in miles
 function haversine(lat1, lon1, lat2, lon2) {
@@ -3523,68 +2609,12 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-router.patch('/api/jobs/:id/pipeline', async (req, res) => {
-  try {
-    const { stage } = req.body;
-    const validStages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
-    if (!validStages.includes(stage)) return res.status(400).json({ success: false, error: 'Invalid stage' });
-    const statusMap = { new: 'pending', quoted: 'pending', scheduled: 'confirmed', in_progress: 'in-progress', completed: 'completed', invoiced: 'completed' };
-    const result = await pool.query(
-      `UPDATE scheduled_jobs SET pipeline_stage = $1, status = $2, updated_at = NOW() WHERE id = $3 RETURNING *`,
-      [stage, statusMap[stage], req.params.id]
-    );
-    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.patch('/api/jobs/:id/pipeline', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Visit stages follow Homeworks execution and invoice status. Open the live visit to change its status."}));
 
 // ─── Recurring Job Scheduling (Enhanced) ───────────────────────────────────
 
 // POST /api/jobs/:id/setup-recurring - Configure recurring schedule
-router.post('/api/jobs/:id/setup-recurring', async (req, res) => {
-  try {
-    const { pattern, day_of_week, start_date, end_date, auto_generate_weeks } = req.body;
-    // pattern: weekly, biweekly, monthly, custom
-    const validPatterns = ['weekly', 'biweekly', 'monthly', 'custom'];
-    if (!validPatterns.includes(pattern)) return res.status(400).json({ success: false, error: 'Invalid pattern' });
-
-    const result = await pool.query(
-      `UPDATE scheduled_jobs SET is_recurring = true, recurring_pattern = $1, recurring_day_of_week = $2, recurring_start_date = $3, recurring_end_date = $4, updated_at = NOW() WHERE id = $5 RETURNING *`,
-      [pattern, day_of_week, start_date, end_date, req.params.id]
-    );
-    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
-
-    // Auto-generate upcoming jobs if requested
-    let generated = [];
-    if (auto_generate_weeks && auto_generate_weeks > 0) {
-      const job = result.rows[0];
-      const startDt = new Date(start_date || job.job_date);
-      const endDt = end_date ? new Date(end_date) : new Date(startDt.getTime() + auto_generate_weeks * 7 * 86400000);
-
-      let current = new Date(startDt);
-      const intervalDays = pattern === 'weekly' ? 7 : pattern === 'biweekly' ? 14 : 30;
-      current.setDate(current.getDate() + intervalDays); // skip first (it's the parent)
-
-      while (current <= endDt) {
-        const dateStr = current.toISOString().split('T')[0];
-        // Check for duplicates
-        const exists = await pool.query('SELECT id FROM recurring_job_log WHERE source_job_id = $1 AND generated_for_date = $2', [job.id, dateStr]);
-        if (!exists.rows.length) {
-          const newJob = await pool.query(
-            `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, estimated_duration, crew_assigned, parent_job_id, property_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$13,$14) RETURNING *`,
-            [dateStr, job.customer_name, job.customer_id, job.service_type, job.service_frequency, job.service_price, job.address, job.phone, job.special_notes, job.property_notes, job.estimated_duration, job.crew_assigned, job.id, job.property_id]
-          );
-          await pool.query('INSERT INTO recurring_job_log (source_job_id, generated_for_date, generated_job_id) VALUES ($1,$2,$3)', [job.id, dateStr, newJob.rows[0].id]);
-          generated.push(newJob.rows[0]);
-        }
-        current.setDate(current.getDate() + intervalDays);
-      }
-    }
-
-    res.json({ success: true, job: result.rows[0], generated_jobs: generated.length, jobs: generated });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/jobs/:id/setup-recurring', async(req,res)=>res.status(409).json({success:false,error:'Use the live Homeworks workflow for this operation. CSV scheduling and separate local recurring jobs have been retired.',destination:'homeworks'}));
 
 router.get('/api/jobs/:id/profitability', async (req, res) => {
   try {
@@ -3660,51 +2690,7 @@ router.delete('/api/jobs/:id/expenses/:expenseId', async (req, res) => {
 // ─── Internal Notes ────────────────────────────────────────────────────────
 
 
-router.post('/api/jobs/from-quote/:quoteId', async (req, res) => {
-  try {
-    const { quoteId } = req.params;
-    const { job_date, crew_assigned } = req.body;
-
-    const quoteResult = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [quoteId]);
-    if (quoteResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Quote not found' });
-    }
-    const quote = quoteResult.rows[0];
-
-    let serviceType = 'Service';
-    let totalPrice = parseFloat(quote.total) || 0;
-    if (quote.services) {
-      const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
-      if (Array.isArray(services) && services.length > 0) {
-        serviceType = services.map(s => s.name || s.service || s.description || 'Service').join(', ');
-        if (serviceType.length > 100) serviceType = serviceType.substring(0, 97) + '...';
-      }
-    }
-
-    const jobDate = job_date || new Date().toISOString().split('T')[0];
-
-    const result = await pool.query(
-      `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, phone, special_notes, status, crew_assigned, estimated_duration)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, 60)
-       RETURNING *`,
-      [
-        jobDate,
-        quote.customer_name,
-        quote.customer_id || null,
-        serviceType,
-        totalPrice,
-        quote.customer_address || '',
-        quote.customer_phone || '',
-        'Created from Quote #' + (quote.quote_number || quote.id),
-        crew_assigned || null
-      ]
-    );
-
-    res.json({ success: true, job: result.rows[0], quote_id: quote.id });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+router.post('/api/jobs/from-quote/:quoteId', async(req,res)=>res.status(409).json({success:false,error:'Use the live Homeworks workflow for this operation. CSV scheduling and separate local recurring jobs have been retired.',destination:'homeworks'}));
 
 // ═══════════════════════════════════════════════════════════
 // PHASE 6 — FINANCIAL SUITE ENDPOINTS
@@ -3762,61 +2748,16 @@ router.get('/api/crews/:id/schedule', async (req, res) => {
 
 // 8.2 Reports: Job Costing & Customer Value
 
-router.get('/api/dispatch-templates', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT dt.*, c.name as crew_display_name FROM dispatch_templates dt LEFT JOIN crews c ON dt.crew_id = c.id ORDER BY dt.name');
-    res.json({ success: true, templates: result.rows });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/dispatch-templates', async(req,res)=>{try{const data=await require('../services/homeworks/records').listAll({pool,fetchImpl},{entity:'quickDispatchTemplates',filterType:'QuickDispatchTemplateFilter',fields:'id name properties{id propertyId crewId isInvoiceable note sortOrder lineItems{id item{name} quantity price tax budgetedHours}}'});res.json({success:true,source:'official_homeworks_graphql',templates:data,management_url:'https://secure.copilotcrm.com'});}catch(error){serverError(res,error,'Homeworks dispatch lists are unavailable');}});
 
-router.post('/api/dispatch-templates', async (req, res) => {
-  try {
-    const { name, zip_codes, crew_id, service_type, default_duration, notes } = req.body;
-    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
-    const result = await pool.query(
-      'INSERT INTO dispatch_templates (name, zip_codes, crew_id, service_type, default_duration, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, zip_codes, crew_id, service_type, default_duration || 30, notes]
-    );
-    res.json({ success: true, template: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/dispatch-templates', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Select and review the property list, crew assignments, and billing rules in Homeworks Quick Dispatch before creating visits. ZIP-based local dispatch has been retired."}));
 
-router.put('/api/dispatch-templates/:id', async (req, res) => {
-  try {
-    const { name, zip_codes, crew_id, service_type, default_duration, notes } = req.body;
-    const result = await pool.query(
-      'UPDATE dispatch_templates SET name=$1, zip_codes=$2, crew_id=$3, service_type=$4, default_duration=$5, notes=$6 WHERE id=$7 RETURNING *',
-      [name, zip_codes, crew_id, service_type, default_duration, notes, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, template: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.put('/api/dispatch-templates/:id', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Select and review the property list, crew assignments, and billing rules in Homeworks Quick Dispatch before creating visits. ZIP-based local dispatch has been retired."}));
 
-router.delete('/api/dispatch-templates/:id', async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM dispatch_templates WHERE id = $1 RETURNING *', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { serverError(res, error); }
-});
+router.delete('/api/dispatch-templates/:id', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Select and review the property list, crew assignments, and billing rules in Homeworks Quick Dispatch before creating visits. ZIP-based local dispatch has been retired."}));
 
 // Quick dispatch: find template by zip code, create job
-router.post('/api/dispatch-templates/quick-dispatch', async (req, res) => {
-  try {
-    const { address, zip_code, customer_name, customer_id, job_date } = req.body;
-    if (!zip_code || !job_date) return res.status(400).json({ success: false, error: 'Zip code and date required' });
-    // Find matching template
-    const templates = await pool.query("SELECT * FROM dispatch_templates WHERE zip_codes LIKE $1", [`%${zip_code}%`]);
-    if (templates.rows.length === 0) return res.status(404).json({ success: false, error: 'No template found for zip ' + zip_code });
-    const t = templates.rows[0];
-    const job = await pool.query(
-      `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, address, crew_assigned, estimated_duration, status) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
-      [job_date, customer_name, customer_id, t.service_type, address, t.crew_id, t.default_duration]
-    );
-    res.json({ success: true, job: job.rows[0], template: t });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/dispatch-templates/quick-dispatch', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Select and review the property list, crew assignments, and billing rules in Homeworks Quick Dispatch before creating visits. ZIP-based local dispatch has been retired."}));
 
   return router;
 }

@@ -674,6 +674,7 @@
 
             const name = clientName(selectedClient);
             const isRecurring = document.getElementById('recurringCheck').checked;
+            if (isRecurring) { showToast('Set up recurring visits in Homeworks. This form creates one live visit.'); return; }
 
             // Determine frequency label
             let frequency = 'One-Time';
@@ -689,6 +690,7 @@
                 customer_id: selectedClient.id || null,
                 service_type: serviceType,
                 service_frequency: frequency,
+                is_invoiceable: confirm('Should Homeworks create an invoice when this visit is completed?'),
                 service_price: parseFloat(document.getElementById('fldPrice').value) || 0,
                 address: address,
                 phone: document.getElementById('fldPhone').value || '',

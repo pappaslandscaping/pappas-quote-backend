@@ -184,9 +184,10 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
         }
       }`,
     });
-    const match = (lookup.customers || []).find((row) =>
-      [row.cell, row.phone].some((value) => normalizePhone(value) === normalized));
-    resolvedCustomerId = match?.id || null;
+    if (!Array.isArray(lookup.customers) || lookup.customers.length >= 5000) throw new Error('The Homeworks phone directory is incomplete.');
+    const matches = lookup.customers.filter(row => [row.cell,row.phone].some(value => normalizePhone(value) === normalized));
+    if(matches.length > 1) throw new Error('More than one Homeworks customer uses this phone. Select the correct customer.');
+    resolvedCustomerId = matches[0]?.id || null;
   }
   if (!resolvedCustomerId) return null;
 
@@ -227,6 +228,7 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
     || data.customers?.[0];
   if (!customer) return null;
 
+  let smsError = null;
   const smsData = await queryHomeWorksGraphql({
     pool,
     accessToken,
@@ -238,7 +240,7 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
       }
     }`,
     variables: { customerId: Number(customer.id) },
-  }).catch(() => ({ smsMessages: [] }));
+  }).catch(error => { smsError=error.message; return {smsMessages:[]}; });
 
   return {
     customer: mapCustomer(customer),
@@ -255,6 +257,8 @@ async function fetchMobileCustomerSnapshot({ pool, accessToken, fetchImpl = fetc
     invoices: (customer.invoices || []).map((invoice) => mapInvoice(invoice, customer.portalKey)),
     payments: customer.payments || [],
     homeWorksMessages: smsData.smsMessages || [],
+    communicationSources: {homeworks:{status:smsError?'unavailable':'verified',error:smsError,limited:(smsData.smsMessages||[]).length>=100}},
+    communications: await require('./unified-messages').loadUnifiedMessages({pool,customer,sms:smsData.smsMessages||[],homeworksError:smsError}),
     source: 'official_homeworks_graphql',
     asOf: new Date().toISOString(),
   };

@@ -266,10 +266,11 @@ function normalizeResolvedRow(row) {
   const sourceVisitTotal =
     row.visit_total == null ? null : Number.parseFloat(row.visit_total);
   const effectiveAddress = row.address_override || row.address_raw || null;
-  const effectiveCrewName = row.crew_override_name || row.source_crew_name || null;
-  const effectiveRouteOrder = row.route_order_override ?? row.source_stop_order ?? null;
-  const mapLat = row.map_lat == null ? null : Number.parseFloat(row.map_lat);
-  const mapLng = row.map_lng == null ? null : Number.parseFloat(row.map_lng);
+  const effectiveCrewName = row.source_crew_name || null;
+  const effectiveRouteOrder = row.source_stop_order ?? null;
+  const sourceLocation = parseJsonObject(parseJsonObject(row.raw_payload).raw_data).location || {};
+  const mapLat = row.map_lat == null ? (sourceLocation.latitude ?? null) : Number.parseFloat(row.map_lat);
+  const mapLng = row.map_lng == null ? (sourceLocation.longitude ?? null) : Number.parseFloat(row.map_lng);
   const sourceDeleted = !!row.source_deleted_at;
   const rawPayload = parseJsonObject(row.raw_payload);
   const rawData = parseJsonObject(rawPayload.raw_data);
@@ -298,7 +299,7 @@ function normalizeResolvedRow(row) {
       address: row.address_raw || null,
       property_name: rawData.property_name || null,
       event_type: rawData.event_type || null,
-      invoiceable: rawData.invoiceable || null,
+      invoiceable: rawData.invoiceable ?? null,
       frequency: rawData.frequency || null,
       last_serviced: rawData.last_serviced || null,
       notes: rawData.notes || null,
@@ -328,7 +329,7 @@ function normalizeResolvedRow(row) {
       map_lat: mapLat,
       map_lng: mapLng,
       map_source: row.map_source || 'none',
-      map_quality: row.map_quality || 'missing',
+      map_quality: row.map_quality && row.map_quality !== 'missing' ? row.map_quality : (mapLat != null && mapLng != null ? 'source' : 'missing'),
       print_group_key: row.print_group_key || null,
       print_note: row.print_note || null,
       updated_at: dispatchPlanExists ? row.dispatch_updated_at : null,
@@ -341,7 +342,7 @@ function normalizeResolvedRow(row) {
       included_in_dispatch: !row.hold_from_dispatch && !sourceDeleted,
       map_lat: mapLat,
       map_lng: mapLng,
-      map_quality: row.map_quality || 'missing',
+      map_quality: row.map_quality && row.map_quality !== 'missing' ? row.map_quality : (mapLat != null && mapLng != null ? 'source' : 'missing'),
     },
     flags: {
       needs_address_review: !effectiveAddress,
@@ -417,7 +418,7 @@ async function fetchResolvedLiveJobs(pool, {
      WHERE ${where.join(' AND ')}
      ORDER BY
        clj.service_date ASC,
-       COALESCE(dpi.route_order_override, clj.source_stop_order) ASC NULLS LAST,
+       clj.source_stop_order ASC NULLS LAST,
        clj.customer_name ASC`,
     params
   );
@@ -502,21 +503,19 @@ async function patchDispatchPlanItem(pool, {
   };
 }
 
-async function patchDispatchPlanItems(pool, {
-  patches = [],
-  updatedByUserId = null,
-  updatedByName = null,
-} = {}) {
-  const results = [];
-  for (const entry of patches) {
-    results.push(await patchDispatchPlanItem(pool, {
-      jobKey: entry.jobKey,
-      patch: entry.patch,
-      updatedByUserId,
-      updatedByName,
-    }));
-  }
-  return results;
+async function patchDispatchPlanItems(pool, {patches=[],updatedByUserId=null,updatedByName=null}={}) {
+ const {applyDispatchChanges}=require('../homeworks/dispatch');
+ const remote=await applyDispatchChanges({pool},patches);
+ for(const date of remote.dates) await getCopilotLiveJobs({poolClient:pool,date,startDate:date,endDate:date});
+ const results=[];
+ for(const entry of patches){
+  const patch={...entry.patch};
+  // Once a real save has been verified, clear competing historical overrides.
+  if(Object.hasOwn(patch,'crew_override_name'))patch.crew_override_name=null;
+  if(Object.hasOwn(patch,'route_order_override'))patch.route_order_override=null;
+  results.push(await patchDispatchPlanItem(pool,{jobKey:entry.jobKey,patch,updatedByUserId,updatedByName}));
+ }
+ return results;
 }
 
 function buildDispatchRouteTemplateStop(job, position) {
@@ -829,7 +828,7 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     service_frequency: job.source.frequency || null,
     property_name: job.source.property_name || null,
     copilot_event_type: job.source.event_type || null,
-    copilot_invoiceable_status: job.source.invoiceable || null,
+    copilot_invoiceable_status: job.source.invoiceable ?? null,
     service_price: job.source.visit_total ?? null,
     service_price_raw: job.source.visit_total ?? null,
     crew_assigned: job.resolved.effective_crew_name || null,

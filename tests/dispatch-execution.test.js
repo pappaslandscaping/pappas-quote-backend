@@ -183,16 +183,10 @@ describe('dispatch execution routes', () => {
     expect(paths).toContain('/api/jobs/:id/complete');
   });
 
-  test('job routes source delegates completion to the shared status transition helper', () => {
-    const jobsCode = fs.readFileSync(JOBS_PATH, 'utf8');
-    const completionBlock = jobsCode.slice(
-      jobsCode.indexOf("router.patch('/api/jobs/:id/complete'"),
-      jobsCode.indexOf("router.patch('/api/jobs/reorder'")
-    );
-    expect(completionBlock).toContain('transitionScheduledJobStatus');
-    expect(completionBlock).toContain('completion_photos');
-    expect(completionBlock).toContain('completion_lat');
-    expect(completionBlock).toContain('completion_lng');
-    expect(completionBlock).toContain('completed_by');
-  });
+  test('completion delegates to Homeworks and never runs local invoice creation',()=>{
+ const code=fs.readFileSync(JOBS_PATH,'utf8');
+ const start=code.indexOf("router.patch('/api/jobs/:id/complete'");const block=code.slice(start,code.indexOf("router.patch('/api/jobs/:id/status'",start));
+ expect(block).toContain("require('../services/homeworks/jobs').changeStatus");expect(block).not.toContain('transitionScheduledJobStatus');
+ const service=fs.readFileSync(path.join(__dirname,'../services/homeworks/jobs.js'),'utf8');expect(service).toContain('confirm_billing');expect(service).toContain('closeEvent');expect(service).not.toContain('INSERT INTO invoices');
+});
 });

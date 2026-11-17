@@ -740,61 +740,12 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     return `${html}${pixel}`;
   }
 
-  async function loginToCopilotCrm() {
-    const username = process.env.COPILOTCRM_USERNAME || process.env.COPILOT_USERNAME;
-    const password = process.env.COPILOTCRM_PASSWORD || process.env.COPILOT_PASSWORD;
-    if (!username || !password) {
-      throw new Error('Copilot credentials are not configured. Set COPILOTCRM_USERNAME/COPILOTCRM_PASSWORD or COPILOT_USERNAME/COPILOT_PASSWORD.');
-    }
+  async function loginToCopilotCrm(){return {pool};}
 
-    const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-      body: JSON.stringify({
-        username,
-        password
-      })
-    });
-    const loginText = await loginRes.text();
-    let auth;
-    try {
-      auth = JSON.parse(loginText);
-    } catch (error) {
-      throw new Error(`CopilotCRM login returned non-JSON: ${loginText.substring(0, 200)}`);
-    }
-    if (!auth.accessToken) {
-      throw new Error(`CopilotCRM login failed: ${loginText.substring(0, 200)}`);
-    }
-
-    const cookie = `copilotApiAccessToken=${auth.accessToken}`;
-    return {
-      Cookie: cookie,
-      Origin: 'https://secure.copilotcrm.com',
-      Referer: 'https://secure.copilotcrm.com/',
-      'X-Requested-With': 'XMLHttpRequest'
-    };
-  }
-
-  async function findCopilotCustomer(headers, customer) {
-    const emailLower = String(customer.email || '').trim().toLowerCase();
-    if (!emailLower) return null;
-
-    const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `query=${encodeURIComponent(customer.email)}`
-    });
-    const searchText = await searchRes.text();
-    let customers;
-    try {
-      customers = JSON.parse(searchText);
-    } catch (error) {
-      throw new Error(`CopilotCRM customer search returned non-JSON (status ${searchRes.status}): ${searchText.substring(0, 300)}`);
-    }
-    if (!Array.isArray(customers) || customers.length === 0) return null;
-
-    return customers.find((c) => String(c.email || '').trim().toLowerCase() === emailLower && c.id) || null;
-  }
+  async function findCopilotCustomer(context,customer){
+ const records=require('../services/homeworks/records');
+ return records.uniqueCustomer({pool},{customerId:customer.copilot_customer_id,email:customer.email});
+}
 
   async function renderYardSignRequestEmail(customer, baseUrl) {
     const yardSignVars = await buildYardSignResponseVars({
@@ -935,19 +886,12 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
         continue;
       }
 
-      const sendMailBody = new URLSearchParams({
-        co_id: '5261',
-        'to_customer[]': String(copilotCustomer.id),
-        type: 'email',
-        subject: rendered.subject,
-        content: rendered.html
-      });
-      const sendMailRes = await fetch('https://secure.copilotcrm.com/emails/sendMail', {
-        method: 'POST',
-        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: sendMailBody.toString()
-      });
-      const sendMailText = await sendMailRes.text();
+      // Homeworks has no arbitrary customer-email operation. Keep YardDesk's
+      // existing mail provider and its communication/consent controls.
+      const sent = await sendEmail(copilotCustomer.email, rendered.subject, rendered.html, null,
+        {type:'yard_sign_request',customer_id:customer.id,customer_name:customer.name});
+      const sendMailRes = {ok:sent !== false && sent != null,status:sent ? 202 : 503};
+      const sendMailText = sendMailRes.ok ? 'Accepted by email provider' : 'The email provider did not accept this message.';
 
       try {
         await pool.query(
@@ -1218,7 +1162,7 @@ router.get('/api/messages/conversations', async (req, res) => {
           };
         }
         const customerResult = await pool.query(`
-          SELECT name FROM customers 
+          SELECT name FROM customers
           WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1
              OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1
           LIMIT 1
@@ -1530,7 +1474,7 @@ router.get('/api/messages/thread/:phoneNumber', async (req, res) => {
 
     // Mark inbound messages as read
     await pool.query(`
-      UPDATE messages SET read = true 
+      UPDATE messages SET read = true
       WHERE
         (
           RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
@@ -1576,7 +1520,7 @@ router.get('/api/messages', async (req, res) => {
   const limit = parseInt(req.query.limit) || 200;
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         m.*,
         c.name as customer_name
       FROM messages m
@@ -1591,9 +1535,9 @@ router.get('/api/messages', async (req, res) => {
         const phoneToSearch = msg.direction === 'inbound' ? msg.from_number : msg.to_number;
         const cleanedPhone = phoneToSearch.replace(/\D/g, '').slice(-10);
         const customerResult = await pool.query(`
-          SELECT name FROM customers 
-          WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
-             OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
+          SELECT name FROM customers
+          WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+             OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
           LIMIT 1
         `, [`%${cleanedPhone}`]);
         msg.customer_name = customerResult.rows[0]?.name || null;
@@ -1643,9 +1587,9 @@ router.post('/api/messages/send', authenticateToken, validate(schemas.sendMessag
     // Find customer
     const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
     const customerResult = await pool.query(`
-      SELECT id FROM customers 
-      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
-         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
+      SELECT id FROM customers
+      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
       LIMIT 1
     `, [`%${cleanedPhone}`]);
 
@@ -1806,7 +1750,7 @@ router.post('/api/communications/email/send', validate(schemas.sendOperationalEm
 
 router.post('/api/sms/webhook', async (req, res) => {
   const { MessageSid, From, To, Body, NumMedia } = req.body;
-  
+
   try {
     // Get media URLs if any
     const mediaUrls = [];

@@ -105,7 +105,7 @@ function syncFixture(done = []) {
   const q = { ...quote(), contract_document: doc, contract_document_hash: 'test-hash', contract_signed_at: '2026-10-25' };
   const pool = { query: jest.fn(async sql => ({ rows: sql.startsWith('SELECT') ? done : [] })) };
   const query = jest.fn(async args => {
-    if (args.operationName === 'YardDeskSnowContractEstimate') return { estimate: { id: 888, number: 1500, lineItems: [{ removed: 'NOT_REMOVED', property: { id: 77 } }] } };
+    if (args.operationName === 'YardDeskSnowContractEstimate') return { estimate: { id: 888, number: 1500, lineItems: [{ isIncluded: true, property: { id: 77 } }] } };
     if (args.operationName === 'YardDeskSnowContractUpload') return { createUpload: { key: 'temp-pdf', uploadUrl: 'https://storage.example/upload' } };
     return { addPropertyMedia: { id: 77 } };
   });

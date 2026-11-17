@@ -2,7 +2,6 @@ const cheerio = require('cheerio');
 const { fetchMobileCustomerSnapshot, normalizePhone } = require('./mobile-app');
 const { stripHtml } = require('./client');
 
-const COPILOT_WEB_BASE = 'https://secure.copilotcrm.com';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -61,19 +60,10 @@ function parseHomeWorksCallNotesHtml(html, limit = 5) {
   return notes;
 }
 
-async function fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId, fetchImpl = fetch, limit = 5 }) {
-  const numericCustomerId = Number(customerId);
-  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) return [];
-  const tokenInfo = await getCopilotToken(pool);
-  if (!tokenInfo?.cookieHeader) throw new Error('HomeWorks web session is not configured');
-  const response = await fetchImpl(`${COPILOT_WEB_BASE}/customers/details/${numericCustomerId}`, {
-    headers: {
-      Cookie: tokenInfo.cookieHeader,
-      Accept: 'text/html,application/xhtml+xml',
-    },
-  });
-  if (!response.ok) throw new Error(`HomeWorks customer page returned ${response.status}`);
-  return parseHomeWorksCallNotesHtml(await response.text(), limit);
+async function fetchHomeWorksCallNotes({pool,customerId,limit=5}){
+ await pool.query('CREATE TABLE IF NOT EXISTS yarddesk_customer_notes(id BIGSERIAL PRIMARY KEY,homeworks_customer_id BIGINT NOT NULL,note TEXT NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW())');
+ const result=await pool.query("SELECT id,note AS body,created_at AS date,'YardDesk' AS author FROM yarddesk_customer_notes WHERE homeworks_customer_id=$1 ORDER BY created_at DESC LIMIT $2",[Number(customerId),Math.min(100,Number(limit)||5)]);
+ return result.rows.map(row=>({...row,source:'yarddesk',destination:'office_notes'}));
 }
 
 function buildCommunicationCallNote({
@@ -108,56 +98,14 @@ function buildCommunicationCallNote({
   return lines.join('\n');
 }
 
-async function saveHomeWorksCallNote({
-  pool,
-  getCopilotToken,
-  customerId,
-  note,
-  notifyUser = false,
-  createFollowUp = false,
-  followUpDate,
-  fetchImpl = fetch,
-}) {
-  const numericCustomerId = Number(customerId);
-  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
-    throw new Error('A valid HomeWorks customer ID is required');
-  }
-  const cleanNote = String(note || '').trim();
-  if (!cleanNote) throw new Error('Call note cannot be empty');
-
-  const tokenInfo = await getCopilotToken(pool);
-  if (!tokenInfo?.cookieHeader) throw new Error('HomeWorks web session is not configured');
-
-  const body = new URLSearchParams({
-    customer_id: String(numericCustomerId),
-    call_notes: noteTextToHtml(cleanNote),
-  });
-  if (notifyUser) body.set('notify_user', '1');
-  if (createFollowUp) {
-    body.set('add_followup', '1');
-    if (followUpDate) body.set('follow_up_date', String(followUpDate));
-  }
-
-  const response = await fetchImpl(`${COPILOT_WEB_BASE}/customers/details/communicationSaveCall`, {
-    method: 'POST',
-    headers: {
-      Cookie: tokenInfo.cookieHeader,
-      Origin: COPILOT_WEB_BASE,
-      Referer: `${COPILOT_WEB_BASE}/customers/details/${numericCustomerId}`,
-      'X-Requested-With': 'XMLHttpRequest',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      Accept: 'application/json, text/javascript, */*; q=0.01',
-    },
-    body: body.toString(),
-  });
-  const raw = await response.text();
-  let payload = null;
-  try { payload = JSON.parse(raw); } catch { /* handled below */ }
-  if (!response.ok || !payload?.status) {
-    const detail = payload?.msg || raw.slice(0, 240) || `HTTP ${response.status}`;
-    throw new Error(`HomeWorks Call Note save failed: ${detail}`);
-  }
-  return { success: true, customerId: numericCustomerId, response: payload };
+async function saveHomeWorksCallNote({pool,customerId,note,notifyUser=false,createFollowUp=false,followUpDate}){
+ const records=require('./records');const numericId=records.id(customerId),text=String(note||'').trim();
+ if(!text)throw new Error('The office note cannot be empty.');
+ if(notifyUser||createFollowUp||followUpDate)throw new Error('Save this office note without a notification or follow-up. Manage those actions in Homeworks.');
+ await records.uniqueCustomer({pool},{customerId:numericId});
+ await pool.query('CREATE TABLE IF NOT EXISTS yarddesk_customer_notes(id BIGSERIAL PRIMARY KEY,homeworks_customer_id BIGINT NOT NULL,note TEXT NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW())');
+ const result=await pool.query('INSERT INTO yarddesk_customer_notes(homeworks_customer_id,note) VALUES($1,$2) RETURNING id',[numericId,text]);
+ return {success:true,customerId:numericId,id:result.rows[0].id,status:'saved_local',source:'yarddesk',destination:'office_notes',homeworksSynced:false,message:'Saved to YardDesk office notes. Homeworks call-note access is not available through its official API.',followUpRequested:createFollowUp,notificationRequested:notifyUser};
 }
 
 async function ensureSyncTable(pool) {
@@ -231,10 +179,10 @@ async function syncCommunicationToHomeWorks({
     });
     await pool.query(`
       UPDATE homeworks_communication_sync
-      SET status = 'synced', homeworks_customer_id = $2, synced_at = CURRENT_TIMESTAMP, error = NULL
+      SET status = 'saved_local', homeworks_customer_id = $2, synced_at = CURRENT_TIMESTAMP, error = NULL
       WHERE id = $1
     `, [claimed.rows[0].id, snapshot.customer.id]);
-    return { success: true, status: 'synced', customerId: snapshot.customer.id };
+    return { success: true, status: 'saved_local', homeworksSynced: false, customerId: snapshot.customer.id };
   } catch (error) {
     await pool.query(`UPDATE homeworks_communication_sync SET status = 'failed', error = $2 WHERE id = $1`, [claimed.rows[0].id, error.message]).catch(() => {});
     throw error;

@@ -75,6 +75,7 @@
       { href: 'reviews.html', icon: 'kpi', label: 'Reviews', perm: 'marketing' }
     ]},
     { label: 'Admin', items: [
+      { href: 'homeworks-review.html', icon: 'settings', label: 'Homeworks Review', perm: 'settings' },
       { href: 'settings.html', icon: 'settings', label: 'Settings', perm: 'settings' }
     ]}
   ];

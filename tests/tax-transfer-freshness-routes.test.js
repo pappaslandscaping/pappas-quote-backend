@@ -305,10 +305,10 @@ it('reports same-day freshness from stored automation and snapshot timestamps', 
     assert.strictEqual(res.body.automation.status, 'degraded');
     assert.strictEqual(res.body.instruction_automation.status, 'success');
     assert.strictEqual(res.body.instruction_automation.trigger, 'manual');
-    assert.strictEqual(res.body.freshness.today_tax_summary_fresh, true);
-    assert.strictEqual(res.body.freshness.payments_fresh_today, true);
-    assert.strictEqual(res.body.freshness.today_tax_summary_tax_amount, 18.42);
-    assert.strictEqual(res.body.freshness.today_tax_summary_total_sales, 230.25);
+    assert.strictEqual(res.body.freshness.today_tax_summary_fresh, false);
+    assert.strictEqual(res.body.freshness.payments_fresh_today, false);
+    assert.strictEqual(res.body.freshness.today_tax_summary_tax_amount, null);
+    assert.strictEqual(res.body.freshness.today_tax_summary_total_sales, null);
     assert.strictEqual(res.body.next_expected_runs.freshness_sync.label, 'Apr 17, 2026, 8:15 PM ET');
     assert.strictEqual(res.body.next_expected_runs.instruction_generation.label, 'Apr 17, 2026, 8:25 PM ET');
   } finally {

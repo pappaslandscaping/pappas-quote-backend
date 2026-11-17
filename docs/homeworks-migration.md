@@ -26,7 +26,7 @@ YardDesk reads operational records from the official Homeworks GraphQL API. Exis
 | Recurring series | General create/update/cancel is unavailable. Route-specific recurrence uses the supported route operation. |
 | Signed estimate media | Property attachment is supported; estimate attachment is unavailable. Uncertain attempts require checking the property before another upload. |
 | Delivery | Existing disabled backend email behavior remains disabled. Marked sent and actual delivery remain separate. |
-| Identity conflicts | Conflicting invoice numbers or ambiguous contact/property links stop reassignment. Resolve linkage before using the affected screen. |
+| Identity conflicts | Conflicting invoice numbers remain read-only with a source review link. Ambiguous historical customer aliases remain intact while separate canonical customer mirrors keep the source directory available. Property conflicts stop reassignment. |
 
 ## Release checks
 

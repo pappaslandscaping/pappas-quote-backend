@@ -2,7 +2,7 @@
 const records = require('./records'),
   customers = require('./customers');
 const fields =
-  'id customerId name notes tags size sizeType taxTotal isActive deletedStatus address{street1 street2 city state zip country} location{name latitude longitude}';
+  'id customerId name notes tags size taxTotal isActive deletedStatus address{street1 street2 city state zip country} location{name latitude longitude}';
 const normalize = (value) =>
   String(value || '')
     .trim()

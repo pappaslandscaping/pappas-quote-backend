@@ -1,23 +1,28 @@
 'use strict';
 // This is a disposable mirror for existing YardDesk URLs and print metadata.
 // Reads and financial writes are always verified against Homeworks first.
-async function mirrorInvoices(pool, invoices, { details = true } = {}) {
+async function mirrorInvoices(pool, invoices, { details = true, allowConflicts = false } = {}) {
   if (!invoices.length) return [];
   const existing = await pool.query(
     'SELECT id,invoice_number,external_source,external_invoice_id FROM invoices WHERE external_invoice_id=ANY($1::text[]) OR invoice_number=ANY($2::text[])',
     [invoices.map((row) => row.external_invoice_id), invoices.map((row) => row.invoice_number)],
   );
+  const conflicts = new Set();
   for (const row of invoices) {
     const numberOwner = existing.rows.find((item) => item.invoice_number === row.invoice_number);
     if (
       numberOwner &&
       (numberOwner.external_source !== 'copilotcrm' ||
         String(numberOwner.external_invoice_id) !== row.external_invoice_id)
-    )
+    ) {
+      if (allowConflicts) { conflicts.add(row.external_invoice_id); continue; }
       throw new Error(
         `Invoice #${row.invoice_number} has a conflicting YardDesk identity. Review its linkage before syncing.`,
       );
+    }
   }
+  const requested = invoices;
+  invoices = invoices.filter(row => !conflicts.has(row.external_invoice_id));
   const mapped = [];
   for (let start = 0; start < invoices.length; start += 200) {
     const batch = invoices.slice(start, start + 200).map((row) => ({
@@ -63,6 +68,11 @@ async function mirrorInvoices(pool, invoices, { details = true } = {}) {
       });
     }
   }
-  return mapped;
+  const bySourceId = new Map(mapped.map(row => [row.external_invoice_id, row]));
+  return requested.map(row => conflicts.has(row.external_invoice_id) ? {
+    ...row, id: null, linkage_review_required: true,
+    external_metadata: { ...row.metadata, linkage_review_required: true },
+    source: 'official_homeworks_graphql',
+  } : bySourceId.get(row.external_invoice_id));
 }
 module.exports = { mirrorInvoices };

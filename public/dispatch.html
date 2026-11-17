@@ -1154,8 +1154,8 @@ function syncDispatchModeUI() {
     if (banner) banner.style.display = hasRestrictions ? 'flex' : 'none';
     if (bannerText) {
         const restrictions = [];
-        if (!canDispatchCapability('complete')) restrictions.push('completion stays in Copilot');
-        if (!canDispatchCapability('add_job')) restrictions.push('Add Job is legacy-only');
+        if (!canDispatchCapability('complete')) restrictions.push('complete visits in Homeworks');
+        if (!canDispatchCapability('add_job')) restrictions.push('add visits in Homeworks');
         const suffix = restrictions.length ? ` ${restrictions.join(' and ')}.` : '';
         bannerText.textContent = `${dispatchReadOnlyReason}${suffix}`;
     }

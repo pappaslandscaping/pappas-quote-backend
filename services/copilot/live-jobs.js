@@ -985,7 +985,7 @@ function buildDispatchBoardPayload({
     source_surface: 'homeworks_graphql',
     source_kind: 'live_dispatch',
     read_only: false,
-    read_only_reason: 'Dispatch is reading the shared live HomeWorks job set through the official API. Crew, route, and map overrides persist to the YardDesk dispatch plan; completion and add-job flows remain unavailable here.',
+    read_only_reason: 'Dispatch reads live Homeworks visits. Crew and route changes are saved to Homeworks and verified. Map pins and office notes stay in YardDesk.',
     write_capabilities: { ...DISPATCH_WRITE_CAPABILITIES },
     freshness,
     crews: Object.values(crewMap),

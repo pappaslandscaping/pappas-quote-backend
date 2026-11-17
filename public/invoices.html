@@ -719,16 +719,16 @@
             <div class="list-card-head">
                 <div>
                     <h3>Mail Runs</h3>
-                    <div class="card-subtitle">Sync Copilot invoices, print single-window inserts, and confirm the batch after Pitney Bowes.</div>
+                    <div class="card-subtitle">Refresh Homeworks invoices, print single-window inserts, and confirm the batch after Pitney Bowes.</div>
                 </div>
-                <a class="card-link" href="update-copilot-cookie.html">Update Copilot Cookie</a>
+                <a class="card-link" href="update-copilot-cookie.html">Homeworks API connection</a>
             </div>
             <div class="mail-ops-grid">
                 <div class="mail-ops-status">
                     <div class="mail-status-chip warn" id="copilotMailStatus">Checking Copilot session…</div>
                     <div class="mail-note" id="copilotMailNote">This workflow uses open, unmailed invoices by default and prints inserts for a #10 single-window outer envelope plus a matching #9 return envelope.</div>
                     <div class="mail-actions">
-                        <button class="btn btn-secondary btn-sm" id="syncCopilotBtn" onclick="syncCopilotInvoices()">Sync Copilot</button>
+                        <button class="btn btn-secondary btn-sm" id="syncCopilotBtn" onclick="syncCopilotInvoices()">Refresh Homeworks</button>
                         <button class="btn btn-primary btn-sm" id="generateMailRunBtn" onclick="generateMailRun()">Generate Mail Run</button>
                         <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('/api/mail-assets/envelope-10-single-window')">#10 Envelope</button>
                         <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('/api/mail-assets/envelope-9-return')">#9 Return Envelope</button>
@@ -1095,7 +1095,12 @@
         };
     }
 
+    function invoiceNeedsReview(inv) {
+        return !!(inv.linkage_review_required || inv.customer_verification_required);
+    }
+
     function canInvoiceBeMailed(inv) {
+        if (invoiceNeedsReview(inv)) return false;
         const status = String(inv.status || '').trim().toLowerCase();
         return !inv.mailed_at && !['paid', 'void', 'draft'].includes(status);
     }
@@ -1441,7 +1446,9 @@
 
             const response = await fetch(url);
             const data = await response.json();
-            invoices = data.invoices || data || [];
+            if (!response.ok || data.success === false) throw new Error(data.error || 'Homeworks invoices are unavailable.');
+            invoices = Array.isArray(data) ? data : data.invoices;
+            if (!Array.isArray(invoices)) throw new Error('Homeworks returned an incomplete invoice list.');
 
             renderInvoices();
         } catch (error) {
@@ -1449,7 +1456,7 @@
             document.getElementById('invoicesBody').innerHTML = `
                 <div class="empty-state">
                     <div class="empty-title">Couldn't load invoices</div>
-                    <div class="empty-text">Refresh the page or try again.</div>
+                    <div class="empty-text">${esc(error.message || 'Refresh the page or try again.')}</div>
                 </div>`;
         }
     }
@@ -1580,11 +1587,17 @@
             actions.push(`<button class="icon-btn" onclick="viewInvoice('${inv.id}')" title="Open invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
             actions.push(`<button class="icon-btn danger" onclick="deleteInvoice('${inv.id}')" title="Delete invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>`);
 
+            if (invoiceNeedsReview(inv)) {
+                actions.length = 0;
+                actions.push(`<a class="btn btn-secondary" href="https://secure.copilotcrm.com/finances/invoices/view/${encodeURIComponent(inv.external_invoice_id)}" target="_blank" rel="noopener noreferrer">Review in Homeworks</a>`);
+            }
+
             return `<div class="invoice-row">
                 <div class="select-cell"><input type="checkbox" class="invoice-select-checkbox" value="${esc(inv.id)}" ${isSelected ? 'checked' : ''} ${canMail ? '' : 'disabled'} onchange="toggleInvoiceSelection(this)" aria-label="Select invoice ${esc(invNum)} for mail print"></div>
                 <div class="invoice-number">${esc(invNum)}</div>
                 <div>
                     <div class="invoice-customer">${esc(custName)}</div>
+                    ${invoiceNeedsReview(inv) ? '<div class="invoice-customer-sub">Customer or invoice linkage needs review</div>' : ''}
                     ${custEmail ? `<div class="invoice-customer-sub">${esc(custEmail)}</div>` : ''}
                 </div>
                 <div class="invoice-amount col-amount">${formatCurrency(inv.total || 0)}</div>

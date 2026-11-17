@@ -847,6 +847,7 @@ function logMailDebug(label, row, extra = {}) {
 }
 
 function canIncludeInMailBatch(invoice) {
+  if (invoice.linkage_review_required || parseExternalMetadata(invoice.external_metadata).linkage_review_required) return false;
   if (invoice.customer_verification_required || parseExternalMetadata(invoice.external_metadata).customer_verification_required) return false;
   const status = cleanStatusValue(invoice.status).toLowerCase();
   return !invoice.mailed_at && !['paid', 'void', 'draft'].includes(status);

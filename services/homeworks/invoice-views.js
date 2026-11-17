@@ -37,7 +37,7 @@ async function list(context, params = {}, mailState = (row) => row.mail_state) {
   const total = rows.length,
     offset = Math.max(0, Number(params.offset) || 0),
     limit = Math.min(25000, Math.max(1, Number(params.limit) || 25000));
-  const mirrored = await mirrorInvoices(context.pool, rows.slice(offset, offset + limit), { details: false });
+  const mirrored = await mirrorInvoices(context.pool, rows.slice(offset, offset + limit), { details: false, allowConflicts: true });
   let selected = mirrored.map((row) => ({ ...row, mail_state: mailState(row) }));
   if (params.mailed === 'mailed') selected = selected.filter((row) => row.mailed_at);
   if (params.mailed === 'unmailed')

@@ -881,6 +881,7 @@
     function removePhoto(idx) { selectedPhotos.splice(idx, 1); renderPhotoPreviews(); }
 
     async function submitCompletion() {
+        if (!confirm('Complete this visit in Homeworks? Billable visits may create an invoice.')) return;
         if (!currentJob || currentJob.status === 'completed') return;
         const completedBy = document.getElementById('crewSelect').value;
         if (!completedBy) { showToast('Please select your crew first'); return; }
@@ -894,10 +895,12 @@
                 const photoRes = await fetch('/api/jobs/' + currentJob.id + '/photos', { method: 'POST', body: fd });
                 if (photoRes.ok) { const photoData = await photoRes.json(); photoUrls = photoData.photos || []; }
             }
-            await fetch('/api/jobs/' + currentJob.id + '/complete', {
+            const completed = await fetch('/api/jobs/' + currentJob.id + '/complete', {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ completion_lat: currentLocation?.lat || null, completion_lng: currentLocation?.lng || null, completion_notes: document.getElementById('completionNotes').value || null, completion_photos: photoUrls.length > 0 ? photoUrls : null, completed_by: completedBy })
+                body: JSON.stringify({ confirm_billing: true, completion_lat: currentLocation?.lat || null, completion_lng: currentLocation?.lng || null, completion_notes: document.getElementById('completionNotes').value || null, completion_photos: photoUrls.length > 0 ? photoUrls : null, completed_by: completedBy })
             });
+            const result = await completed.json();
+            if (!completed.ok || !result.success) throw new Error(result.error || 'Homeworks could not confirm completion.');
             showToast('Job completed!'); closeJobModal(); loadFieldJobs();
         } catch (e) { showToast('Error: ' + e.message); btn.textContent = 'Complete'; btn.disabled = false; }
     }

@@ -16,6 +16,7 @@ const { syncSnowAgreementToHomeWorks } = require('../lib/snow-agreement-homework
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, generateContractPDF, emailTemplate }) {
   const router = express.Router();
+  const verifiedEstimateRequests = new WeakSet();
 
   // ─── Quote Event Helpers ───────────────────────────────
   async function logQuoteEvent(quoteId, eventType, description, details = null) {
@@ -329,7 +330,7 @@ router.post('/api/quotes', async (req, res) => {
 
       return res.json({ success: true, testMode: true, quote: testQuote });
     }
-    
+
     // Verify reCAPTCHA if token provided
     if (recaptchaToken) {
       const recaptchaResult = await verifyRecaptcha(recaptchaToken);
@@ -343,7 +344,7 @@ router.post('/api/quotes', async (req, res) => {
       console.log('No reCAPTCHA token provided');
       return res.status(400).json({ success: false, error: 'Security verification required' });
     }
-    
+
     if (!fullName || !email || !phone || !address) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
@@ -432,12 +433,12 @@ router.post('/api/quotes', async (req, res) => {
         } catch { /* YardDesk still records the failed connection. */ }
       }));
     }
-    
+
     // Send detailed notification email
     const servicesText = servicesArray ? servicesArray.join(', ') : 'None specified';
     const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/quotes.html';
     const questionRows = buildQuoteQuestionEmailRows(normalizedQuestions);
-    
+
     const emailHtml = `
       <h2>New Quote Request</h2>
       <p><strong>Name:</strong> ${escapeHtml(fullName)}</p>
@@ -623,7 +624,7 @@ router.post('/api/sent-quotes', validate(schemas.createSentQuote), async (req, r
         );
         customer_id = newCustomer.rows[0].id;
         console.log('Created new customer:', customer_id);
-        
+
         // Trigger Zapier webhook for CopilotCRM sync if configured
         if (process.env.ZAPIER_CUSTOMER_WEBHOOK) {
           try {
@@ -736,14 +737,14 @@ router.post('/api/sent-quotes/:id/send', async (req, res) => {
   return clientCommunicationsDisabledResponse(res);
   try {
     const { id } = req.params;
-    
+
     const quoteResult = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [id]);
     if (quoteResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
 
     const quote = quoteResult.rows[0];
-    
+
     if (!quote.customer_email) {
       return res.status(400).json({ success: false, error: 'No customer email address' });
     }
@@ -753,7 +754,7 @@ router.post('/api/sent-quotes/:id/send', async (req, res) => {
 
     // Clean email - detailed but warm tone
     const firstName = (quote.customer_name || '').split(' ')[0] || 'there';
-    
+
     const emailContent = `
       <div style="text-align:center;margin:0 0 28px;">
         <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
@@ -962,7 +963,7 @@ router.get('/api/sign/:token', async (req, res) => {
 
     // Don't expose internal fields
     delete quote.sign_token;
-    
+
     res.json({ success: true, quote });
   } catch (error) {
     console.error('Error fetching quote for signing:', error);
@@ -974,13 +975,13 @@ router.get('/api/sign/:token', async (req, res) => {
 router.post('/api/sign/:token', async (req, res) => {
   try {
     const { signed_by_name } = req.body;
-    
+
     if (!signed_by_name) {
       return res.status(400).json({ success: false, error: 'Name confirmation required' });
     }
 
     const result = await pool.query(
-      `UPDATE sent_quotes 
+      `UPDATE sent_quotes
        SET status = 'signed', signed_by_name = $1, signed_at = CURRENT_TIMESTAMP
        WHERE sign_token = $2 AND status IN ('sent', 'viewed')
        RETURNING *`,
@@ -1025,13 +1026,13 @@ router.post('/api/sign/:token', async (req, res) => {
 router.post('/api/sign/:token/decline', async (req, res) => {
   try {
     const { decline_reason, decline_comments } = req.body;
-    
+
     if (!decline_reason) {
       return res.status(400).json({ success: false, error: 'Reason required' });
     }
 
     const result = await pool.query(
-      `UPDATE sent_quotes 
+      `UPDATE sent_quotes
        SET status = 'declined', decline_reason = $1, decline_comments = $2, declined_at = CURRENT_TIMESTAMP
        WHERE sign_token = $3 AND status NOT IN ('signed', 'contracted', 'declined')
        RETURNING *`,
@@ -1259,7 +1260,7 @@ router.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
     // Generate the contract HTML attachment (matches Canva template style)
     const quoteNumber = updatedQuote.quote_number || 'Q-' + updatedQuote.id;
     const isDrawnSignature = signature_data && signature_data.startsWith('data:image');
-    const signatureHtml = isDrawnSignature 
+    const signatureHtml = isDrawnSignature
       ? `<img src="${signature_data}" style="max-height:60px;margin:8px 0;" alt="Signature">`
       : `<p style="font-family:'Brush Script MT',cursive;font-size:28px;margin:8px 0;color:#2e403d;">${signature_data || printed_name}</p>`;
 
@@ -1471,7 +1472,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       console.error('❌ PDF generation threw an error:', pdfError.message);
       console.error('Stack:', pdfError.stack);
     }
-    
+
     // Create attachment - use PDF if available, otherwise HTML
     let contractAttachment;
     if (pdfBytes && pdfBytes.length > 0) {
@@ -1557,52 +1558,13 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
     // Customer portal invites must be sent from CopilotCRM, not YardDesk.
     console.log('CopilotCRM portal invite skipped; backend client communications are disabled.');
-    if (false) try {
-              const portalUrl = 'https://secure.copilotcrm.com/client/forget?co=5261';
-              const customerFirstName = (updatedQuote.customer_name || '').split(' ')[0] || 'there';
-              const portalEmailContent = `
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Hi ${customerFirstName},</p>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Welcome to Pappas & Co. Landscaping! Your service agreement has been signed and we're excited to get started.</p>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">To keep things running smoothly, <strong>please add a card on file</strong> to your client portal. Your card will only be charged when invoices are due — no surprise charges.</p>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Your portal also gives you access to:</p>
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
-                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💳</td><td><strong style="color:#1e293b;">Card on File</strong><br><span style="color:#64748b;font-size:13px;">Add a payment method for seamless billing</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">📄</td><td><strong style="color:#1e293b;">Quotes & Invoices</strong><br><span style="color:#64748b;font-size:13px;">View and pay invoices online anytime</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">📅</td><td><strong style="color:#1e293b;">Service Schedule</strong><br><span style="color:#64748b;font-size:13px;">View upcoming visits and service history</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💬</td><td><strong style="color:#1e293b;">Direct Messaging</strong><br><span style="color:#64748b;font-size:13px;">Send questions or requests to our team</span></td></tr></table></td></tr>
-                </table>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Click below to create your password and add your card.</p>
-                <div style="text-align:center;margin:32px 0;">
-                  <a href="${portalUrl}" style="display:inline-block;padding:14px 40px;background:#2e403d;color:#ffffff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;">Set Up My Portal</a>
-                </div>
-              `;
-              const portalEmailHtml = emailTemplate(portalEmailContent);
-              const sendMailBody = new URLSearchParams({
-                co_id: '5261',
-                'to_customer[]': String(copilotCustomerId),
-                type: 'email',
-                subject: 'Get Started: Complete Your Client Portal Registration',
-                content: portalEmailHtml
-              });
-              const sendMailRes = await fetch('https://secure.copilotcrm.com/emails/sendMail', {
-                method: 'POST',
-                headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: sendMailBody.toString()
-              });
-              if (sendMailRes.ok) {
-                console.log(`✅ CopilotCRM: Portal invite sent to customer ${copilotCustomerId}`);
-              } else {
-                console.error(`CopilotCRM: Portal invite failed with status ${sendMailRes.status}`);
-              }
-    } catch (portalErr) {
-      console.error('CopilotCRM: Portal invite failed:', portalErr.message);
-    }
+
 
     // Stop quote follow-up sequence since quote was accepted
     try {
       const quoteNum = updatedQuote.quote_number || 'Q-' + updatedQuote.id;
       await pool.query(`
-        UPDATE quote_followups 
+        UPDATE quote_followups
         SET status = 'accepted', stopped_at = NOW(), stopped_reason = 'accepted', stopped_by = 'contract_signed', updated_at = NOW()
         WHERE (quote_number = $1 OR customer_email = $2) AND status = 'pending'
       `, [quoteNum, updatedQuote.customer_email]);
@@ -1621,136 +1583,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 });
 
 // POST /api/copilotcrm/backfill-contract - Manually trigger CopilotCRM sync for a signed quote
-router.post('/api/copilotcrm/backfill-contract', authenticateToken, async (req, res) => {
-  try {
-    const { customer_name } = req.body;
-    if (!customer_name) return res.status(400).json({ success: false, error: 'customer_name required' });
-    if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
-      return res.status(400).json({ success: false, error: 'CopilotCRM credentials not configured' });
-    }
-
-    // Find the signed quote
-    const quoteResult = await pool.query(
-      `SELECT * FROM sent_quotes WHERE LOWER(customer_name) = LOWER($1) AND contract_signed_at IS NOT NULL ORDER BY contract_signed_at DESC LIMIT 1`,
-      [customer_name.trim()]
-    );
-    if (quoteResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: `No signed contract found for "${customer_name}"` });
-    }
-    const quote = quoteResult.rows[0];
-    const quoteNumber = quote.quote_number || 'Q-' + quote.id;
-    console.log(`🔄 Backfilling CopilotCRM sync for ${customer_name}, quote ${quoteNumber}`);
-
-    // Generate contract PDF
-    let pdfBytes = null;
-    try {
-      const signedDate = new Date(quote.contract_signed_at).toLocaleDateString();
-      pdfBytes = await generateContractPDF(quote, quote.contract_signature_data, quote.contract_signer_name, signedDate);
-    } catch (pdfErr) {
-      console.error('PDF generation failed:', pdfErr.message);
-    }
-
-    // Login to CopilotCRM
-    const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-      body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-    });
-    const copilotAuth = await copilotLogin.json();
-    if (!copilotAuth.accessToken) return res.status(500).json({ success: false, error: 'CopilotCRM login failed' });
-    const copilotHeaders = {
-      'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
-      'Origin': 'https://secure.copilotcrm.com',
-      'Referer': 'https://secure.copilotcrm.com/',
-      'X-Requested-With': 'XMLHttpRequest'
-    };
-
-    // Search for customer
-    const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-      method: 'POST',
-      headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `query=${encodeURIComponent(customer_name)}`
-    });
-    const customers = await searchRes.json();
-    const match = customers.find(c => c.id && String(c.id) !== '0');
-    if (!match) return res.status(404).json({ success: false, error: `No customer found in CopilotCRM for "${customer_name}"` });
-
-    const copilotCustomerId = match.id;
-    const log = [`Found customer ${copilotCustomerId}`];
-
-    // Get estimates
-    const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-      method: 'POST',
-      headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `customer_id=${copilotCustomerId}`
-    });
-    const estData = await estRes.json();
-    const estHtml = estData.html || '';
-
-    const quoteNum = quote.quote_number || '';
-    const paddedNum = quoteNum.replace(/^0+/, '').padStart(7, '0');
-    const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
-    let estMatch;
-    let copilotEstimateId = null;
-    while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
-      if (estMatch[2] === paddedNum || estMatch[2] === quoteNum) {
-        copilotEstimateId = estMatch[1];
-        break;
-      }
-    }
-
-    if (!copilotEstimateId) {
-      return res.status(404).json({ success: false, error: `No estimate matching "${quoteNum}" found in CopilotCRM for customer ${copilotCustomerId}` });
-    }
-    log.push(`Found estimate ${copilotEstimateId} for quote ${quoteNum}`);
-
-    // Accept estimate
-    const acceptRes = await fetch('https://secure.copilotcrm.com/finances/estimates/accept', {
-      method: 'POST',
-      headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `id=${copilotEstimateId}&key=`
-    });
-    if (acceptRes.ok) {
-      log.push(`Estimate ${copilotEstimateId} marked as accepted`);
-    } else {
-      log.push(`Accept failed: ${acceptRes.status}`);
-    }
-
-    // Upload PDF
-    if (pdfBytes && pdfBytes.length > 0) {
-      try {
-        const signUrlRes = await fetch('https://secure.copilotcrm.com/getSignedUploadUrl', {
-          method: 'POST',
-          headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contentType: 'application/pdf', size: pdfBytes.length })
-        });
-        const signUrlData = await signUrlRes.json();
-        if (signUrlData.data && signUrlData.data.uploadUrl) {
-          await fetch(signUrlData.data.uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/pdf' },
-            body: Buffer.from(pdfBytes)
-          });
-          const uploadRes = await fetch('https://secure.copilotcrm.com/finances/estimates/uploadImage', {
-            method: 'POST',
-            headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estimateId: String(copilotEstimateId), tempFileName: signUrlData.data.key, contentType: 'application/pdf' })
-          });
-          if (uploadRes.ok) log.push('Signed contract PDF uploaded');
-        }
-      } catch (uploadErr) {
-        log.push(`PDF upload failed: ${uploadErr.message}`);
-      }
-    } else {
-      log.push('No PDF available to upload');
-    }
-
-    console.log(`✅ CopilotCRM backfill complete for ${customer_name}:`, log.join(' → '));
-    res.json({ success: true, log });
-  } catch (error) {
-    serverError(res, error, 'CopilotCRM backfill error');
-  }
-});
+router.post('/api/copilotcrm/backfill-contract', authenticateToken, async(req,res)=>{try{const result=await pool.query('SELECT * FROM sent_quotes WHERE id=$1',[req.body.quote_id]); const quote=result.rows[0];if(!quote?.contract_signed_at)return res.status(400).json({success:false,error:'Select a signed agreement.'});const pdfBytes=await generateContractPDF(quote,quote.contract_signature_data,quote.contract_signer_name,new Date(quote.contract_signed_at).toLocaleDateString()); const saved=await syncSignedQuoteContractToCopilot(quote,pdfBytes);res.status(saved.success?200:409).json(saved);}catch(error){serverError(res,error);}});
 
 function getCopilotEstimateAcceptedWebhookSecret() {
   return process.env.COPILOTCRM_WEBHOOK_SECRET || process.env.COPILOT_WEBHOOK_SECRET || '';
@@ -1933,171 +1766,31 @@ function assertQuoteCronSecret(req, res) {
   return false;
 }
 
-async function loginToCopilotCrmForEstimates() {
-  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
-    throw new Error('CopilotCRM credentials not configured');
-  }
-  const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-    body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-  });
-  const copilotAuth = await copilotLogin.json();
-  if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
-  return {
-    'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
-    'Origin': 'https://secure.copilotcrm.com',
-    'Referer': 'https://secure.copilotcrm.com/',
-    'X-Requested-With': 'XMLHttpRequest'
-  };
+async function loginToCopilotCrmForEstimates(){return {pool};}
+
+async function findAcceptedCopilotEstimateByNumber(context,estimateNumber){
+ const estimate=await require('../services/homeworks/agreements').findEstimate({pool},estimateNumber);
+ if(!['ACCEPTED','INVOICED'].includes(estimate.status))return null;
+ return {...estimate,copilot_id:estimate.id,estimate_number:String(estimate.number)};
 }
 
-async function findAcceptedCopilotEstimateByNumber(copilotHeaders, estimateNumber, { maxAgeDays = 30 } = {}) {
-  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: encodeCopilotForm({
-      postData: { estimate_status: [2] },
-      pagination: '',
-      sort: 'datedesc'
-    })
-  });
-  const listData = await listRes.json().catch(() => null);
-  const listHtml = listData?.html || '';
-  const acceptedRows = parseRecentAcceptedCopilotEstimateRows(listHtml, maxAgeDays);
-  const normalizedEstimateNumber = String(estimateNumber || '').replace(/^0+/, '');
-
-  return acceptedRows.find(row => String(row.estimate_number || '').replace(/^0+/, '') === normalizedEstimateNumber) || null;
+async function resolveAcceptedCopilotEstimatePayload(context,estimateNumber,fallback={}){
+ const acceptedEstimate=await findAcceptedCopilotEstimateByNumber(context,estimateNumber);
+ if(!acceptedEstimate)throw new Error('The Homeworks estimate is not accepted.');
+ return {payload:{...fallback,...homeWorksEstimatePayload(acceptedEstimate)},acceptedEstimate};
 }
 
-async function resolveAcceptedCopilotEstimatePayload(copilotHeaders, estimateNumber, fallback = {}) {
-  const acceptedEstimate = await findAcceptedCopilotEstimateByNumber(copilotHeaders, estimateNumber);
-  if (!acceptedEstimate?.copilot_id) {
-    return {
-      payload: { ...fallback, estimate_number: estimateNumber },
-      acceptedEstimate: null
-    };
-  }
-
-  const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${acceptedEstimate.copilot_id}`, {
-    method: 'GET',
-    headers: copilotHeaders
-  });
-  const detailHtml = await detailRes.text();
-  return {
-    payload: parseCopilotAcceptedEstimateDetail(detailHtml, {
-      ...fallback,
-      estimate_number: estimateNumber
-    }),
-    acceptedEstimate
-  };
+async function uploadSignedContractPdfToCopilotEstimate(){
+ throw new Error('Homeworks does not expose estimate attachments. Save the signed agreement to its verified service properties.');
 }
 
-async function uploadSignedContractPdfToCopilotEstimate(copilotHeaders, copilotEstimateId, pdfBytes) {
-  if (!pdfBytes || pdfBytes.length === 0) {
-    throw new Error('No signed contract PDF bytes available to upload');
-  }
-
-  const signUrlRes = await fetch('https://secure.copilotcrm.com/getSignedUploadUrl', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contentType: 'application/pdf', size: pdfBytes.length })
-  });
-  const signUrlText = await signUrlRes.text();
-  let signUrlData;
-  try {
-    signUrlData = JSON.parse(signUrlText);
-  } catch (error) {
-    throw new Error(`CopilotCRM signed upload URL returned non-JSON (status ${signUrlRes.status}): ${signUrlText.substring(0, 300)}`);
-  }
-
-  if (!signUrlRes.ok || !signUrlData?.data?.uploadUrl || !signUrlData?.data?.key) {
-    throw new Error(`CopilotCRM signed upload URL failed (status ${signUrlRes.status}): ${signUrlText.substring(0, 300)}`);
-  }
-
-  const s3Res = await fetch(signUrlData.data.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/pdf' },
-    body: Buffer.from(pdfBytes)
-  });
-  if (!s3Res.ok) {
-    const s3Text = await s3Res.text().catch(() => '');
-    throw new Error(`CopilotCRM S3 PDF upload failed (status ${s3Res.status}): ${s3Text.substring(0, 300)}`);
-  }
-
-  const uploadRes = await fetch('https://secure.copilotcrm.com/finances/estimates/uploadImage', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      estimateId: String(copilotEstimateId),
-      tempFileName: signUrlData.data.key,
-      contentType: 'application/pdf'
-    })
-  });
-  const uploadText = await uploadRes.text().catch(() => '');
-  if (!uploadRes.ok) {
-    throw new Error(`CopilotCRM estimate PDF attach failed (status ${uploadRes.status}): ${uploadText.substring(0, 300)}`);
-  }
-
-  return { key: signUrlData.data.key };
-}
-
-async function syncSignedQuoteContractToCopilot(quote, pdfBytes, { source = 'manual' } = {}) {
-  if (snowAgreement.read(quote)) {
-    return syncSnowAgreementToHomeWorks({ quote, pdfBytes, pool, query: queryHomeWorksGraphql });
-  }
-  const quoteNumber = quote?.quote_number || '';
-  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
-    return { success: false, skipped: true, error: 'CopilotCRM credentials not configured' };
-  }
-  if (!quoteNumber) {
-    return { success: false, error: 'Quote number is required to find the CopilotCRM estimate' };
-  }
-  if (!pdfBytes || pdfBytes.length === 0) {
-    return { success: false, error: 'Signed contract PDF was not generated' };
-  }
-
-  try {
-    console.log(`🔄 CopilotCRM signed contract sync starting (${source}) for quote ${quoteNumber}`);
-    const copilotHeaders = await loginToCopilotCrmForEstimates();
-    const acceptedEstimate = await findAcceptedCopilotEstimateByNumber(copilotHeaders, quoteNumber, { maxAgeDays: 30 });
-    if (!acceptedEstimate?.copilot_id) {
-      throw new Error(`Accepted CopilotCRM estimate #${quoteNumber} was not found`);
-    }
-
-    const acceptRes = await fetch('https://secure.copilotcrm.com/finances/estimates/accept', {
-      method: 'POST',
-      headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `id=${acceptedEstimate.copilot_id}&key=`
-    });
-    if (!acceptRes.ok) {
-      const acceptText = await acceptRes.text().catch(() => '');
-      console.error(`CopilotCRM: Accept failed with status ${acceptRes.status}: ${acceptText.substring(0, 300)}`);
-    }
-
-    const upload = await uploadSignedContractPdfToCopilotEstimate(copilotHeaders, acceptedEstimate.copilot_id, pdfBytes);
-    console.log(`✅ CopilotCRM: Signed contract PDF uploaded to estimate ${acceptedEstimate.copilot_id}`);
-    return {
-      success: true,
-      uploaded: true,
-      copilot_estimate_id: acceptedEstimate.copilot_id,
-      estimate_number: acceptedEstimate.estimate_number,
-      upload_key: upload.key
-    };
-  } catch (error) {
-    await alertCopilotAcceptedEstimateFailure({
-      estimate_number: quoteNumber,
-      source: `signed-contract-${source}`,
-      error: error.message || 'Signed contract PDF upload failed',
-      parsed: {
-        quote_id: quote?.id || null,
-        customer_name: quote?.customer_name || null,
-        customer_email: quote?.customer_email || null,
-        has_pdf: Boolean(pdfBytes && pdfBytes.length > 0)
-      }
-    });
-    return { success: false, error: error.message || 'Signed contract PDF upload failed' };
-  }
+async function syncSignedQuoteContractToCopilot(quote,pdfBytes){
+ try{
+  if(snowAgreement.read(quote))return await syncSnowAgreementToHomeWorks({quote,pdfBytes,pool,query:queryHomeWorksGraphql});
+  const integration=require('../services/homeworks/agreements');
+  const estimate=await integration.findEstimate({pool},quote.quote_number);
+  return await integration.attachAgreement({pool},{quote,estimate,pdfBytes});
+ }catch(error){return {success:false,error:error.message,source:'official_homeworks_graphql'};}
 }
 
 function encodeCopilotFormValue(params, key, value) {
@@ -2209,7 +1902,11 @@ router.post('/api/webhooks/copilotcrm/estimate-accepted', async (req, res) => {
 // Optional overrides: email, phone, address, services, estimate_amount.
 async function handleCopilotEstimateAccepted(req, res) {
   try {
-    const payload = getCopilotEstimateAcceptedPayload(req);
+    const incoming = getCopilotEstimateAcceptedPayload(req);
+    const estimateNumber = incoming.estimate_number || incoming.ESTIMATE_NUMBER;
+    if (!estimateNumber) return res.status(400).json({success:false,error:'An estimate number is required.'});
+    const officialPayload = verifiedEstimateRequests.has(req) ? incoming : (await resolveAcceptedCopilotEstimatePayload({pool}, estimateNumber)).payload;
+    const payload = {...incoming,...officialPayload,integration_source:'homeworks_official'};
     const integrationSource = payload.integration_source === 'homeworks_official' ? 'homeworks' : 'copilotcrm';
     const integrationLabel = integrationSource === 'homeworks' ? 'HomeWorks' : 'CopilotCRM';
     let {
@@ -2238,26 +1935,7 @@ async function handleCopilotEstimateAccepted(req, res) {
       return res.status(400).json({ success: false, error: 'Missing required field: estimate_number' });
     }
 
-    if (integrationSource !== 'homeworks' && (!customer_name || !email || !services?.length || !estimate_amount) && process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
-      try {
-        const copilotHeaders = await loginToCopilotCrmForEstimates();
-        const { payload: detailPayload } = await resolveAcceptedCopilotEstimatePayload(copilotHeaders, estimate_number, {
-          customer_name,
-          email,
-          address,
-          estimate_amount
-        });
-        if (detailPayload) {
-          customer_name = customer_name || detailPayload.customer_name;
-          email = email || detailPayload.email;
-          address = address || detailPayload.address;
-          estimate_amount = estimate_amount || detailPayload.estimate_amount;
-          services = Array.isArray(services) && services.length > 0 ? services : detailPayload.services;
-        }
-      } catch (lookupError) {
-        console.error('CopilotCRM accepted estimate direct lookup failed:', lookupError.message);
-      }
-    }
+
 
     if (!customer_name) {
       return res.status(400).json({ success: false, error: 'Missing required field: customer_name' });
@@ -2335,123 +2013,7 @@ async function handleCopilotEstimateAccepted(req, res) {
     if (needsCopilotLookup && integrationSource === 'homeworks') {
       return res.status(422).json({ success: false, error: 'The official HomeWorks estimate is missing customer, service or pricing details. Refresh it from HomeWorks before creating an agreement.' });
     }
-    if (needsCopilotLookup) {
-      if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
-        return res.status(400).json({ success: false, error: 'CopilotCRM credentials not configured. Provide email, services, and estimate_amount manually.' });
-      }
-      const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-        body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-      });
-      const copilotAuth = await copilotLogin.json();
-      if (!copilotAuth.accessToken) {
-        return res.status(500).json({ success: false, error: 'CopilotCRM login failed' });
-      }
-      const copilotHeaders = {
-        'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
-        'Origin': 'https://secure.copilotcrm.com',
-        'Referer': 'https://secure.copilotcrm.com/',
-        'X-Requested-With': 'XMLHttpRequest'
-      };
-      const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-        method: 'POST',
-        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `query=${encodeURIComponent(customer_name)}`
-      });
-      const crmCustomers = await searchRes.json().catch(() => null);
-      const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
-      if (!crmMatch) {
-        return res.status(404).json({ success: false, error: `Customer "${customer_name}" not found in CopilotCRM` });
-      }
 
-      if (!email) email = crmMatch.email;
-      if (!phone && crmMatch.phone) phone = crmMatch.phone;
-      if (!address && crmMatch.address) address = crmMatch.address;
-      console.log(`📧 CopilotCRM lookup: customer=${crmMatch.id}, email=${email || 'none'}, phone=${phone || 'n/a'}`);
-
-      if (!email) {
-        return res.status(404).json({ success: false, error: `No email found for "${customer_name}" in CopilotCRM` });
-      }
-
-      if (!services || services.length === 0 || !estimate_amount) {
-        const estListRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-          method: 'POST',
-          headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `customer_id=${crmMatch.id}`
-        });
-        const estListData = await estListRes.json().catch(() => null);
-        const estHtml = (estListData && estListData.html) || '';
-
-        const paddedNum = String(estimate_number).replace(/^0+/, '').padStart(7, '0');
-        const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
-        let estMatch;
-        let copilotEstimateId = null;
-        while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
-          if (estMatch[2] === paddedNum || estMatch[2] === String(estimate_number)) {
-            copilotEstimateId = estMatch[1];
-            break;
-          }
-        }
-
-        if (!copilotEstimateId) {
-          return res.status(404).json({ success: false, error: `Estimate #${estimate_number} not found in CopilotCRM for "${customer_name}". Provide services and estimate_amount manually.` });
-        }
-        console.log(`📋 CopilotCRM: Found estimate ID ${copilotEstimateId} for #${estimate_number}`);
-
-        const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
-          method: 'GET',
-          headers: copilotHeaders
-        });
-        const estDetailHtml = await estDetailRes.text();
-
-        const parsedServices = [];
-        let parsedTotal = 0;
-        const lineItemRegex = /<tr[^>]*class="[^"]*item-row[^"]*"[^>]*>[\s\S]*?<\/tr>/gi;
-        const lineItems = estDetailHtml.match(lineItemRegex) || [];
-
-        for (const row of lineItems) {
-          const nameMatch = row.match(/<td[^>]*class="[^"]*item-name[^"]*"[^>]*>([\s\S]*?)<\/td>/i)
-            || row.match(/<td[^>]*>\s*<div[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
-            || row.match(/<td[^>]*>\s*<span[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
-          const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
-          const amount = amountMatches && amountMatches.length > 0
-            ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, ''))
-            : 0;
-
-          if (nameMatch) {
-            const name = nameMatch[1].replace(/<[^>]+>/g, '').trim();
-            if (name) parsedServices.push({ name, price: amount });
-          }
-        }
-
-        if (parsedServices.length === 0) {
-          const simpleTdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-          const allTds = [];
-          let tdMatch;
-          while ((tdMatch = simpleTdRegex.exec(estDetailHtml)) !== null) {
-            allTds.push(tdMatch[1].replace(/<[^>]+>/g, '').trim());
-          }
-          console.log(`⚠️ CopilotCRM: item-row pattern found 0 items. Total tds in page: ${allTds.length}`);
-          parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml));
-        }
-
-        const totalMatch = estDetailHtml.match(/(?:Total|Grand\s*Total)[^$]*\$\s*([\d,]+\.?\d*)/i)
-          || estDetailHtml.match(/class="[^"]*total[^"]*"[^>]*>[^$]*\$\s*([\d,]+\.?\d*)/i);
-        if (totalMatch) {
-          parsedTotal = parseFloat(totalMatch[1].replace(/,/g, ''));
-        }
-
-        if ((!services || services.length === 0) && parsedServices.length > 0) {
-          services = parsedServices;
-          console.log(`📋 CopilotCRM: Parsed ${services.length} line items from estimate #${estimate_number}`);
-        }
-        if (!estimate_amount && parsedTotal > 0) {
-          estimate_amount = parsedTotal;
-          console.log(`💰 CopilotCRM: Parsed total $${estimate_amount} from estimate #${estimate_number}`);
-        }
-      }
-    }
 
     if (!services || services.length === 0) {
       return res.status(422).json({
@@ -2612,6 +2174,7 @@ router.post('/api/webhooks/copilotcrm/signed-contract-sync', async (req, res) =>
 async function createContractFromAcceptedEstimatePayload(payload) {
   return new Promise((resolve) => {
     const req = { body: payload };
+    verifiedEstimateRequests.add(req);
     const res = {
       statusCode: 200,
       status(code) {
@@ -2676,7 +2239,7 @@ async function alertCopilotAcceptedEstimateFailure({ estimate_number, source, er
 
 function acceptedHomeWorksLineItems(estimate) {
   return (estimate.lineItems || [])
-    .filter(lineItem => lineItem.removed !== 'REMOVED')
+    .filter(lineItem => lineItem.isIncluded === true)
     .map(lineItem => ({
       name: lineItem.name,
       description: lineItem.description || '',
@@ -2688,7 +2251,7 @@ function acceptedHomeWorksLineItems(estimate) {
 }
 
 function homeWorksEstimatePayload(estimate) {
-  const acceptedLineItems = (estimate.lineItems || []).filter(lineItem => lineItem.removed !== 'REMOVED');
+  const acceptedLineItems = (estimate.lineItems || []).filter(lineItem => lineItem.isIncluded === true);
   const property = acceptedLineItems.find(lineItem => lineItem.property)?.property || null;
   const customer = estimate.customer || {};
   return {
@@ -2728,7 +2291,7 @@ async function fetchRecentAcceptedHomeWorksEstimates({ maxAgeDays = 3, limit = 1
         id number status acceptedAt total terms notes
         customer { id fullName email phone cell }
         lineItems {
-          id name description price quantity subtotal subtotalWithTax removed
+          id name description price quantity subtotal subtotalWithTax isIncluded
           property { id name address { street1 street2 city state zip country } }
         }
       }
@@ -2901,35 +2464,35 @@ router.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
 router.get('/api/sent-quotes/:id/download-pdf', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [req.params.id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
-    
+
     const quote = result.rows[0];
-    
+
     if (!quote.contract_signed_at) {
       return res.status(400).json({ success: false, error: 'Contract not yet signed' });
     }
-    
+
     const signedDate = new Date(quote.contract_signed_at).toLocaleDateString();
     const pdfBytes = await generateContractPDF(
-      quote, 
-      quote.contract_signature_data, 
-      quote.contract_signer_name, 
+      quote,
+      quote.contract_signature_data,
+      quote.contract_signer_name,
       signedDate
     );
-    
+
     if (!pdfBytes) {
       return res.status(500).json({ success: false, error: 'PDF generation failed - template may be missing' });
     }
-    
+
     const quoteNumber = quote.quote_number || 'Q-' + quote.id;
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="Service-Agreement-${quoteNumber}.pdf"`);
     res.send(Buffer.from(pdfBytes));
-    
+
   } catch (error) {
     console.error('Error downloading PDF:', error);
     serverError(res, error);
@@ -2969,11 +2532,11 @@ router.get('/api/sent-quotes/:id/download-contract', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
     const quote = result.rows[0];
-    
+
     if (!quote.contract_signed_at) {
       return res.status(400).json({ success: false, error: 'Contract not yet signed' });
     }
-    
+
     // Return contract data for client-side PDF generation
     res.json({ success: true, quote, type: 'contract' });
   } catch (error) {

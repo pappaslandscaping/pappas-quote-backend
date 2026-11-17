@@ -1,44 +1,10 @@
-const assert = require('assert');
-const { parseCopilotCustomerStandingHtml } = require('../lib/copilot-live-invoices');
-
-function runAssertions() {
-  const html = `
-    <section>
-      <div>Superior Industrial</div>
-      <div>All values in USD.</div>
-      <div class="balance-card">
-        <div>
-          <span>Past Due</span>
-          <span>Due for 30+ days</span>
-          <strong>264.75</strong>
-        </div>
-        <div>
-          <span>Outstanding</span>
-          <span>Includes past due amount</span>
-          <strong>458.83</strong>
-        </div>
-        <div>
-          <span>Paid</span>
-          <strong>4,250.87</strong>
-        </div>
-        <div>
-          <span>Credit</span>
-          <strong>0.00</strong>
-        </div>
-      </div>
-    </section>
-  `;
-
-  const standing = parseCopilotCustomerStandingHtml(html);
-  assert.strictEqual(standing.past_due_balance, 264.75);
-  assert.strictEqual(standing.outstanding_balance, 458.83);
-  assert.strictEqual(standing.paid_balance, 4250.87);
-  assert.strictEqual(standing.credit_available, 0);
-}
-
-if (typeof test === 'function') {
-  test('parseCopilotCustomerStandingHtml extracts balance card metrics', runAssertions);
-} else {
-  runAssertions();
-  console.log('copilot-customer-standing-parser.test.js passed');
-}
+const {accountStanding}=require('../services/homeworks/records');
+test('account standing keeps unsent drafts out of issued balances and credits separate',async()=>{
+ const queryImpl=jest.fn().mockResolvedValue({invoiceReport:[
+ {status:'DRAFT',isSent:false,_count:{id:7}},{status:'PENDING',isSent:true,_count:{id:3}},
+ {status:'PENDING',isSent:false,_count:{id:4}},{status:'PAST_DUE',isSent:true,_count:{id:2}},
+ {status:'PAID',isSent:true,_count:{id:9}}],customers:[{id:1,credit:'10'},{id:2,credit:'0'}]});
+ const result=await accountStanding({queryImpl});
+ expect(result).toMatchObject({total:25,outstanding:5,past_due:2,paid:9,credit:1,source:'official_homeworks_graphql'});
+ expect(queryImpl.mock.calls[0][0].query).toContain('invoiceReport');
+});

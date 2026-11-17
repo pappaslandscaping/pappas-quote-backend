@@ -1261,66 +1261,11 @@ function mapMailBatchRow(row) {
   };
 }
 
-async function markInvoiceRegularMailInCopilot(invoice, { listPath = '/finances/invoices' } = {}) {
-  if (typeof getCopilotToken !== 'function') {
-    return { success: false, errors: ['Copilot session helper is not configured'] };
-  }
-
-  const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) {
-    return { success: false, errors: ['Copilot cookies are not configured'] };
-  }
-
-  const invoiceId = invoice.external_invoice_id || invoice.invoice_number;
-  if (!invoiceId) {
-    return { success: false, errors: ['Missing Copilot external invoice id'] };
-  }
-
-  const attempts = [
-    new URLSearchParams({ action: 'markSendSnailmail', 'row[]': String(invoiceId) }),
-    new URLSearchParams({ bundleAction: 'markSendSnailmail', 'row[]': String(invoiceId) }),
-    new URLSearchParams({ markSendSnailmail: '1', 'row[]': String(invoiceId) }),
-  ];
-
-  const failures = [];
-  for (const body of attempts) {
-    try {
-      const response = await fetch(`https://secure.copilotcrm.com${listPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Cookie: tokenInfo.cookieHeader,
-          Origin: 'https://secure.copilotcrm.com',
-          Referer: `https://secure.copilotcrm.com${listPath}`,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: body.toString(),
-      });
-
-      const text = await response.text();
-      if (!response.ok) {
-        throw new Error(`Copilot returned ${response.status}`);
-      }
-      if (/login|sign in/i.test(text)) {
-        throw new Error('Copilot rejected the stored session');
-      }
-      if (/error|invalid/i.test(text) && !/invoice/i.test(text)) {
-        throw new Error(text.slice(0, 200));
-      }
-
-      return {
-        success: true,
-        attempt: body.toString(),
-      };
-    } catch (error) {
-      failures.push(`${body.toString()}: ${error.message}`);
-    }
-  }
-
-  return {
-    success: false,
-    errors: failures,
-  };
+async function markInvoiceRegularMailInCopilot(invoice) {
+  try {
+    const results = await require('../services/homeworks/records').markInvoicesMailed({pool}, [invoice.external_invoice_id]);
+    return {success: results[0]?.success === true, errors: results[0]?.success ? [] : ['Homeworks mail flags could not be verified.']};
+  } catch(error) { return {success:false, errors:[error.message]}; }
 }
 
 function buildInvoiceListQuery({
@@ -1754,68 +1699,10 @@ async function persistTaxSummarySnapshot(snapshot) {
   return normalized;
 }
 
-async function fetchCopilotTaxSummarySnapshot({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
-  const cacheKey = buildTaxSummaryCacheKey({ startDate, endDate, basis });
-  const cached = cachedCopilotTaxSummaries.get(cacheKey);
-  if (!forceRefresh && cached?.expiresAt > Date.now()) return cached.value;
-
-  if (!forceRefresh) {
-    const persisted = await readPersistedTaxSummarySnapshot({ startDate, endDate, basis }).catch(() => null);
-    if (persisted) {
-      cachedCopilotTaxSummaries.set(cacheKey, {
-        value: persisted,
-        expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
-      });
-      return persisted;
-    }
-  }
-
-  const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
-
-  const url = new URL(`https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`);
-  url.searchParams.set('type', basis);
-  url.searchParams.set('sdate', startDate);
-  url.searchParams.set('edate', endDate);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Cookie: tokenInfo.cookieHeader,
-      Origin: 'https://secure.copilotcrm.com',
-      Referer: `https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Copilot tax summary returned ${response.status}`);
-  }
-
-  const html = await response.text();
-  const parsed = parseCopilotTaxSummaryHtml(html, {
-    startDate,
-    endDate,
-    basis,
-    pageUrl: `${COPILOT_TAX_SUMMARY_BASE_PATH}?type=${basis}&sdate=${startDate}&edate=${endDate}`,
-  });
-  if (parsed?.parser_warning) {
-    throw new Error(parsed.parser_warning);
-  }
-  const normalized = normalizeTaxSummarySnapshot({
-    ...parsed,
-    as_of: new Date().toISOString(),
-    basis,
-    start_date: startDate,
-    end_date: endDate,
-  }, LIVE_COPILOT_SOURCE);
-  if (!normalized) throw new Error('Unable to parse Copilot Tax Summary');
-
-  await persistTaxSummarySnapshot(normalized);
-  cachedCopilotTaxSummaries.set(cacheKey, {
-    value: normalized,
-    expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
-  });
-  return normalized;
+async function fetchCopilotTaxSummarySnapshot({startDate,endDate,basis='collected'}={}) {
+  const snapshot = await require('../services/homeworks/tax').taxSnapshot({pool}, {startDate,endDate,basis});
+  await persistTaxSummarySnapshot(snapshot);
+  return snapshot;
 }
 
 async function computeBackendReconstructedTaxForDay(date) {
@@ -1854,106 +1741,16 @@ async function persistCopilotPaymentsSnapshot(snapshot) {
   return normalized;
 }
 
-async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
-  const now = Date.now();
-  if (!forceRefresh && cachedCopilotPayments?.expiresAt > now) return cachedCopilotPayments.value;
-
-  const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
-
-  const baseUrl = `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}?p=1&iop=${Math.max(1, Number(pageSize) || 100)}`;
-  const queue = [baseUrl];
-  const visited = new Set();
-  const seenKeys = new Set();
-  const payments = [];
-  let total = null;
-  let pagesFetched = 0;
-
-  while (queue.length && pagesFetched < Math.max(1, Number(maxPages) || 25)) {
-    const url = queue.shift();
-    if (!url || visited.has(url)) continue;
-    visited.add(url);
-    pagesFetched += 1;
-
-    const copilotRes = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Cookie: tokenInfo.cookieHeader,
-        Origin: 'https://secure.copilotcrm.com',
-        Referer: `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-    if (!copilotRes.ok) {
-      throw new Error(`Copilot payments returned ${copilotRes.status}`);
-    }
-
-    const html = await copilotRes.text();
-    const parsed = parseCopilotPaymentsHtml(html, url);
-    if (parsed?.parser_warning) {
-      throw new Error(parsed.parser_warning);
-    }
-    if (total == null && Number.isFinite(Number(parsed.total))) {
-      total = Number(parsed.total);
-    }
-
-    parsed.payments.forEach((payment) => {
-      if (seenKeys.has(payment.external_payment_key)) return;
-      seenKeys.add(payment.external_payment_key);
-      payments.push(payment);
-    });
-
-    parsed.page_paths.forEach((pagePath) => {
-      const absolute = pagePath.startsWith('http')
-        ? pagePath
-        : `https://secure.copilotcrm.com${pagePath}`;
-      if (!visited.has(absolute)) queue.push(absolute);
-    });
-
-    if (total && payments.length >= total) break;
-  }
-
-  const normalized = normalizeCopilotPaymentsSnapshot({
-    as_of: new Date().toISOString(),
-    total: total || payments.length,
-    payments,
-  }, LIVE_COPILOT_SOURCE);
-  if (!normalized) throw new Error('Unable to parse Copilot payments');
-
-  await persistCopilotPaymentsSnapshot(normalized).catch((error) => {
-    console.error('Error persisting Copilot payments snapshot:', error);
-  });
-
-  cachedCopilotPayments = {
-    value: normalized,
-    expiresAt: Date.now() + COPILOT_PAYMENTS_CACHE_TTL_MS,
-  };
-
-  return normalized;
+async function fetchCopilotPaymentsSnapshot() {
+  const payments = await require('../services/homeworks/records').loadPayments({pool});
+  const snapshot = {success:true,source:'official_homeworks_graphql',as_of:new Date().toISOString(),total:payments.length,payments};
+  await persistCopilotPaymentsSnapshot(snapshot);
+  return snapshot;
 }
 
-async function syncCopilotPaymentsRecords({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
-  const snapshot = await fetchCopilotPaymentsSnapshot({ pageSize, maxPages, forceRefresh });
-  const syncResult = await upsertCopilotPayments({
-    pool,
-    payments: snapshot.payments,
-  });
-  await deleteLeakedCopilotSummaryRows(pool);
-
-  return {
-    source: snapshot.source,
-    as_of: snapshot.as_of,
-    total: snapshot.total,
-    pages: Math.ceil((snapshot.total || snapshot.payments.length || 0) / Math.max(1, Number(pageSize) || 100)),
-    sync: {
-      total: syncResult.total,
-      inserted: syncResult.inserted,
-      updated: syncResult.updated,
-      linked: syncResult.linked,
-      unresolved: syncResult.unresolved,
-    },
-    unresolved: syncResult.payments.filter((payment) => payment.link_status === 'unresolved'),
-  };
+async function syncCopilotPaymentsRecords() {
+ const snapshot=await fetchCopilotPaymentsSnapshot();
+ return {source:snapshot.source,as_of:snapshot.as_of,total:snapshot.total,readOnly:true,sync:{total:snapshot.total,inserted:0,updated:0,linked:snapshot.payments.filter(row=>row.homeworks?.invoiceId).length,unresolved:0},unresolved:[]};
 }
 
 async function syncCopilotTaxSummarySnapshots({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
@@ -1998,76 +1795,12 @@ async function syncCopilotTaxSummarySnapshots({ startDate, endDate, basis = 'col
 }
 
 async function fetchTaxTransferFreshnessSnapshot(today) {
-  const [automation, instructionAutomation, latestPaymentsImport, latestTodayTaxSummary] = await Promise.all([
-    readTaxTransferFreshnessStatus(),
-    readTaxTransferInstructionStatus(),
-    pool.query(
-      `SELECT MAX(imported_at) AS last_imported_at
-         FROM payments
-        WHERE COALESCE(external_source, 'database') = 'copilotcrm'`
-    ),
-    pool.query(
-      `SELECT imported_at, updated_at, tax_amount, total_sales
-         FROM copilot_tax_summary_snapshots
-        WHERE external_source = ANY($1::text[])
-          AND basis = 'collected'
-          AND start_date = $2
-          AND end_date = $2
-        ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
-        LIMIT 1`,
-      [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, today]
-    ),
-  ]);
-
-  const paymentsImportedAt = latestPaymentsImport.rows[0]?.last_imported_at || null;
-  const taxSummaryRow = latestTodayTaxSummary.rows[0] || null;
-  const taxSummaryImportedAt = taxSummaryRow?.imported_at || taxSummaryRow?.updated_at || null;
-
-  return {
-    success: true,
-    time_zone: BUSINESS_TIME_ZONE,
-    today,
-    automation: automation || {
-      status: 'never_run',
-      last_attempt_at: null,
-      last_success_at: null,
-      last_success_trigger: null,
-      last_failure_at: null,
-      last_failure_trigger: null,
-      last_failure_error: null,
-      last_error: null,
-      components: null,
-    },
-    instruction_automation: instructionAutomation || {
-      status: 'never_run',
-      trigger: null,
-      tax_date: null,
-      action: null,
-      instruction_id: null,
-      last_attempt_at: null,
-      completed_at: null,
-      last_success_at: null,
-      last_success_trigger: null,
-      last_success_action: null,
-      last_success_instruction_id: null,
-      last_failure_at: null,
-      last_failure_trigger: null,
-      last_failure_error: null,
-      last_error: null,
-    },
-    next_expected_runs: {
-      freshness_sync: buildNextExpectedRun(TAX_TRANSFER_FRESHNESS_SCHEDULE),
-      instruction_generation: buildNextExpectedRun(TAX_TRANSFER_INSTRUCTION_SCHEDULE),
-    },
-    freshness: {
-      payments_last_imported_at: paymentsImportedAt,
-      payments_fresh_today: timestampFallsOnBusinessDate(paymentsImportedAt, today),
-      today_tax_summary_last_imported_at: taxSummaryImportedAt,
-      today_tax_summary_fresh: timestampFallsOnBusinessDate(taxSummaryImportedAt, today),
-      today_tax_summary_tax_amount: taxSummaryRow ? Number(taxSummaryRow.tax_amount) || 0 : 0,
-      today_tax_summary_total_sales: taxSummaryRow ? Number(taxSummaryRow.total_sales) || 0 : 0,
-    },
-  };
+  const [automation,instructionAutomation]=await Promise.all([readTaxTransferFreshnessStatus(),readTaxTransferInstructionStatus()]);
+  return {success:true,time_zone:BUSINESS_TIME_ZONE,today,source:'official_homeworks_graphql',review_required:true,
+    message:'Collected tax must be reviewed in Homeworks. Its official API has no collected-tax report.',
+    automation:automation||{status:'never_run'},instruction_automation:instructionAutomation||{status:'never_run'},
+    next_expected_runs:{freshness_sync:buildNextExpectedRun(TAX_TRANSFER_FRESHNESS_SCHEDULE),instruction_generation:buildNextExpectedRun(TAX_TRANSFER_INSTRUCTION_SCHEDULE)},
+    freshness:{payments_last_imported_at:null,payments_fresh_today:false,today_tax_summary_last_imported_at:null,today_tax_summary_fresh:false,today_tax_summary_tax_amount:null,today_tax_summary_total_sales:null}};
 }
 
 async function runTaxTransferFreshnessSync({
@@ -2295,24 +2028,8 @@ function buildTaxTransferRecommendationPayload({ date, snapshot, recommendation,
   };
 }
 
-async function fetchDailyTaxTransferRecommendation(date, { allowLiveFetch = false } = {}) {
-  const basis = 'collected';
-  let snapshot = await readPersistedTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
-  if (!snapshot && allowLiveFetch) {
-    snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
-  }
-  const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
-  const recommendation = buildDailyTaxRecommendation({
-    snapshot: snapshot || { tax_amount: 0 },
-    backendReconstructedTax,
-  });
-  return buildTaxTransferRecommendationPayload({
-    date,
-    snapshot,
-    recommendation,
-    source: snapshot?.source || 'missing_copilot_snapshot',
-    snapshotAsOf: snapshot?.as_of || null,
-  });
+async function fetchDailyTaxTransferRecommendation(date){
+ return {tax_date:date,snapshot_available:false,recommendation_source:'homeworks_manual_review',recommendation_as_of:null,tax_summary_snapshot_source:'unavailable',recommended_transfer_amount:null,recommended_transfer_amount_cents:null,review_required:true,message:'Review collected tax in Homeworks. The official API does not expose its collected-tax report.'};
 }
 
 async function fetchTransferInstructionById(db, id) {
@@ -2997,128 +2714,9 @@ function parseFallbackAgingDays(inv, referenceDate = new Date()) {
   return Math.max(0, calculateAgingDays(inv, referenceDate));
 }
 
-async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {}) {
-  const nowMs = Date.now();
-  if (!cachedCopilotAging) {
-    const persistedSnapshot = await readPersistedCopilotAging();
-    if (persistedSnapshot) {
-      cachedCopilotAging = {
-        value: persistedSnapshot,
-        expiresAt: getAgingSnapshotExpiry(persistedSnapshot),
-      };
-    }
-  }
-  if (cachedCopilotAging?.expiresAt > nowMs) {
-    return cachedCopilotAging.value;
-  }
-  if (cachedCopilotAgingPromise) {
-    return cachedCopilotAging ? cachedCopilotAging.value : cachedCopilotAgingPromise;
-  }
-
-  const refreshPromise = (async () => {
-  if (typeof getCopilotToken !== 'function') return null;
-
-  const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) return null;
-
-  const buckets = initAgingBuckets();
-  const now = new Date();
-  const seenIds = new Set();
-  const seenPageLeads = new Set();
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const formData = new URLSearchParams();
-    formData.append('pagination[]', `p=${page}`);
-    formData.append('pagination[]', `iop=${pageSize}`);
-    formData.append('pagination[]', 'sort=datedesc');
-
-    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': tokenInfo.cookieHeader,
-        'Origin': 'https://secure.copilotcrm.com',
-        'Referer': 'https://secure.copilotcrm.com/',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: formData.toString(),
-    });
-
-if (!copilotRes.ok) break;
-const rawPayload = await copilotRes.text();
-if (/^\s*</.test(rawPayload) || /<title[^>]*>.*login|sign in|homeworks/i.test(rawPayload)) {
-  console.warn('Copilot aging fetch returned HTML instead of JSON; using cached/dashboard fallback.');
-  break;
-}
-let payload;
-try {
-  payload = JSON.parse(rawPayload);
-} catch (_error) {
-  console.warn('Copilot aging fetch returned invalid JSON; using cached/dashboard fallback.');
-  break;
-}
-const rows = parseInvoiceListHtml(payload.html || '');    if (!rows.length) break;
-
-    const pageLeadId = rows[0].external_invoice_id || rows[0].invoice_number || `page-${page}`;
-    if (seenPageLeads.has(pageLeadId)) break;
-    seenPageLeads.add(pageLeadId);
-
-    for (const row of rows) {
-      const id = String(row.external_invoice_id || row.invoice_number || '');
-      if (!id || seenIds.has(id)) continue;
-      seenIds.add(id);
-
-      const totalDue = parseFloat(row.total_due || 0) || 0;
-      if (totalDue <= 0) continue;
-      if (!isOutstandingInvoice(row.status, row.total ?? totalDue, row.amount_paid ?? 0)) continue;
-
-      const daysAged = calculateDaysFromInvoiceDate(row.invoice_date, now);
-      if (!Number.isFinite(daysAged)) continue;
-
-      const bucket = getAgingBucketKey(daysAged);
-      buckets[bucket].count += 1;
-      buckets[bucket].total += totalDue;
-      buckets[bucket].invoices.push({
-        external_invoice_id: row.external_invoice_id || null,
-        invoice_number: row.invoice_number || null,
-        customer_name: row.customer_name || null,
-        balance: totalDue,
-        days_overdue: daysAged,
-        status: row.status || null,
-      });
-    }
-
-    if (rows.length < pageSize) break;
-  }
-
-  const value = {
-    success: true,
-    source: LIVE_COPILOT_SOURCE,
-    as_of: now.toISOString(),
-    buckets,
-  };
-  await persistCopilotAging(value).catch((error) => {
-    console.error('Error persisting Copilot aging snapshot:', error);
-  });
-  cachedCopilotAging = {
-    value,
-    expiresAt: Date.now() + COPILOT_AGING_CACHE_TTL_MS,
-  };
-  return value;
-  })();
-  cachedCopilotAgingPromise = refreshPromise.finally(() => {
-    cachedCopilotAgingPromise = null;
-  });
-
-  try {
-    if (cachedCopilotAging) {
-      return cachedCopilotAging.value;
-    }
-    return await cachedCopilotAgingPromise;
-  } catch (error) {
-    if (cachedCopilotAging) return cachedCopilotAging.value;
-    throw error;
-  }
+async function fetchCopilotAgingBuckets() {
+  const records = require('../services/homeworks/records');
+  return records.invoiceAging(await records.loadInvoices({pool},{status:{in:['PENDING','PARTIALLY_PAID','PAST_DUE']}}));
 }
 
 function deriveDbAccountStanding(rows) {
@@ -3153,221 +2751,16 @@ function deriveDbAccountStanding(rows) {
   return standing;
 }
 
-async function fetchCopilotCreditCount(cookieHeader, { pageSize = 100, maxPages = 150 } = {}) {
-  const creditedCustomers = new Set();
-  const seenFirstIds = new Set();
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const formData = new URLSearchParams();
-    formData.append('pagination[]', `p=${page}`);
-    formData.append('pagination[]', `iop=${pageSize}`);
-    formData.append('pagination[]', 'sort=datedesc');
-
-    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieHeader,
-        'Origin': 'https://secure.copilotcrm.com',
-        'Referer': 'https://secure.copilotcrm.com/',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: formData.toString(),
-    });
-
-if (!copilotRes.ok) break;
-const rawPayload = await copilotRes.text();
-if (/^\s*</.test(rawPayload) || /<title[^>]*>.*login|sign in|homeworks/i.test(rawPayload)) {
-  console.warn('Copilot credit fetch returned HTML instead of JSON; using fallback credit count.');
-  break;
-}
-let data;
-try {
-  data = JSON.parse(rawPayload);
-} catch (_error) {
-  console.warn('Copilot credit fetch returned invalid JSON; using fallback credit count.');
-  break;
-}
-const html = data.html || '';    const rows = [];
-    const $ = cheerio.load(html);
-    $('tbody tr').each((_, row) => {
-      const tds = $(row).find('td');
-      if (tds.length < 12) return;
-      const invoiceNumber = tds.eq(0).text().replace(/\s+/g, ' ').trim();
-      const firstLink = $(row).find('a[href*="/finances/invoices/view/"]').first();
-      const firstId = firstLink.attr('href')?.match(/\/view\/(\d+)/)?.[1] || invoiceNumber;
-      rows.push({
-        firstId,
-        customerKey: $(row).find('a[href*="/customers/details/"]').first().attr('href')?.match(/\/details\/(\d+)/)?.[1]
-          || tds.eq(2).text().replace(/\s+/g, ' ').trim(),
-        creditAvailable: parseFloat((tds.eq(9).text() || '').replace(/[^0-9.-]/g, '')) || 0,
-      });
-    });
-
-    if (!rows.length) break;
-    if (rows[0].firstId && seenFirstIds.has(rows[0].firstId)) break;
-    if (rows[0].firstId) seenFirstIds.add(rows[0].firstId);
-
-    rows.forEach(row => {
-      if (row.creditAvailable > 0 && row.customerKey) creditedCustomers.add(String(row.customerKey));
-    });
-
-    if (rows.length < pageSize) break;
-  }
-
-  return creditedCustomers.size;
+async function fetchCopilotCreditCount() {
+  return (await require('../services/homeworks/records').accountStanding({pool})).credit;
 }
 
 async function fetchCopilotAccountStanding() {
-  const persistedStanding = await readPersistedCopilotStanding();
-  if (typeof getCopilotToken !== 'function') return persistedStanding;
-
-  const now = Date.now();
-  if (cachedCopilotStanding && cachedCopilotStanding.expiresAt > now) {
-    return cachedCopilotStanding.value;
-  }
-
-  const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) return persistedStanding;
-
-  const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices', {
-    headers: {
-      'Cookie': tokenInfo.cookieHeader,
-      'Referer': 'https://secure.copilotcrm.com/',
-    },
-  });
-  if (!copilotRes.ok) return persistedStanding;
-
-  const html = await copilotRes.text();
-  const $ = cheerio.load(html);
-  const pillValues = {};
-  $('.page-stat-pill').each((_, pill) => {
-    const title = $(pill).find('.page-stat-title').text().replace(/\s+/g, ' ').trim().toLowerCase();
-    const value = normalizeCount($(pill).find('.page-stat-value').text());
-    if (!title) return;
-    pillValues[title] = value;
-  });
-  if (Object.keys(pillValues).length === 0) return persistedStanding;
-
-  let credit = 0;
-  if (Object.prototype.hasOwnProperty.call(pillValues, 'credit')) {
-    credit = pillValues.credit;
-  } else {
-    try {
-      credit = await fetchCopilotCreditCount(tokenInfo.cookieHeader);
-    } catch (error) {
-      credit = parseStandingCount(persistedStanding?.credit);
-    }
-  }
-
-  const value = normalizeStandingSnapshot({
-    source: 'copilot',
-    as_of: new Date().toISOString(),
-    total: pillValues.total || 0,
-    outstanding: pillValues.outstanding || 0,
-    paid: pillValues.paid || 0,
-    past_due: pillValues['past due'] || 0,
-    credit,
-  }, 'copilot');
-  if (!value) return persistedStanding;
-  if (!isMeaningfulStanding(value) && isMeaningfulStanding(persistedStanding)) return persistedStanding;
-
-  await persistCopilotStanding(value).catch((error) => {
-    console.error('Error persisting Copilot account standing:', error);
-  });
-
-  cachedCopilotStanding = {
-    value,
-    expiresAt: now + (60 * 1000),
-  };
-
-  return value;
+  return require('../services/homeworks/records').accountStanding({pool});
 }
 
 // GET /api/payments - List true received payment records
-router.get('/api/payments', async (req, res) => {
-  try {
-    const { search, year, month, limit = 200, offset = 0 } = req.query;
-
-    const params = [];
-    const where = buildPaymentRecordWhere({ search, year, month }, params);
-    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    params.push(parseInt(limit, 10));
-    params.push(parseInt(offset, 10));
-
-    const [result, countResult, monthly] = await Promise.all([
-      pool.query(
-        `SELECT
-                p.id AS payment_record_id,
-                p.payment_id,
-                p.invoice_id AS id,
-                p.invoice_id,
-                p.customer_id,
-                p.customer_name,
-                p.amount,
-                p.tip_amount,
-                p.method,
-                p.status,
-                p.details,
-                p.notes,
-                p.paid_at,
-                p.created_at,
-                p.source_date_raw,
-                p.external_source,
-                p.external_payment_key,
-                p.external_metadata,
-                p.imported_at,
-                COALESCE(p.paid_at, p.created_at) AS payment_date,
-                i.invoice_number,
-                i.customer_email,
-                i.total,
-                i.amount_paid,
-                i.due_date,
-                i.qb_invoice_id,
-                i.external_source AS invoice_external_source,
-                i.external_invoice_id
-           FROM payments p
-           LEFT JOIN invoices i ON p.invoice_id = i.id
-           ${whereClause}
-          ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC
-          LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params
-      ),
-      pool.query(
-        `SELECT COUNT(*) as cnt, COALESCE(SUM(p.amount),0) as total_received
-           FROM payments p
-           LEFT JOIN invoices i ON p.invoice_id = i.id
-           ${whereClause}`,
-        params.slice(0, -2)
-      ),
-      pool.query(`
-        SELECT to_char(COALESCE(paid_at, created_at),'YYYY-MM') as month,
-               COUNT(*) as count, SUM(amount) as total
-        FROM payments
-        WHERE COALESCE(paid_at, created_at) >= NOW() - INTERVAL '12 months'
-        GROUP BY month ORDER BY month
-      `)
-    ]);
-
-    const payments = result.rows.map((row) => ({
-      ...row,
-      method: String(row.method || '').trim().toLowerCase() || null,
-      status: String(row.status || '').trim().toLowerCase() === 'completed' ? 'paid' : row.status,
-      display_invoice_number: getDisplayInvoiceNumberForPaymentRow(row),
-    }));
-
-    res.json({
-      success: true,
-      payments,
-      total: parseInt(countResult.rows[0].cnt),
-      totalReceived: parseFloat(countResult.rows[0].total_received),
-      monthly: monthly.rows
-    });
-  } catch (e) {
-    console.error('Payments API error:', e);
-    serverError(res, e);
-  }
-});
+router.get('/api/payments', async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-views').payments({pool},req.query));}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // POST /api/copilot/payments/sync - Sync live Copilot payments into payment records
 router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) => {
@@ -3742,70 +3135,7 @@ router.post('/api/cron/tax-transfer-instructions/generate', handleTaxTransferIns
 router.get('/api/cron/tax-transfer-instructions/generate', handleTaxTransferInstructionCron);
 
 // GET /api/payment-records - True payment records joined to invoices
-router.get('/api/payment-records', authenticateToken, async (req, res) => {
-  try {
-    const { search, year, month, source, linked, limit = 200, offset = 0 } = req.query;
-    const params = [];
-    const where = buildPaymentRecordWhere({ search, year, month, source, linked }, params);
-    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-    params.push(parseInt(limit, 10));
-    params.push(parseInt(offset, 10));
-
-    const selectSql = `
-      SELECT
-        p.id,
-        p.payment_id,
-        p.invoice_id,
-        p.customer_id,
-        p.customer_name,
-        p.amount,
-        p.tip_amount,
-        p.method,
-        p.status,
-        p.details,
-        p.notes,
-        p.paid_at,
-        p.created_at,
-        p.source_date_raw,
-        p.external_source,
-        p.external_payment_key,
-        p.external_metadata,
-        p.imported_at,
-        i.invoice_number,
-        i.total AS invoice_total,
-        i.tax_amount AS invoice_tax_amount,
-        i.external_source AS invoice_external_source,
-        i.external_invoice_id
-      FROM payments p
-      LEFT JOIN invoices i ON p.invoice_id = i.id
-      ${whereClause}
-      ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    `;
-
-    const [rowsResult, countResult] = await Promise.all([
-      pool.query(selectSql, params),
-      pool.query(
-        `SELECT COUNT(*)::int AS count
-           FROM payments p
-           LEFT JOIN invoices i ON p.invoice_id = i.id
-           ${whereClause}`,
-        params.slice(0, -2)
-      ),
-    ]);
-
-    const payments = rowsResult.rows.map(hydratePaymentRecord);
-    res.json({
-      success: true,
-      payments,
-      total: countResult.rows[0]?.count || 0,
-    });
-  } catch (error) {
-    console.error('Payment records API error:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/payment-records', authenticateToken, async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-views').payments({pool},req.query));}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // GET /api/copilot/payment-review - Read-only Copilot payment linkage review
 router.get('/api/copilot/payment-review', authenticateToken, async (req, res) => {
@@ -4110,179 +3440,16 @@ router.get('/api/reports/tax-transfer-daily', authenticateToken, async (req, res
 });
 
 // GET /api/invoices - List invoices
-router.get('/api/invoices', async (req, res) => {
-  try {
-    await ensureMailWorkflowSchema();
-    const { status, customer_id, search, mailed, limit = 25000, offset = 0, include_blank_drafts } = req.query;
-    const { query, params } = buildInvoiceListQuery({
-      status,
-      customer_id,
-      search,
-      mailed,
-      limit,
-      offset,
-      include_blank_drafts,
-    });
-    const result = await pool.query(query, params);
-    res.json({
-      success: true,
-      invoices: result.rows.map((row) => ({
-        ...row,
-        mail_state: getInvoiceMailState(row),
-      })),
-    });
-  } catch (error) {
-    console.error('Error fetching invoices:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices', async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-views').list({pool},req.query,getInvoiceMailState));}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // GET /api/invoices/stats - Invoice statistics
-router.get('/api/invoices/stats', async (req, res) => {
-  try {
-    const all = await pool.query(`
-      SELECT status, total, amount_paid, due_date, paid_at, created_at, terms,
-             customer_id, customer_name, customer_email,
-             external_metadata->>'copilot_customer_id' AS copilot_customer_id,
-             COALESCE((external_metadata->>'credit_available')::numeric, 0) AS credit_available
-      FROM invoices
-    `);
-    const now = new Date();
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    let stats = { total: 0, draft: 0, pending: 0, partial: 0, sent: 0, paid: 0, overdue: 0, void: 0,
-      outstanding: 0, overdueAmount: 0, paidThisMonth: 0, totalRevenue: 0 };
-    all.rows.forEach(inv => {
-      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
-      const balance = outstandingBalance(inv);
-      stats.total++;
-      stats[effectiveStatus] = (stats[effectiveStatus] || 0) + 1;
-      const t = parseFloat(inv.total) || 0;
-      if (effectiveStatus === 'paid') {
-        stats.totalRevenue += t;
-        if (inv.paid_at && new Date(inv.paid_at) >= thisMonth) stats.paidThisMonth += t;
-      }
-      if (isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) {
-        stats.outstanding += balance;
-      }
-      if (effectiveStatus === 'overdue' && balance > 0) {
-        stats.overdueAmount += balance;
-      }
-    });
-    const fallbackStanding = {
-      ...deriveDbAccountStanding(all.rows),
-      source: 'database',
-      as_of: new Date().toISOString(),
-    };
-    let accountStanding = fallbackStanding;
-    try {
-      const copilotStanding = await fetchCopilotAccountStanding();
-      if (copilotStanding) accountStanding = copilotStanding;
-    } catch (error) {
-      console.error('Error fetching Copilot account standing:', error);
-    }
-    stats.account_standing = accountStanding;
-    stats.account_standing_fallback = fallbackStanding;
-    res.json({ success: true, stats });
-  } catch (error) {
-    console.error('Error fetching invoice stats:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices/stats', async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-views').stats({pool}));}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // GET /api/invoices/aging - Aging AR (must be before :id route)
-router.get('/api/invoices/aging', async (req, res) => {
-  try {
-    try {
-      const copilotAging = await fetchCopilotAgingBuckets();
-      if (copilotAging?.buckets) {
-        console.info('Invoice aging source', {
-          source: copilotAging.source,
-          asOf: copilotAging.as_of,
-        });
-        return res.json(copilotAging);
-      }
-    } catch (error) {
-      console.error('Error fetching Copilot aging buckets:', error);
-    }
-
-    const result = await pool.query(`
-      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, created_at, terms,
-             status, sent_status, external_source, external_metadata,
-             external_metadata->>'raw_status' AS raw_status
-      FROM invoices
-      WHERE total > COALESCE(amount_paid, 0)
-        AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
-        AND (external_source = 'copilotcrm' OR external_invoice_id IS NOT NULL)
-    `);
-    const now = new Date();
-    const buckets = initAgingBuckets();
-    result.rows.forEach(inv => {
-      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
-      if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
-      const balance = outstandingBalance(inv);
-      const daysOverdue = parseFallbackAgingDays(inv, now);
-      const bucket = getAgingBucketKey(daysOverdue);
-      buckets[bucket].count++;
-      buckets[bucket].total += balance;
-      buckets[bucket].invoices.push({
-        id: inv.id,
-        invoice_number: inv.invoice_number,
-        customer_name: inv.customer_name,
-        balance,
-        days_overdue: daysOverdue,
-        status: effectiveStatus,
-      });
-    });
-    console.warn('Invoice aging fallback', {
-      source: DATABASE_FALLBACK_SOURCE,
-      asOf: now.toISOString(),
-    });
-    res.json({ success: true, source: DATABASE_FALLBACK_SOURCE, as_of: now.toISOString(), buckets });
-  } catch (error) {
-    console.error('Error fetching aging data:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices/aging', async(req,res)=>{try{res.json(await fetchCopilotAgingBuckets());}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // POST /api/invoices/batch - Batch invoice from jobs (must be before :id route)
-router.post('/api/invoices/batch', async (req, res) => {
-  try {
-    const { job_ids } = req.body;
-    if (!job_ids || !Array.isArray(job_ids) || job_ids.length === 0) {
-      return res.status(400).json({ success: false, error: 'job_ids array is required' });
-    }
-    const created = [];
-    for (const jobId of job_ids) {
-      const jobResult = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [jobId]);
-      if (jobResult.rows.length === 0) continue;
-      const job = jobResult.rows[0];
-      if (job.invoice_id) continue;
-      const invNum = await nextInvoiceNumber();
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30);
-      const lineItems = [{ description: job.service_type || 'Service', amount: parseFloat(job.service_price || 0) }];
-      const total = parseFloat(job.service_price || 0);
-      let customerEmail = '';
-      if (job.customer_id) {
-        const custResult = await pool.query('SELECT email FROM customers WHERE id = $1', [job.customer_id]);
-        if (custResult.rows.length > 0) customerEmail = custResult.rows[0].email || '';
-      }
-      const r = await pool.query(`INSERT INTO invoices
-        (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id,
-         subtotal, total, due_date, line_items, notes)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-        [invNum, job.customer_id || null, job.customer_name || '', customerEmail,
-         job.address || '', jobId, total, total, dueDate.toISOString().split('T')[0],
-         JSON.stringify(lineItems), 'Generated from completed job #' + jobId]);
-      try { await pool.query('UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2', [r.rows[0].id, jobId]); } catch(e) {}
-      created.push(r.rows[0]);
-    }
-    res.json({ success: true, invoices: created, count: created.length });
-  } catch (error) {
-    console.error('Error batch creating invoices:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/batch', async(req,res)=>res.status(409).json({success:false,error:'Complete this billing action in Homeworks. Its official API does not expose this operation; YardDesk will not create a separate payment or billing schedule.',destination:'homeworks'}));
 
 // POST /api/invoices/mail-batch - Build a print batch for mailed invoices
 router.post('/api/invoices/mail-batch', authenticateToken, async (req, res) => {
@@ -4513,194 +3680,19 @@ router.post('/api/invoices/mail-batch/:id/confirm', authenticateToken, async (re
 });
 
 // GET /api/invoices/:id - Single invoice
-router.get('/api/invoices/:id', async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = r.rows[0];
-    if (inv.external_invoice_id) {
-      try {
-        const tokenInfo = typeof getCopilotToken === 'function' ? await getCopilotToken() : null;
-        const match = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
-        if (!match) throw new Error('HomeWorks connection unavailable');
-        const refreshedText = await refreshHomeworksInvoiceText(inv,
-          (name, query, variables) => queryCopilotGraphql(decodeURIComponent(match[1]), name, query, variables));
-        inv.notes = refreshedText.notes;
-        inv.terms = refreshedText.terms;
-      } catch (error) {
-        console.error('HomeWorks invoice notes unavailable:', error.message);
-        inv.notes = '';
-        inv.terms = '';
-        inv.notes_unavailable = true;
-      }
-    }
-    // Fetch payment history
-    try {
-      const payments = await pool.query(
-        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY COALESCE(paid_at, created_at) DESC, id DESC',
-        [inv.id]
-      );
-      inv.payment_history = payments.rows;
-    } catch(e) { inv.payment_history = []; }
-    try {
-      const emailLog = await pool.query(
-        `SELECT id, recipient_email, subject, email_type, status, error_message, sent_at
-           FROM email_log
-          WHERE invoice_id = $1
-          ORDER BY sent_at DESC, id DESC`,
-        [inv.id]
-      );
-      inv.email_history = emailLog.rows;
-    } catch (e) { inv.email_history = []; }
-    inv.history_events = buildInvoiceHistoryEvents(inv, {
-      payments: inv.payment_history,
-      emailLog: inv.email_history,
-    });
-    res.json({ success: true, invoice: inv });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices/:id', async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-views').detail({pool},req.params.id));}catch(error){serverError(res,error,'Homeworks records are unavailable');}});
 
 // POST /api/invoices - Create invoice
-router.post('/api/invoices', validate(schemas.createInvoice), async (req, res) => {
-  try {
-    const { customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
-      subtotal, tax_rate, tax_amount, total, due_date, notes, line_items, draft_autosave } = req.body;
-
-    // Reject blank invoices outright. The schema validator allows things
-    // like customer_name=' ', total=0, line_items=[] which historically
-    // produced "junk" placeholder drafts that dominated the list. A real
-    // invoice needs a non-blank customer name AND either a positive total
-    // OR at least one non-empty line item.
-    const trimmedName = (customer_name || '').toString().trim();
-    const items = Array.isArray(line_items) ? line_items : [];
-    const meaningfulItems = items.filter(it =>
-      it && (
-        (typeof it.description === 'string' && it.description.trim() !== '') ||
-        parseFloat(it.amount || 0) > 0
-      )
-    );
-    const meaningfulTotal = parseFloat(total || 0) > 0;
-    const isBlank = !trimmedName && !meaningfulTotal && meaningfulItems.length === 0;
-    if (isBlank && !draft_autosave) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invoice is empty. Add a customer and at least one line item before saving. Pass draft_autosave: true to bypass for autosave flows.',
-      });
-    }
-
-    const invNum = await nextInvoiceNumber();
-    const r = await pool.query(`INSERT INTO invoices
-      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
-       subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [invNum, customer_id||null, customer_name, customer_email, customer_address||'',
-       sent_quote_id||null, job_id||null, subtotal||0, tax_rate||0, tax_amount||0, total||0,
-       due_date||null, notes||'', JSON.stringify(line_items||[])]);
-    res.json({ success: true, invoice: r.rows[0] });
-  } catch (error) {
-    console.error('Error creating invoice:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices', validate(schemas.createInvoice), async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-actions').create({pool},req.body,req.get('x-yarddesk-request-id')));}catch(error){serverError(res,error,'Homeworks invoice creation failed');}});
 
 // POST /api/invoices/from-quote/:quoteId - Create invoice from signed quote
-router.post('/api/invoices/from-quote/:quoteId', async (req, res) => {
-  try {
-    const q = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [req.params.quoteId]);
-    if (q.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
-    const quote = q.rows[0];
-    const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : (quote.services || []);
-    const lineItems = services.map(s => ({ description: s.name || s.description, amount: parseFloat(s.price || s.amount || 0) }));
-    const invNum = await nextInvoiceNumber();
-    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
-    const r = await pool.query(`INSERT INTO invoices
-      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id,
-       subtotal, tax_rate, tax_amount, total, due_date, line_items, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [invNum, quote.customer_id||null, quote.customer_name, quote.customer_email, quote.customer_address||'',
-       quote.id, parseFloat(quote.subtotal)||0, 0, parseFloat(quote.tax_amount)||0,
-       parseFloat(quote.total)||0, dueDate.toISOString().split('T')[0], JSON.stringify(lineItems),
-       `Generated from Quote ${quote.quote_number || 'Q-'+quote.id}`]);
-    res.json({ success: true, invoice: r.rows[0] });
-  } catch (error) {
-    console.error('Error creating invoice from quote:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/from-quote/:quoteId', async(req,res)=>{try{res.json(await require('../services/homeworks/invoice-actions').fromQuote({pool},req.params.quoteId));}catch(error){serverError(res,error,'Homeworks estimate invoicing failed');}});
 
 // PATCH /api/invoices/:id - Update invoice
-router.patch('/api/invoices/:id', async (req, res) => {
-  try {
-    const fields = ['status','sent_status','customer_name','customer_email','customer_address','subtotal','tax_rate','tax_amount','total','amount_paid','due_date','paid_at','sent_at','qb_invoice_id','notes','terms','line_items'];
-    const sets = []; const params = [];
-    fields.forEach(f => {
-      if (req.body[f] !== undefined) {
-        params.push(f === 'line_items' ? JSON.stringify(req.body[f]) : req.body[f]);
-        sets.push(`${f} = $${params.length}`);
-      }
-    });
-    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
-    sets.push('updated_at = CURRENT_TIMESTAMP');
-    params.push(req.params.id);
-    const r = await pool.query(`UPDATE invoices SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
-    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, invoice: r.rows[0] });
-  } catch (error) {
-    console.error('Error updating invoice:', error);
-    serverError(res, error);
-  }
-});
+router.patch('/api/invoices/:id', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Edit invoice details and financial values in Homeworks. YardDesk refreshes them from the official record."}));
 
 // POST /api/invoices/:id/send - Email invoice to customer
-router.post('/api/invoices/:id/send', async (req, res) => {
-  return clientCommunicationsDisabledResponse(res);
-  try {
-    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = r.rows[0];
-    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
-
-    const firstName = (inv.customer_name || '').split(' ')[0] || 'there';
-    const content = `
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Hi ${firstName},</p>
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Thank you for allowing <strong>Pappas & Co. Landscaping</strong> to care for your property!</p>
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;"><strong>Your latest invoice is attached for review.</strong> Online payments are handled through CopilotCRM only.</p>
-
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
-        <p style="font-weight:700;color:#1e293b;font-size:14px;margin:0 0 12px;">Payment Reminders:</p>
-        <ul style="margin:0;padding:0 0 0 20px;color:#475569;font-size:14px;line-height:1.8;">
-          <li><strong>Online Payment:</strong> Please use the secure CopilotCRM invoice link.</li>
-          <li><strong>Mail a Check:</strong> Checks can be made payable to <strong>Pappas & Co. Landscaping</strong> and mailed to our secure payment box: <strong>PO Box 770057, Lakewood, OH 44107</strong>.</li>
-          <li><strong>Zelle Payments:</strong> If you prefer to pay via Zelle, please ensure you are sending funds to: <strong>hello@pappaslandscaping.com</strong>.</li>
-        </ul>
-      </div>
-
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">We truly appreciate your business and look forward to continuing to provide top-quality service.</p>
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 4px;">If you have any questions or concerns about your service or the invoice, please don't hesitate to reach out.</p>
-    `;
-
-    let attachments = null;
-    try {
-      const pdfResult = await generateInvoicePDF(inv);
-      if (pdfResult && pdfResult.bytes) {
-        attachments = [{
-          filename: `invoice-${inv.invoice_number || inv.id}.pdf`,
-          content: Buffer.from(pdfResult.bytes).toString('base64'),
-          type: 'application/pdf'
-        }];
-      }
-    } catch (pdfErr) { console.error('Invoice PDF error:', pdfErr); }
-
-    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments, { type: 'invoice', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
-    await pool.query("UPDATE invoices SET status = 'sent', sent_status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
-    res.json({ success: true, message: 'Invoice sent' });
-  } catch (error) {
-    console.error('Error sending invoice:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/:id/send', async(req,res)=>clientCommunicationsDisabledResponse(res));
 
 // POST /api/invoices/:id/sms-preview - Prepare a manual invoice reminder. Never sends.
 router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res) => {
@@ -4907,18 +3899,7 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
 });
 
 // POST /api/invoices/:id/mark-paid - Mark invoice as paid
-router.post('/api/invoices/:id/mark-paid', async (req, res) => {
-  try {
-    const r = await pool.query(
-      "UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
-      [req.params.id]
-    );
-    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, invoice: r.rows[0] });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/:id/mark-paid', async(req,res)=>res.status(409).json({success:false,error:'Complete this billing action in Homeworks. Its official API does not expose this operation; YardDesk will not create a separate payment or billing schedule.',destination:'homeworks'}));
 
 // POST /api/invoices/cleanup-blank-drafts
 // One-time cleanup of junk placeholder drafts. Targets ONLY rows where:
@@ -4947,47 +3928,10 @@ async function detachInvoiceReferences(invoiceIds) {
   }
 }
 
-router.post('/api/invoices/cleanup-blank-drafts', async (req, res) => {
-  try {
-    const confirm = req.body && req.body.confirm === true;
-    const selectQ = `
-      SELECT id, invoice_number, created_at
-      FROM invoices
-      WHERE status = 'draft'
-        AND COALESCE(TRIM(customer_name), '') = ''
-        AND COALESCE(total, 0) = 0
-        AND jsonb_array_length(COALESCE(line_items, '[]'::jsonb)) = 0`;
-    const candidates = await pool.query(selectQ);
-    if (!confirm) {
-      return res.json({
-        success: true,
-        dryRun: true,
-        wouldDelete: candidates.rows.length,
-        candidates: candidates.rows,
-      });
-    }
-    const ids = candidates.rows.map(r => r.id);
-    if (ids.length === 0) return res.json({ success: true, deleted: 0 });
-    await detachInvoiceReferences(ids);
-    const del = await pool.query('DELETE FROM invoices WHERE id = ANY($1::int[]) RETURNING id', [ids]);
-    res.json({ success: true, deleted: del.rowCount });
-  } catch (error) {
-    console.error('Error cleaning up blank drafts:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/cleanup-blank-drafts', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Review draft invoices in Homeworks. YardDesk no longer deletes billing records from a separate local list."}));
 
 // DELETE /api/invoices/:id - Delete invoice
-router.delete('/api/invoices/:id', async (req, res) => {
-  try {
-    await detachInvoiceReferences(req.params.id);
-    const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
-    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
+router.delete('/api/invoices/:id', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:"Review and delete the invoice in Homeworks so its billing history remains consistent."}));
 
 // ═══════════════════════════════════════════════════════════
 // SQUARE PAYMENT ENDPOINTS
@@ -5548,229 +4492,31 @@ router.get('/api/invoices/:id/mail-html', authenticateToken, async (req, res) =>
 });
 
 // GET /api/invoices/:id/pdf - Download invoice PDF (admin)
-router.get('/api/invoices/:id/pdf', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = result.rows[0];
-    const pdfResult = await generateInvoicePDF(inv);
-    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="invoice-${inv.invoice_number || inv.id}.pdf"`);
-    res.send(Buffer.from(pdfResult.bytes));
-  } catch (error) {
-    console.error('Invoice PDF error:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices/:id/pdf', async(req,res)=>{try{const local=await pool.query('SELECT external_invoice_id FROM invoices WHERE id=$1',[req.params.id]);if(!local.rows[0]?.external_invoice_id)return res.status(409).json({success:false,error:'Select a verified Homeworks invoice.'});const records=require('../services/homeworks/records'),id=records.id(local.rows[0].external_invoice_id);await records.invoiceSnapshot({pool},id);const result=await records.call({pool},'YardDeskInvoicePdf','mutation YardDeskInvoicePdf($id:SafeInt!){createInvoicePdf(invoiceId:$id)}',{id});const url=new URL(result.createInvoicePdf);if(url.protocol!=='https:')throw new Error('The Homeworks PDF destination is invalid.');res.redirect(303,url.toString());}catch(error){serverError(res,error,'Homeworks invoice PDF is unavailable');}});
 
 // GET /api/invoices/:id/receipt-pdf - Download payment receipt PDF (admin)
-router.get('/api/invoices/:id/receipt-pdf', async (req, res) => {
-  try {
-    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = invResult.rows[0];
-    // Get most recent payment for this invoice
-    let payment = {};
-    try {
-      const payResult = await pool.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1', [inv.id]);
-      if (payResult.rows.length > 0) payment = payResult.rows[0];
-    } catch (e) { /* no payments table or no payment */ }
-    if (!payment.paid_at) payment.paid_at = inv.paid_at;
-    if (!payment.amount) payment.amount = inv.amount_paid || inv.total;
-    const pdfResult = await generateReceiptPDF(inv, payment);
-    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Receipt PDF generation failed' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="receipt-${inv.invoice_number || inv.id}.pdf"`);
-    res.send(Buffer.from(pdfResult.bytes));
-  } catch (error) {
-    console.error('Receipt PDF error:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/invoices/:id/receipt-pdf', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:'View payment receipts in Homeworks. YardDesk does not reconstruct receipts from historical local payments.'}));
 
 // GET /api/pay/:token/receipt-pdf - Download payment receipt PDF (public)
-router.get('/api/pay/:token/receipt-pdf', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
-    const inv = result.rows[0];
-    let payment = {};
-    try {
-      const payResult = await pool.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1', [inv.id]);
-      if (payResult.rows.length > 0) payment = payResult.rows[0];
-    } catch (e) { /* no payment */ }
-    if (!payment.paid_at) payment.paid_at = inv.paid_at;
-    if (!payment.amount) payment.amount = inv.amount_paid || inv.total;
-    const pdfResult = await generateReceiptPDF(inv, payment);
-    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Receipt PDF generation failed' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="receipt-${inv.invoice_number || inv.id}.pdf"`);
-    res.send(Buffer.from(pdfResult.bytes));
-  } catch (error) {
-    console.error('Pay receipt PDF error:', error);
-    serverError(res, error);
-  }
-});
+router.get('/api/pay/:token/receipt-pdf', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:'Use your secure Homeworks invoice link to view payment receipts.'}));
 
-router.post('/api/invoices/:id/record-payment', validate(schemas.recordPayment), async (req, res) => {
-  try {
-    const { amount, method, notes } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount' });
-
-    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = invResult.rows[0];
-
-    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
-    await pool.query(
-      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, notes, paid_at)
-       VALUES ($1, $2, $3, $4, $5, 'completed', $6, CURRENT_TIMESTAMP)`,
-      [paymentId, inv.id, inv.customer_id, amount, method || 'cash', notes]
-    );
-
-    const newAmountPaid = parseFloat(inv.amount_paid || 0) + parseFloat(amount);
-    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
-    await pool.query(
-      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-      [newAmountPaid, newStatus, inv.id]
-    );
-
-    res.json({ success: true, paymentId, newAmountPaid, newStatus });
-  } catch (error) {
-    console.error('Record payment error:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/:id/record-payment', validate(schemas.recordPayment), async(req,res)=>res.status(409).json({success:false,error:'Complete this billing action in Homeworks. Its official API does not expose this operation; YardDesk will not create a separate payment or billing schedule.',destination:'homeworks'}));
 
 // POST /api/invoices/:id/send-reminder - Send payment reminder email
-router.post('/api/invoices/:id/send-reminder', async (req, res) => {
-  return clientCommunicationsDisabledResponse(res);
-  try {
-    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const inv = invResult.rows[0];
-    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
-
-    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
-
-    const content = `
-      <h2 style="color:#2e403d;margin:0 0 16px;">Payment Reminder</h2>
-      <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
-      <p>This is a friendly reminder that your invoice <strong>${inv.invoice_number}</strong> has a balance of <strong>$${balance.toFixed(2)}</strong>${inv.due_date ? ' due by <strong>' + new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + '</strong>' : ''}.</p>
-      <p>Please pay through the secure CopilotCRM invoice link.</p>
-      <p>If you've already sent payment, please disregard this reminder.</p>
-    `;
-    await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content), null, { type: 'invoice_reminder', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
-
-    await pool.query(
-      'UPDATE invoices SET reminder_sent_at = CURRENT_TIMESTAMP, reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [inv.id]
-    );
-
-    res.json({ success: true, message: 'Reminder sent' });
-  } catch (error) {
-    console.error('Send reminder error:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/:id/send-reminder', async(req,res)=>clientCommunicationsDisabledResponse(res));
 
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/invoices/:id/charge-card - Admin: charge a saved card for an invoice
-router.post('/api/invoices/:id/charge-card', authenticateToken, async (req, res) => {
-  try {
-    const { card_id } = req.body;
-    if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
-    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
-
-    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (inv.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
-    const invoice = inv.rows[0];
-
-    const cardResult = await pool.query(
-      'SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true',
-      [card_id, invoice.customer_id]
-    );
-    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
-
-    const balance = Math.round((parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)) * 100);
-    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice has no balance due' });
-
-    const { result: payResult } = await squareClient.paymentsApi.createPayment({
-      idempotencyKey: crypto.randomUUID(),
-      sourceId: cardResult.rows[0].square_card_id,
-      amountMoney: { amount: BigInt(balance), currency: 'USD' },
-      locationId: SQUARE_LOCATION_ID,
-      referenceId: invoice.invoice_number,
-      note: `Invoice ${invoice.invoice_number} — admin charge card-on-file`
-    });
-    const payment = payResult.payment;
-    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
-    await pool.query(
-      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, card_brand, card_last4, paid_at)
-       VALUES ($1, $2, $3, $4, 'card', 'completed', $5, $6, $7, NOW())`,
-      [paymentId, req.params.id, invoice.customer_id, balance / 100, payment.id, payment.cardDetails?.card?.cardBrand, payment.cardDetails?.card?.last4]
-    );
-    await pool.query("UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = NOW(), updated_at = NOW() WHERE id = $1", [req.params.id]);
-    res.json({ success: true, paymentId, receiptUrl: payment.receiptUrl });
-  } catch (error) {
-    console.error('Admin charge card error:', error);
-    serverError(res, error);
-  }
-});
+router.post('/api/invoices/:id/charge-card', authenticateToken, async(req,res)=>res.status(409).json({success:false,error:'Complete this billing action in Homeworks. Its official API does not expose this operation; YardDesk will not create a separate payment or billing schedule.',destination:'homeworks'}));
 
 // ─── Payment Schedule Splitting ────────────────────────────────────────────
 
 // POST /api/invoices/:id/payment-schedule - Split invoice into installments
-router.post('/api/invoices/:id/payment-schedule', async (req, res) => {
-  try {
-    const { installments } = req.body; // Array of { amount, due_date, label }
-    if (!installments || !Array.isArray(installments) || installments.length < 2) {
-      return res.status(400).json({ success: false, error: 'Need at least 2 installments' });
-    }
-    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
-
-    const total = parseFloat(inv.rows[0].total);
-    const scheduleTotal = installments.reduce((sum, i) => sum + parseFloat(i.amount), 0);
-    if (Math.abs(scheduleTotal - total) > 0.01) {
-      return res.status(400).json({ success: false, error: `Installments total $${scheduleTotal.toFixed(2)} doesn't match invoice total $${total.toFixed(2)}` });
-    }
-
-    const schedule = installments.map((inst, idx) => ({
-      number: idx + 1,
-      amount: parseFloat(inst.amount),
-      due_date: inst.due_date,
-      label: inst.label || `Payment ${idx + 1} of ${installments.length}`,
-      status: 'pending'
-    }));
-
-    await pool.query(
-      `UPDATE invoices SET payment_schedule = $1, installment_count = $2, updated_at = NOW() WHERE id = $3`,
-      [JSON.stringify(schedule), installments.length, req.params.id]
-    );
-
-    res.json({ success: true, schedule, installment_count: installments.length });
-  } catch (error) { serverError(res, error); }
-});
+router.post('/api/invoices/:id/payment-schedule', async(req,res)=>res.status(409).json({success:false,error:'Complete this billing action in Homeworks. Its official API does not expose this operation; YardDesk will not create a separate payment or billing schedule.',destination:'homeworks'}));
 
 // GET /api/invoices/:id/payment-schedule
-router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
-  try {
-    const inv = await pool.query('SELECT id, total, amount_paid, payment_schedule, installment_count FROM invoices WHERE id = $1', [req.params.id]);
-    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
-    const schedule = inv.rows[0].payment_schedule || [];
-    // Mark paid installments based on amount_paid
-    let remaining = parseFloat(inv.rows[0].amount_paid) || 0;
-    const updated = (Array.isArray(schedule) ? schedule : []).map(inst => {
-      if (remaining >= inst.amount) { remaining -= inst.amount; return { ...inst, status: 'paid' }; }
-      if (remaining > 0) { const partial = remaining; remaining = 0; return { ...inst, status: 'partial', paid: partial }; }
-      return { ...inst, status: 'pending' };
-    });
-    res.json({ success: true, schedule: updated, total: parseFloat(inv.rows[0].total), amount_paid: parseFloat(inv.rows[0].amount_paid) || 0 });
-  } catch (error) { serverError(res, error); }
-});
+router.get('/api/invoices/:id/payment-schedule', async(req,res)=>res.status(409).json({success:false,destination:'homeworks',error:'Review the current payment schedule in Homeworks.'}));
 
 // ─── Job Detail / Profitability ────────────────────────────────────────────
 

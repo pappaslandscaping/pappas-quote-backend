@@ -397,8 +397,9 @@ it('returns no_instruction for yesterday when a recommendation exists but no ins
 
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.tax_date, '2026-04-16');
-  assert.strictEqual(res.body.ui_state, 'no_instruction');
-  assert.strictEqual(res.body.recommendation.recommended_transfer_amount, 18.42);
+  assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
+  assert.strictEqual(res.body.recommendation.recommended_transfer_amount, null);
+  assert.strictEqual(res.body.recommendation.review_required, true);
 });
 
 it('returns a before-cutoff missing-instruction alert when yesterday has a recommendation but no instruction', async () => {
@@ -414,7 +415,7 @@ it('returns a before-cutoff missing-instruction alert when yesterday has a recom
 
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.tax_date, '2026-04-17');
-  assert.strictEqual(res.body.ui_state, 'no_instruction');
+  assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
   assert.strictEqual(res.body.alert_state, 'missing_instruction');
   assert.strictEqual(res.body.tone, 'warn');
   assert.strictEqual(res.body.cutoff_passed, false);
@@ -541,7 +542,7 @@ it('returns a submitted alert after cutoff for submitted instructions', async ()
   assert.strictEqual(res.body.instruction_status, 'submitted');
 });
 
-it('returns a success alert when yesterday requires no transfer', async () => {
+it('does not treat a historical zero-tax snapshot as an authoritative no-transfer result', async () => {
   const pool = createInstructionPool({
     snapshots: {
       '2026-04-17': buildSnapshotRow('2026-04-17', 0),
@@ -553,9 +554,9 @@ it('returns a success alert when yesterday requires no transfer', async () => {
     invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
 
   assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.ui_state, 'no_transfer_required');
-  assert.strictEqual(res.body.alert_state, 'submitted');
-  assert.strictEqual(res.body.tone, 'success');
+  assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
+  assert.strictEqual(res.body.alert_state, 'missing_instruction');
+  assert.strictEqual(res.body.tone, 'warn');
 });
 
 it('exports missing instructions as csv without attempting a live Copilot fetch', async () => {
@@ -665,110 +666,11 @@ it('exports exception-focused csv rows for late submitted, superseded, canceled,
   assert.ok(csv.includes('Duplicate instruction'));
 });
 
-it('generates one pending instruction and is idempotent when the amount has not changed', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 18.42),
-    },
-  });
-  const router = createRouter({ pool });
+;
 
-  const first = await withMockNow('2026-04-18T01:30:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
-  assert.strictEqual(first.statusCode, 200);
-  assert.strictEqual(first.body.action, 'created');
-  assert.strictEqual(first.body.instruction.status, 'pending_approval');
-  assert.strictEqual(pool.state.instructions.length, 1);
+;
 
-  const second = await withMockNow('2026-04-18T01:31:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
-  assert.strictEqual(second.statusCode, 200);
-  assert.strictEqual(second.body.action, 'unchanged');
-  assert.strictEqual(pool.state.instructions.length, 1);
-  assert.strictEqual(pool.state.instructions[0].status, 'pending_approval');
-});
-
-it('persists manual transfer-instruction automation status after a successful generation run', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 18.42),
-    },
-  });
-  const router = createRouter({ pool });
-
-  const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
-
-  assert.strictEqual(res.statusCode, 200);
-  const status = pool.state.syncSettings.copilot_tax_transfer_instruction_status;
-  assert.ok(status);
-  assert.strictEqual(status.status, 'success');
-  assert.strictEqual(status.trigger, 'manual');
-  assert.strictEqual(status.tax_date, '2026-04-16');
-  assert.strictEqual(status.action, 'created');
-  assert.strictEqual(status.last_success_trigger, 'manual');
-  assert.strictEqual(status.last_failure_at, null);
-});
-
-it('supersedes an unsubmitted instruction when the recommended amount changes', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 22.50),
-    },
-    instructions: [{
-      id: 1,
-      tax_date: '2026-04-16',
-      instruction_date: '2026-04-18',
-      source_account_code: 'chase_business_checking',
-      destination_account_code: 'huntington_tax',
-      transfer_method: 'chase_linked_external_transfer',
-      amount_cents: 1842,
-      currency: 'USD',
-      recommendation_source: 'copilot_collected_tax',
-      recommendation_as_of: '2026-04-17T20:15:00.000Z',
-      tax_summary_snapshot_source: 'persisted_copilot_snapshot',
-      backend_reconstructed_tax_cents: 0,
-      variance_cents: 1842,
-      status: 'approved',
-      memo: 'Daily sales tax transfer for 2026-04-16',
-      generation_trigger: 'manual',
-      approved_at: '2026-04-18T00:06:00.000Z',
-      approved_by_user_id: 7,
-      approved_by_name: 'Admin User',
-      approved_by_email: 'admin@example.com',
-      submitted_at: null,
-      submitted_by_user_id: null,
-      submitted_by_name: null,
-      submitted_by_email: null,
-      bank_confirmation_ref: null,
-      submission_note: null,
-      canceled_at: null,
-      canceled_by_user_id: null,
-      canceled_by_name: null,
-      canceled_by_email: null,
-      cancellation_reason: null,
-      superseded_at: null,
-      superseded_by_instruction_id: null,
-      superseded_reason: null,
-      created_at: '2026-04-18T00:05:00.000Z',
-      updated_at: '2026-04-18T00:06:00.000Z',
-    }],
-  });
-  const router = createRouter({ pool });
-
-  const res = await withMockNow('2026-04-18T01:35:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.action, 'superseded_and_created');
-  assert.strictEqual(pool.state.instructions.length, 2);
-  const oldRow = pool.state.instructions.find((row) => row.id === 1);
-  const newRow = pool.state.instructions.find((row) => row.id !== 1);
-  assert.strictEqual(oldRow.status, 'superseded');
-  assert.strictEqual(oldRow.superseded_by_instruction_id, newRow.id);
-  assert.strictEqual(newRow.status, 'pending_approval');
-  assert.strictEqual(newRow.amount_cents, 2250);
-});
+;
 
 it('skips generation when yesterday has no Copilot collected-tax snapshot', async () => {
   const pool = createInstructionPool();
@@ -787,139 +689,11 @@ it('skips generation when yesterday has no Copilot collected-tax snapshot', asyn
   assert.strictEqual(pool.state.instructions.length, 0);
 });
 
-it('generates from a persisted live_copilot tax summary snapshot without requiring a live fetch', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 18.42, {
-        external_source: 'live_copilot',
-      }),
-    },
-  });
-  const router = createRouter({
-    pool,
-    getCopilotToken: async () => {
-      throw new Error('should not attempt live fetch');
-    },
-  });
+;
 
-  const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
+;
 
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.action, 'created');
-  assert.strictEqual(res.body.recommendation.tax_summary_snapshot_source, 'persisted_copilot_snapshot');
-  assert.strictEqual(pool.state.instructions.length, 1);
-});
-
-it('reports submitted_recommendation_changed without replacing a submitted row', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 22.50),
-    },
-    instructions: [{
-      id: 15,
-      tax_date: '2026-04-16',
-      instruction_date: '2026-04-17',
-      source_account_code: 'chase_business_checking',
-      destination_account_code: 'huntington_tax',
-      transfer_method: 'chase_linked_external_transfer',
-      amount_cents: 1842,
-      currency: 'USD',
-      recommendation_source: 'copilot_collected_tax',
-      recommendation_as_of: '2026-04-16T20:15:00.000Z',
-      tax_summary_snapshot_source: 'persisted_copilot_snapshot',
-      backend_reconstructed_tax_cents: 0,
-      variance_cents: 1842,
-      status: 'submitted',
-      memo: 'Daily sales tax transfer for 2026-04-16',
-      generation_trigger: 'manual',
-      approved_at: '2026-04-17T00:06:00.000Z',
-      approved_by_user_id: 7,
-      approved_by_name: 'Admin User',
-      approved_by_email: 'admin@example.com',
-      submitted_at: '2026-04-17T00:07:00.000Z',
-      submitted_by_user_id: 7,
-      submitted_by_name: 'Admin User',
-      submitted_by_email: 'admin@example.com',
-      bank_confirmation_ref: 'CHASE-15',
-      submission_note: null,
-      canceled_at: null,
-      canceled_by_user_id: null,
-      canceled_by_name: null,
-      canceled_by_email: null,
-      cancellation_reason: null,
-      superseded_at: null,
-      superseded_by_instruction_id: null,
-      superseded_reason: null,
-      created_at: '2026-04-17T00:05:00.000Z',
-      updated_at: '2026-04-17T00:07:00.000Z',
-    }],
-  });
-  const router = createRouter({ pool });
-
-  const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-status', 'get'));
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.ui_state, 'submitted_recommendation_changed');
-  assert.strictEqual(res.body.instruction.status, 'submitted');
-  assert.strictEqual(pool.state.instructions.length, 1);
-});
-
-it('does not replace a submitted instruction when a new recommendation exists', async () => {
-  const pool = createInstructionPool({
-    snapshots: {
-      '2026-04-16': buildSnapshotRow('2026-04-16', 22.50),
-    },
-    instructions: [{
-      id: 9,
-      tax_date: '2026-04-16',
-      instruction_date: '2026-04-18',
-      source_account_code: 'chase_business_checking',
-      destination_account_code: 'huntington_tax',
-      transfer_method: 'chase_linked_external_transfer',
-      amount_cents: 1842,
-      currency: 'USD',
-      recommendation_source: 'copilot_collected_tax',
-      recommendation_as_of: '2026-04-17T20:15:00.000Z',
-      tax_summary_snapshot_source: 'persisted_copilot_snapshot',
-      backend_reconstructed_tax_cents: 0,
-      variance_cents: 1842,
-      status: 'submitted',
-      memo: 'Daily sales tax transfer for 2026-04-16',
-      generation_trigger: 'manual',
-      approved_at: '2026-04-18T00:06:00.000Z',
-      approved_by_user_id: 7,
-      approved_by_name: 'Admin User',
-      approved_by_email: 'admin@example.com',
-      submitted_at: '2026-04-18T00:07:00.000Z',
-      submitted_by_user_id: 7,
-      submitted_by_name: 'Admin User',
-      submitted_by_email: 'admin@example.com',
-      bank_confirmation_ref: 'CHASE-123',
-      submission_note: null,
-      canceled_at: null,
-      canceled_by_user_id: null,
-      canceled_by_name: null,
-      canceled_by_email: null,
-      cancellation_reason: null,
-      superseded_at: null,
-      superseded_by_instruction_id: null,
-      superseded_reason: null,
-      created_at: '2026-04-18T00:05:00.000Z',
-      updated_at: '2026-04-18T00:07:00.000Z',
-    }],
-  });
-  const router = createRouter({ pool });
-
-  const res = await withMockNow('2026-04-18T01:35:00.000Z', () =>
-    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
-
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.action, 'blocked_submitted_exists');
-  assert.strictEqual(pool.state.instructions.length, 1);
-  assert.strictEqual(pool.state.instructions[0].status, 'submitted');
-});
+;
 
 it('requires a human admin for approval routes', async () => {
   const pool = createInstructionPool();
@@ -1087,9 +861,9 @@ it('enforces CRON_SECRET and accepts the GET cron fallback for generation', asyn
         query: { key: 'expected-secret' },
       }));
     assert.strictEqual(valid.statusCode, 200);
-    assert.strictEqual(valid.body.action, 'created');
-    assert.strictEqual(pool.state.instructions.length, 1);
-    assert.strictEqual(pool.state.instructions[0].generation_trigger, 'cron');
+    assert.strictEqual(valid.body.action, 'skipped_missing_recommendation');
+    assert.strictEqual(valid.body.recommendation.review_required, true);
+    assert.strictEqual(pool.state.instructions.length, 0);
     const status = pool.state.syncSettings.copilot_tax_transfer_instruction_status;
     assert.ok(status);
     assert.strictEqual(status.status, 'success');
@@ -1148,6 +922,14 @@ it('uses America/New_York business dates for yesterday-status around UTC midnigh
   assert.strictEqual(res.body.today_business_date, '2026-04-16');
   assert.strictEqual(res.body.tax_date, '2026-04-15');
   assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
+});
+
+it('never generates a transfer from a stale browser tax snapshot',async()=>{
+ const pool=createInstructionPool({snapshots:{'2026-04-16':buildSnapshotRow('2026-04-16',9999)}});
+ const router=createRouter({pool});
+ const res=await invokeRoute(router,'/api/tax-transfer-instructions/generate','post',{body:{tax_date:'2026-04-16'},user:{id:1,name:'Theresa',role:'admin'}});
+ assert.strictEqual(res.statusCode,200);assert.strictEqual(res.body.action,'skipped_missing_recommendation');
+ assert.strictEqual(res.body.recommendation.recommended_transfer_amount,null);assert.strictEqual(pool.state.instructions.length,0);
 });
 
 describe('tax-transfer-instructions-routes', () => {

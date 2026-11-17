@@ -11,8 +11,8 @@
         /* Google Maps overrides */
         .gm-style iframe + div { border: none !important; }
         body { overflow-x: hidden; }
-        
-        
+
+
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
         .btn-danger:hover { background: #fde2e2; }
@@ -499,7 +499,7 @@
             .sidebar, .topbar, .dispatch-toolbar, .unassigned-panel,
             .modal-overlay, .add-job-btn, .crew-lane-footer,
             .job-route-order, .no-print, .dispatch-tabs, .bulk-bar, .map-container { display: none !important; }
-            
+
             .board-wrapper { display: block !important; }
             .board-area { padding: 0 !important; overflow: visible !important; }
             .day-board { flex-direction: column !important; gap: 24px !important; }
@@ -562,7 +562,7 @@
             .crew-lane { max-width: unset; min-width: unset; }
             .unassigned-panel { position: fixed; right: 0; top: 0; height: 100vh; z-index: 110; box-shadow: -4px 0 20px rgba(0,0,0,0.1); }
             .unassigned-panel.collapsed { width: 0; }
-            
+
             .dispatch-tabs { padding: 0 16px; }
             .qd-layout { flex-direction: column; padding: 16px; }
             .qd-form-card { width: 100%; }
@@ -608,11 +608,11 @@
         </button>
         <button class="dispatch-tab" onclick="setDispatchTab('quick-dispatch')">
             <span>Quick Dispatch</span>
-            <span class="dispatch-tab-badge legacy">Legacy</span>
+            <span class="dispatch-tab-badge">Homeworks</span>
         </button>
         <button class="dispatch-tab" onclick="setDispatchTab('templates')">
             <span>Templates</span>
-            <span class="dispatch-tab-badge legacy">Legacy</span>
+            <span class="dispatch-tab-badge">Homeworks</span>
         </button>
     </div>
 
@@ -821,50 +821,13 @@
         </div>
     </div>
 
-    <!-- ══════ TAB 2: QUICK DISPATCH ══════ -->
     <div class="tab-content" id="tab-quick-dispatch">
-        <div class="qd-layout">
-            <div class="qd-form-card">
-                <div class="toolbar-legacy-note" style="margin-bottom:16px;display:inline-flex;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Legacy fallback
-                </div>
-                <h3>Quick Dispatch</h3>
-                <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">This is a legacy fallback flow for creating local jobs. It is not part of the primary live Copilot-backed Dispatch board.</p>
-                <form onsubmit="submitQuickDispatch(event)">
-                    <div class="form-group">
-                        <label>Customer Name</label>
-                        <input type="text" id="qdCustomer" required placeholder="John Smith">
-                    </div>
-                    <div class="form-group">
-                        <label>Address</label>
-                        <input type="text" id="qdAddress" required placeholder="123 Main St, City, OH">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Zip Code</label>
-                            <input type="text" id="qdZip" required placeholder="44116" maxlength="10">
-                        </div>
-                        <div class="form-group">
-                            <label>Job Date</label>
-                            <input type="date" id="qdDate" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        Quick Dispatch
-                    </button>
-                </form>
-            </div>
-            <div class="qd-results">
-                <h3>Recent Quick Dispatches</h3>
-                <div id="qdResultsArea">
-                    <div style="text-align:center;padding:40px;color:var(--gray-400);">
-                        <p>Use the legacy form to auto-match a template by zip code only when the live board is not the right path.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <div class="qd-form-card">
+        <h3>Homeworks Quick Dispatch</h3>
+        <p>Review the current property list, crews, services, and invoice settings in Homeworks before dispatching visits.</p>
+        <a class="btn btn-primary" href="https://secure.copilotcrm.com" target="_blank" rel="noopener noreferrer">Open Homeworks</a>
+        <a class="btn btn-secondary" href="/homeworks-review.html">Review snow readiness</a>
+      </div>
     </div>
 
     <!-- ══════ TAB 3: TEMPLATES ══════ -->
@@ -873,14 +836,11 @@
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <h3 style="font-size:20px;font-weight:700;color:var(--gray-800);">Quick Dispatch Templates</h3>
-                    <span class="dispatch-tab-badge legacy">Legacy</span>
+                    <span class="dispatch-tab-badge">Homeworks</span>
                 </div>
-                <button class="btn btn-primary" onclick="openTemplateModal()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New Template
-                </button>
+                <a class="btn btn-primary" href="https://secure.copilotcrm.com" target="_blank" rel="noopener noreferrer">Manage in Homeworks</a>
             </div>
-            <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">Templates remain available for the legacy Quick Dispatch workflow. They are not the primary path for the live Copilot-backed Dispatch board.</p>
+            <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">These lists come directly from Homeworks. Check the season label and property settings before dispatching.</p>
             <div class="templates-grid" id="templatesGrid">
                 <div style="text-align:center;padding:40px;color:var(--gray-400);grid-column:1/-1;">Loading templates...</div>
             </div>
@@ -977,59 +937,6 @@
 </div>
 
 <!-- ─── Template Modal ─────────────────────────────────── -->
-<div class="modal-overlay" id="templateModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="templateModalTitle">New Template</h3>
-            <button class="modal-close" onclick="closeModal('templateModal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <form id="templateForm" onsubmit="submitTemplate(event)">
-                <div class="form-group">
-                    <label>Template Name</label>
-                    <input type="text" id="tplName" required placeholder="West Side Mowing Route">
-                </div>
-                <div class="form-group">
-                    <label>Zip Codes (comma-separated)</label>
-                    <input type="text" id="tplZips" required placeholder="44116, 44107, 44111">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Default Service Type</label>
-                        <select id="tplService">
-                            <option value="Mowing">Mowing</option>
-                            <option value="Spring Cleanup">Spring Cleanup</option>
-                            <option value="Fall Cleanup">Fall Cleanup</option>
-                            <option value="Mulching">Mulching</option>
-                            <option value="Aeration">Aeration</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Default Duration (min)</label>
-                        <input type="number" id="tplDuration" value="30" min="15" step="15">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Assigned Crew</label>
-                    <select id="tplCrew">
-                        <option value="">Unassigned</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Notes</label>
-                    <textarea id="tplNotes" placeholder="Route notes..."></textarea>
-                </div>
-                <input type="hidden" id="tplId">
-            </form>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeModal('templateModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="document.getElementById('templateForm').requestSubmit()">Save Template</button>
-        </div>
-    </div>
-</div>
-
 <!-- ─── Bulk Crew Assign Modal ─────────────────────────── -->
 <div class="modal-overlay" id="bulkCrewModal">
     <div class="modal" style="max-width:400px;">
@@ -1660,7 +1567,7 @@ function buildRouteSheetPrintHtml() {
    ═══════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
     setDatePicker(currentDate);
-    document.getElementById('qdDate').value = formatDate(currentDate);
+
     initMap();
     loadBoard();
 });
@@ -1839,7 +1746,7 @@ async function updateMapMarkers(jobs) {
 
         const isUnassigned = !job.crew_assigned;
         const pinColor = isUnassigned ? '#dc4a4a' : (crewColorMap[job.crew_assigned] || '#2e403d');
-        const isBadAddress = job.geocode_quality && job.geocode_quality !== 'street';
+        const isBadAddress = job.geocode_quality && !['street', 'source'].includes(job.geocode_quality);
         const pin = document.createElement('div');
         pin.style.cssText = `width:32px;height:32px;border-radius:50%;background:${pinColor};color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;transition:transform 0.15s,z-index 0s;`;
         if (isBadAddress) {
@@ -2687,7 +2594,7 @@ function renderJobCard(job) {
     const statusClass = getStatusClass(job.status);
     const statusLabel = getStatusLabel(job.status);
     const displayAddr = buildDisplayAddress(job);
-    const badAddr = job.geocode_quality && job.geocode_quality !== 'street';
+    const badAddr = job.geocode_quality && !['street', 'source'].includes(job.geocode_quality);
     const jobId = normalizeJobId(job.id);
     const jobIdEsc = esc(jobId);
     const jobIdJs = jobIdLiteral(jobId);
@@ -3097,7 +3004,7 @@ function openJobDetail(jobId) {
             </div>
             <div class="detail-item full-width">
                 <div class="detail-label">Address</div>
-                <div class="detail-value">${esc(buildDisplayAddress(job))}${job.geocode_quality && job.geocode_quality !== 'street' ? ' <span style="color:#d97706;font-size:11px;">⚠ city-level only</span>' : ''}</div>
+                <div class="detail-value">${esc(buildDisplayAddress(job))}${job.geocode_quality && !['street', 'source'].includes(job.geocode_quality) ? ' <span style="color:#d97706;font-size:11px;">⚠ city-level only</span>' : ''}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Service Type</div>
@@ -3251,157 +3158,46 @@ function resetCrewVisibility() {
 /* ═══════════════════════════════════════════════════════════
    QUICK DISPATCH
    ═══════════════════════════════════════════════════════════ */
-async function submitQuickDispatch(e) {
-    e.preventDefault();
-    const payload = {
-        customer_name: document.getElementById('qdCustomer').value,
-        address: document.getElementById('qdAddress').value,
-        zip_code: document.getElementById('qdZip').value,
-        job_date: document.getElementById('qdDate').value
-    };
-
-    try {
-        const res = await fetch('/api/dispatch-templates/quick-dispatch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Quick dispatch failed');
-
-        showToast(`Dispatched to ${data.template.name} - Crew: ${data.template.crew_id || 'Auto'}`);
-
-        const area = document.getElementById('qdResultsArea');
-        const card = document.createElement('div');
-        card.className = 'qd-match-card';
-        card.innerHTML = `
-            <div class="match-name">${esc(payload.customer_name)} - ${esc(payload.address)}</div>
-            <div class="match-detail">Template: ${esc(data.template.name)}</div>
-            <div class="match-detail">Service: ${esc(data.template.service_type)} | Duration: ${data.template.default_duration}min</div>
-            <div class="match-detail">Date: ${payload.job_date}</div>
-            <div style="margin-top:8px;"><span class="job-status status-pending">Pending</span></div>
-        `;
-        area.prepend(card);
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
+function submitQuickDispatch() {
+    showToast("Manage dispatch lists and review billing settings in Homeworks.", "error");
 }
 
 /* ═══════════════════════════════════════════════════════════
    TEMPLATES
    ═══════════════════════════════════════════════════════════ */
 async function loadTemplates() {
+    const grid = document.getElementById('templatesGrid');
+    grid.textContent = 'Checking Homeworks…';
     try {
         const res = await fetch('/api/dispatch-templates');
         const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-
-        const grid = document.getElementById('templatesGrid');
-        if (data.templates.length === 0) {
-            grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);grid-column:1/-1;">No templates yet. Create one to get started.</div>';
-            return;
-        }
-
-        grid.innerHTML = data.templates.map(t => {
-            const zips = (t.zip_codes || '').split(',').map(z => z.trim()).filter(Boolean);
-            return `
-            <div class="template-card">
-                <div class="tpl-name">${esc(t.name)}</div>
-                <div class="tpl-detail">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-                    ${esc(t.service_type || 'Any')}
-                </div>
-                <div class="tpl-detail">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    ${t.default_duration || 30} min
-                </div>
-                <div class="tpl-detail">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    Crew: ${esc(t.crew_display_name || 'Unassigned')}
-                </div>
-                <div class="tpl-zips">
-                    ${zips.map(z => `<span class="zip-tag">${esc(z)}</span>`).join('')}
-                </div>
-                <div class="template-actions">
-                    <button class="btn btn-sm btn-secondary" onclick="editTemplate(${t.id})">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteTemplate(${t.id})">Delete</button>
-                </div>
-            </div>`;
-        }).join('');
-    } catch (err) {
-        document.getElementById('templatesGrid').innerHTML = `<div style="color:var(--red);grid-column:1/-1;">Error: ${err.message}</div>`;
-    }
+        if (!res.ok || !data.success) throw new Error(data.error || 'Homeworks dispatch lists are unavailable.');
+        grid.innerHTML = data.templates.length ? data.templates.map(t => {
+            const properties = t.properties || [];
+            const crews = new Set(properties.map(p => p.crewId).filter(Boolean));
+            const unassigned = properties.filter(p => !p.crewId).length;
+            return `<div class="template-card"><div class="tpl-name">${esc(t.name)}</div>
+              <p>${properties.length} property entries · ${crews.size} assigned crews</p>
+              <p>${unassigned} entries need crew review · ${properties.filter(p => p.isInvoiceable).length} invoiceable entries</p>
+              <a class="btn btn-secondary" href="https://secure.copilotcrm.com" target="_blank" rel="noopener noreferrer">Review in Homeworks</a></div>`;
+        }).join('') : '<p>No Homeworks dispatch lists found.</p>';
+    } catch (err) { grid.textContent = err.message; }
 }
 
-function openTemplateModal(tpl) {
-    document.getElementById('templateForm').reset();
-    document.getElementById('tplId').value = '';
-    document.getElementById('templateModalTitle').textContent = 'New Template';
-    if (tpl) {
-        document.getElementById('tplId').value = tpl.id;
-        document.getElementById('tplName').value = tpl.name || '';
-        document.getElementById('tplZips').value = tpl.zip_codes || '';
-        document.getElementById('tplService').value = tpl.service_type || 'Mowing';
-        document.getElementById('tplDuration').value = tpl.default_duration || 30;
-        document.getElementById('tplCrew').value = tpl.crew_id || '';
-        document.getElementById('tplNotes').value = tpl.notes || '';
-        document.getElementById('templateModalTitle').textContent = 'Edit Template';
-    }
-    openModal('templateModal');
+function openTemplateModal() {
+    showToast("Manage dispatch lists and review billing settings in Homeworks.", "error");
 }
 
-async function submitTemplate(e) {
-    e.preventDefault();
-    const id = document.getElementById('tplId').value;
-    const payload = {
-        name: document.getElementById('tplName').value,
-        zip_codes: document.getElementById('tplZips').value,
-        service_type: document.getElementById('tplService').value,
-        default_duration: parseInt(document.getElementById('tplDuration').value),
-        crew_id: document.getElementById('tplCrew').value || null,
-        notes: document.getElementById('tplNotes').value
-    };
-
-    try {
-        const url = id ? `/api/dispatch-templates/${id}` : '/api/dispatch-templates';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-        showToast(id ? 'Template updated' : 'Template created');
-        closeModal('templateModal');
-        loadTemplates();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+function submitTemplate() {
+    showToast("Manage dispatch lists and review billing settings in Homeworks.", "error");
 }
 
-async function editTemplate(id) {
-    try {
-        const res = await fetch('/api/dispatch-templates');
-        const data = await res.json();
-        const tpl = data.templates.find(t => t.id === id);
-        if (tpl) openTemplateModal(tpl);
-    } catch (err) {
-        showToast('Error loading template', 'error');
-    }
+function editTemplate() {
+    showToast("Manage dispatch lists and review billing settings in Homeworks.", "error");
 }
 
-async function deleteTemplate(id) {
-    if (!confirm('Delete this template?')) return;
-    try {
-        const res = await fetch(`/api/dispatch-templates/${id}`, { method: 'DELETE' });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-        showToast('Template deleted');
-        loadTemplates();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+function deleteTemplate() {
+    showToast("Manage dispatch lists and review billing settings in Homeworks.", "error");
 }
 
 /* ═══════════════════════════════════════════════════════════

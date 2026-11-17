@@ -1,4 +1,4 @@
-const { getCopilotToken } = require('../copilot/client');
+const { getHomeWorksAccessToken } = require('./auth');
 
 const HOMEWORKS_GRAPHQL_URL = 'https://api.copilotcrm.com/graphql';
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -21,14 +21,6 @@ function extractAccessToken(value) {
   if (!raw) return '';
   const cookieMatch = raw.match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
   return decodeURIComponent(cookieMatch ? cookieMatch[1] : raw);
-}
-
-async function getHomeWorksAccessToken(pool) {
-  const configured = process.env.HOMEWORKS_API_TOKEN || process.env.HOMEWORKS_ACCESS_TOKEN;
-  if (configured) return extractAccessToken(configured);
-
-  const tokenInfo = await getCopilotToken(pool);
-  return extractAccessToken(tokenInfo?.cookieHeader);
 }
 
 async function queryHomeWorksGraphql({
@@ -98,18 +90,20 @@ function mapHomeWorksEventToLiveJob(event) {
     customer_name: event?.customer?.fullName || event?.title || 'Unknown',
     crew_name: event?.crew?.name || null,
     employees: users.map((user) => [user.firstName, user.lastName].filter(Boolean).join(' ')).filter(Boolean).join(', '),
-    address: formatPropertyAddress(event?.property),
+    address: formatPropertyAddress(event?.property) || event?.location?.name || event?.locationName || '',
     status: event?.status || null,
     visit_total: event?.total ?? null,
     job_title: event?.title || 'Service',
-    stop_order: event?.sortOrder ?? null,
+    stop_order: event?.routeStops?.find(stop => stop.routeDate === event.startDate)?.stopOrder ?? event?.sortOrder ?? null,
     raw_data: {
       source_surface: 'homeworks_graphql',
       property_id: event?.property?.id ?? null,
       property_name: event?.property?.name || null,
       event_type: event?.type || null,
       invoiceable: event?.isInvoiceable ?? null,
-      frequency: event?.recurringEventId ? 'Recurring' : 'One-time',
+      frequency: event?.recurringEvent?.frequency === 'WEEKLY' ? (event.recurringEvent.weeklyCount === 2 ? 'Bi-Weekly' : 'Weekly') : event?.recurringEvent?.frequency || (event?.recurringEventId ? 'Recurring' : 'One-time'),
+      location: event?.location || event?.property?.location || null,
+      route_id: event?.routeStops?.find(stop => stop.routeDate === event.startDate)?.routeId ?? null,
       notes: stripHtml(event?.description),
       budgeted_hours: event?.budgetedHours ?? null,
       start_time: event?.startTime || null,
@@ -135,8 +129,11 @@ async function fetchHomeWorksEvents({ pool, startDate, endDate, fetchImpl = fetc
       ) {
         id startDate startTime endTime title description type status total
         budgetedHours sortOrder customerId recurringEventId isInvoiceable updatedAt
+        location {name latitude longitude} locationName
+        recurringEvent {frequency weeklyCount}
+        routeStops {routeId routeDate stopOrder}
         customer { id fullName phone cell email }
-        property { id name address { street1 street2 city state zip country } }
+        property { id name address { street1 street2 city state zip country } location {name latitude longitude} }
         crew { id name }
         users { id firstName lastName }
       }
@@ -144,7 +141,8 @@ async function fetchHomeWorksEvents({ pool, startDate, endDate, fetchImpl = fetc
     variables: { start: startDate, end: endDate },
   });
 
-  return (data.events || []).map((event) => ({
+  if (!Array.isArray(data.events) || data.events.length >= 5000) throw new Error('Homeworks returned an incomplete schedule. Narrow the date range.');
+  return data.events.map((event) => ({
     service_date: event.startDate,
     ...mapHomeWorksEventToLiveJob(event),
   }));

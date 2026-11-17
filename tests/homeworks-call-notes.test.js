@@ -60,46 +60,17 @@ describe('HomeWorks Call Notes integration', () => {
     expect(note).toContain('Twilio ID: CA123');
   });
 
-  test('saves to the legacy customer Call Notes endpoint with the matched customer id', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ status: true }),
-    });
-    const getCopilotToken = jest.fn().mockResolvedValue({ cookieHeader: 'session=test' });
-    const pool = { query: jest.fn() };
+  test('saves an office note with an explicit local-only result',async()=>{
+ const records=require('../services/homeworks/records');const verify=jest.spyOn(records,'uniqueCustomer').mockResolvedValue({id:42});
+ try{const pool={query:jest.fn().mockResolvedValue({rows:[{id:1}]})},fetchImpl=jest.fn();
+ const result=await saveHomeWorksCallNote({pool,customerId:42,note:'Please call Jane',fetchImpl});
+ expect(result).toMatchObject({success:true,status:'saved_local',destination:'office_notes',homeworksSynced:false});expect(fetchImpl).not.toHaveBeenCalled();
+ expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO yarddesk_customer_notes'),[42,'Please call Jane']);
+ }finally{verify.mockRestore();}
+});
 
-    const result = await saveHomeWorksCallNote({
-      pool,
-      getCopilotToken,
-      customerId: 1053548,
-      note: 'Twilio Connect · Text received\nHello <there>',
-      fetchImpl,
-    });
-
-    expect(result.success).toBe(true);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, request] = fetchImpl.mock.calls[0];
-    expect(url).toBe('https://secure.copilotcrm.com/customers/details/communicationSaveCall');
-    expect(request.headers.Cookie).toBe('session=test');
-    const form = new URLSearchParams(request.body);
-    expect(form.get('customer_id')).toBe('1053548');
-    expect(form.get('call_notes')).toContain('Hello &lt;there&gt;');
-  });
-
-  test('does not report success when HomeWorks rejects the note', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ status: false, msg: 'Not saved' }),
-    });
-
-    await expect(saveHomeWorksCallNote({
-      pool: { query: jest.fn() },
-      getCopilotToken: jest.fn().mockResolvedValue({ cookieHeader: 'session=test' }),
-      customerId: 42,
-      note: 'Test note',
-      fetchImpl,
-    })).rejects.toThrow('Not saved');
-  });
+  test('does not save an office note against an unverified Homeworks customer',async()=>{
+ const records=require('../services/homeworks/records');const verify=jest.spyOn(records,'uniqueCustomer').mockRejectedValue(new Error('No verified customer'));
+ try{const pool={query:jest.fn()};await expect(saveHomeWorksCallNote({pool,customerId:42,note:'Test note'})).rejects.toThrow('No verified customer');expect(pool.query).not.toHaveBeenCalled();}finally{verify.mockRestore();}
+});
 });

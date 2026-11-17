@@ -1946,7 +1946,7 @@
                 el.textContent = overrideText;
                 return;
             }
-            const source = (snapshot?.source === 'live_copilot' || snapshot?.source === 'copilot')
+            const source = (snapshot?.source === 'official_homeworks_graphql' || snapshot?.source === 'live_copilot' || snapshot?.source === 'copilot')
                 ? 'Copilot aging snapshot'
                 : (snapshot?.source === 'persisted_copilot_snapshot' || snapshot?.source === 'copilot_snapshot')
                     ? 'Copilot cached snapshot'

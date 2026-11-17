@@ -1,3 +1,5 @@
+const records=require('../services/homeworks/records');
+afterEach(()=>jest.restoreAllMocks());
 const {
   listUnmatchedCommunications,
   matchCommunication,
@@ -24,6 +26,8 @@ describe('HomeWorks unmatched communications inbox', () => {
         return { rows: [] };
       }),
     };
+    jest.spyOn(records,'uniqueCustomer').mockResolvedValue({id:42});
+    pool.query.mockImplementation(async(sql)=>{if(sql.includes('FROM messages WHERE twilio_sid'))return {rows:[{twilio_sid:'SM1',direction:'inbound',from_number:'+12165012439',to_number:'+12165551212',body:'Please call me',status:'received'}]};return {rows:sql.includes('INSERT INTO yarddesk_customer_notes')?[{id:1}]:[]};});
     const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200, text: async () => JSON.stringify({ status: true }) });
     const result = await matchCommunication({
       pool,
@@ -34,9 +38,9 @@ describe('HomeWorks unmatched communications inbox', () => {
       customerName: 'Jane Smith',
       fetchImpl,
     });
-    expect(result).toMatchObject({ success: true, customerId: 42, phone: '2165012439', status: 'synced' });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ success: true, customerId: 42, phone: '2165012439', status: 'saved_local',homeworksSynced:false });
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO homeworks_phone_matches'))).toBe(true);
-    expect(pool.query.mock.calls.some(([sql]) => sql.includes("SET status = 'synced'"))).toBe(true);
+    expect(pool.query.mock.calls.some(([sql]) => sql.includes("SET status = 'saved_local'"))).toBe(true);
   });
 });

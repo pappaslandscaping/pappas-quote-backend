@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head><title>Update CopilotCRM Cookie</title>
+<head><title>Homeworks API connection</title>
 <style>
 body { font-family: system-ui; max-width: 600px; margin: 60px auto; padding: 20px; }
 h2 { color: #1B4332; }
@@ -12,28 +12,28 @@ button { background: #1B4332; color: #fff; border: none; padding: 12px 24px; bor
 </style>
 </head>
 <body>
-<h2>Update CopilotCRM Cookie</h2>
-<p>Paste the full cookie string from CopilotCRM below:</p>
-<textarea id="cookie" placeholder="copilotApiAccessToken=eyJ..."></textarea>
+<h2>Homeworks API connection</h2>
+<p>Enter the official Homeworks API access token:</p>
+<textarea id="cookie" placeholder="Homeworks API access token"></textarea>
 <br>
-<button onclick="go()">Update Cookie</button>
+<button onclick="go()">Verify and save token</button>
 <div id="result"></div>
 <script>
 async function go() {
   var r = document.getElementById('result');
   var c = document.getElementById('cookie').value.trim();
-  if (!c) { r.className='err'; r.style.display='block'; r.textContent='Paste a cookie first'; return; }
+  if (!c) { r.className='err'; r.style.display='block'; r.textContent='Enter an API token first'; return; }
   var t = localStorage.getItem('adminToken');
-  if (!t) { r.className='err'; r.style.display='block'; r.textContent='Not logged in — go to the dashboard first, then come back'; return; }
+  if (!t) { r.className='err'; r.style.display='block'; r.textContent='Not logged in. Go to the dashboard first, then come back'; return; }
   try {
     var res = await fetch('/api/copilot/settings', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookies: c })
+      body: JSON.stringify({ accessToken: c })
     });
     var d = await res.json();
     if (d.success) {
-      r.className='ok'; r.textContent='Updated! Expires: ' + (d.expiresAt || 'unknown') + ' (' + (d.daysUntilExpiry || '?') + ' days)';
+      r.className='ok'; r.textContent='Token verified and saved. Expires: ' + (d.expiresAt || 'unknown') + ' (' + (d.daysUntilExpiry || '?') + ' days)';
     } else {
       r.className='err'; r.textContent='Error: ' + (d.error || 'Unknown');
     }

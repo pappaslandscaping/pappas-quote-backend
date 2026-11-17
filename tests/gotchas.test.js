@@ -126,27 +126,13 @@ describe('CopilotCRM sync in quote-signing handler', () => {
     expect(signContractLine).toBeGreaterThan(0);
   });
 
-  test('CopilotCRM login call exists inside the handler', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('api.copilotcrm.com/auth/login');
-  });
+  test('contract signing uses the official integration without browser login',()=>{expect(quotesCode).toContain("require('../services/homeworks/agreements')");expect(quotesCode).not.toContain('api.copilotcrm.com/auth/login');});
 
-  test('CopilotCRM customer search exists inside the handler', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('copilotcrm.com/customers/filter');
-  });
+  test('contract linkage avoids undocumented customer search',()=>{expect(quotesCode).not.toContain('copilotcrm.com/customers/filter');expect(quotesCode).toContain('findEstimate');});
 
-  test('CopilotCRM estimate acceptance exists inside the handler', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('estimates/accept');
-  });
+  test('signing does not accept estimates through a hidden browser endpoint',()=>{expect(quotesCode).not.toContain('estimates/accept');});
 
-  test('CopilotCRM contract upload exists inside the handler', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('syncSignedQuoteContractToCopilot');
-    expect(quotesCode).toContain('estimates/uploadImage');
-    expect(quotesCode).toContain('uploadSignedContractPdfToCopilotEstimate');
-  });
+  test('signed PDF integration uses supported property attachments',()=>{const integration=fs.readFileSync(path.join(__dirname,'../services/homeworks/agreements.js'),'utf8');expect(quotesCode).toContain('syncSignedQuoteContractToCopilot');expect(integration).toContain('addPropertyMedia');expect(integration).toMatch(/estimate_attachment_supported:\s*false/);expect(quotesCode).not.toContain('estimates/uploadImage');});
 
   test('signed contract PDFs support Copilot service price fields without NaN amounts', () => {
     expect(serverCode).toContain('function serviceAmount(service)');
@@ -166,16 +152,9 @@ describe('CopilotCRM sync in quote-signing handler', () => {
     }
   });
 
-  test('CopilotCRM portal invite email exists inside the handler', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('emails/sendMail');
-  });
+  test('signing does not send an undocumented portal invite',()=>{expect(quotesCode).not.toContain('emails/sendMail');});
 
-  test('CopilotCRM sync is gated on credentials being set', () => {
-    const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('COPILOTCRM_USERNAME');
-    expect(handlerBlock).toContain('COPILOTCRM_PASSWORD');
-  });
+  test('the API client uses a token rather than browser account credentials',()=>{const client=fs.readFileSync(path.join(__dirname,'../services/homeworks/client.js'),'utf8');expect(client).toContain('getHomeWorksAccessToken');expect(quotesCode).not.toContain('COPILOTCRM_PASSWORD');});
 
   test('quote routes receive the contract PDF generator dependency', () => {
     const routeInitLine = findLine(serverLines, "require('./routes/quotes')");
@@ -231,14 +210,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(handlerBlock).not.toContain('Missing required fields: customer_name, estimate_number, estimate_amount');
   });
 
-  test('accepted-estimate handler fetches missing services and total from CopilotCRM', () => {
-    const estimateAcceptedLine = findLine(quotesLines, 'handleCopilotEstimateAccepted');
-    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 300).join('\n');
-    expect(handlerBlock).toContain('needsCopilotLookup');
-    expect(handlerBlock).toContain('finances/estimates/getEstimatesListAjax');
-    expect(handlerBlock).toContain('finances/estimates/view/');
-    expect(handlerBlock).toContain('Could not parse line items');
-  });
+  test('accepted-estimate webhook verifies authoritative Homeworks data',()=>{expect(quotesCode).toContain('resolveAcceptedCopilotEstimatePayload');expect(quotesCode).toContain('findEstimate');expect(quotesCode).not.toContain('getEstimatesListAjax');});
 
   test('accepted-estimate handler accepts legacy email-bridge ZAP DATA payloads', () => {
     expect(quotesCode).toContain('parseCopilotEstimateAcceptedTextPayload');
@@ -249,11 +221,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('WEBHOOK_SECRET');
   });
 
-  test('accepted-estimate handler has a text fallback for current CopilotCRM estimate HTML', () => {
-    expect(quotesCode).toContain('parseCopilotEstimateServicesFromText');
-    expect(quotesCode).toContain("WHAT'?S INCLUDED");
-    expect(quotesCode).toContain('parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml))');
-  });
+  test('accepted-estimate execution has no scraped HTML fallback',()=>{expect(quotesCode).not.toContain('parseCopilotEstimateServicesFromText(estDetailHtml)');expect(quotesCode).toContain('isIncluded');});
 
   test('accepted-estimate detail parser rejects Copilot script text as customer names', () => {
     expect(quotesCode).toContain('isLikelyCopilotCustomerName');

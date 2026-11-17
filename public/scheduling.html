@@ -317,7 +317,7 @@
         }
 
         .panel-field-value a:hover { text-decoration: underline; }
-        
+
         .panel-select {
             padding: 6px 10px;
             border: 1px solid var(--gray-200);
@@ -414,7 +414,7 @@
             .panel { width: 100vw; }
             .search-input { width: 100%; }
         }
-    
+
         .status-processed { background: var(--amber-bg); color: var(--amber); }
         .status-processed::before { background: var(--amber); }
         .status-pending { background: var(--amber-bg); color: var(--amber); }
@@ -429,7 +429,7 @@
         .status-inactive::before { background: var(--red); }
         .icon-red { background: var(--red-bg); color: var(--red); }
 
-    
+
         .date-nav { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 0; flex-wrap: wrap; }
         .date-nav button {
             min-height: 42px;
@@ -687,7 +687,7 @@
                 max-width: 180px;
             }
         }
-        
+
         /* Compact daily route summary — sits above the list */
         .route-summary {
             background: var(--surface);
@@ -810,7 +810,7 @@
         }
         /* .search-box base defined earlier; here we set the overall width on this page */
         .search-box { min-width: 240px; flex: 1; max-width: 360px; }
-        
+
         .bulk-actions {
             display: flex;
             align-items: center;
@@ -1956,11 +1956,11 @@ async function init() {
     if (dateParam) {
         selectedDate = dateParam;
     }
-    
+
     document.getElementById('dateInput').value = selectedDate;
     document.getElementById('addDate').value = selectedDate;
     updateDayLabel();
-    
+
     // Load crews first, then jobs
     await loadCrews();
     loadJobs();
@@ -1971,11 +1971,11 @@ async function loadCrews() {
         const res = await fetch('/api/crews?active_only=true');
         const data = await res.json();
         allCrews = data.crews || [];
-        
+
         // Populate crew dropdown in Add Job modal
         const addCrewSelect = document.getElementById('addCrew');
         if (addCrewSelect) {
-            addCrewSelect.innerHTML = '<option value="">— Select Crew —</option>' + 
+            addCrewSelect.innerHTML = '<option value="">— Select Crew —</option>' +
                 allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
         }
     } catch (e) {
@@ -2066,17 +2066,17 @@ async function loadWeekJobs() {
     const dayOfWeek = d.getDay();
     const startOfWeek = new Date(d);
     startOfWeek.setDate(d.getDate() - dayOfWeek);
-    
+
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
-    
+
     const startStr = startOfWeek.toISOString().split('T')[0];
     const endStr = endOfWeek.toISOString().split('T')[0];
-    
+
     try {
         const data = await fetchScheduleJobs({ start_date: startStr, end_date: endStr });
         const jobs = data.jobs || [];
-        
+
         renderWeekView(startOfWeek, jobs);
     } catch (e) {
         console.error(e);
@@ -2191,7 +2191,7 @@ function renderJobs() {
     const status = document.getElementById('statusFilter').value;
     const crew = document.getElementById('crewFilter').value;
     const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
-    
+
     const normalizedJobs = allJobs.map(normalizeScheduleJobForRender);
 
     let filtered = normalizedJobs.filter(j => {
@@ -2205,14 +2205,14 @@ function renderJobs() {
         }
         return true;
     });
-    
+
     // Update route summary
     const totalJobs = filtered.length;
     const pendingJobs = filtered.filter(j => j.status === 'pending').length;
     const completedJobs = filtered.filter(j => j.status === 'completed').length;
     const totalRevenue = filtered.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
     const totalDuration = filtered.reduce((sum, j) => sum + (parseInt(j.estimated_duration) || 30), 0);
-    
+
     // Update summary bar if exists
     const summaryEl = document.getElementById('routeSummaryStats');
     if (summaryEl) {
@@ -2239,7 +2239,7 @@ function renderJobs() {
             </div>
         `;
     }
-    
+
     // Try time slot view for timed jobs
     renderTimeSlotView(filtered);
 
@@ -2249,7 +2249,7 @@ function renderJobs() {
         document.getElementById('selectAllRow').style.display = 'none';
         return;
     }
-    
+
     const rowMarkup = filtered.map((j, i) => {
         try {
             const serviceType = normalizeScheduleString(j.service_type).toLowerCase();
@@ -2349,22 +2349,22 @@ function renderJobs() {
 
 function buildCompletionSection(j) {
     if (j.status !== 'completed') return '';
-    
+
     let html = '<div class="panel-section"><div class="panel-section-title" style="color:#059669;">✓ Completion Details</div>';
-    
+
     // Completed at timestamp
     if (j.completed_at) {
         const completedDate = new Date(j.completed_at);
-        html += '<div class="panel-field"><span class="panel-field-label">Completed</span><span class="panel-field-value">' + 
+        html += '<div class="panel-field"><span class="panel-field-label">Completed</span><span class="panel-field-value">' +
             completedDate.toLocaleString() + '</span></div>';
     }
-    
+
     // Completed by
     if (j.completed_by) {
-        html += '<div class="panel-field"><span class="panel-field-label">Completed By</span><span class="panel-field-value" style="font-weight:600;">' + 
+        html += '<div class="panel-field"><span class="panel-field-label">Completed By</span><span class="panel-field-value" style="font-weight:600;">' +
             esc(j.completed_by) + '</span></div>';
     }
-    
+
     // GPS location
     if (j.completion_lat && j.completion_lng) {
         const mapsUrl = `https://www.google.com/maps?q=${j.completion_lat},${j.completion_lng}`;
@@ -2372,14 +2372,14 @@ function buildCompletionSection(j) {
             '<a href="' + mapsUrl + '" target="_blank" style="color:#059669;">📍 View on Map</a>' +
             ' <span style="color:#666;font-size:11px;">(' + parseFloat(j.completion_lat).toFixed(5) + ', ' + parseFloat(j.completion_lng).toFixed(5) + ')</span></span></div>';
     }
-    
+
     // Completion notes
     if (j.completion_notes) {
         html += '<div class="panel-field" style="flex-direction:column;align-items:flex-start;gap:4px;">' +
             '<span class="panel-field-label">Crew Notes</span>' +
             '<div class="panel-notes" style="width:100%;background:#d1fae5;border-left:3px solid #059669;">' + esc(j.completion_notes) + '</div></div>';
     }
-    
+
     // Completion photos
     if (j.completion_photos && j.completion_photos.length > 0) {
         html += '<div class="panel-field" style="flex-direction:column;align-items:flex-start;gap:8px;">' +
@@ -2390,12 +2390,12 @@ function buildCompletionSection(j) {
         });
         html += '</div></div>';
     }
-    
+
     // Synced status
     if (j.synced_to_copilot) {
         html += '<div class="panel-field"><span class="panel-field-label">CopilotCRM</span><span class="panel-field-value" style="color:#059669;">✓ Synced</span></div>';
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -2474,15 +2474,15 @@ async function updateJob(id) {
     const status = document.getElementById('panelJobStatus').value;
     const crewValue = document.getElementById('panelJobCrew')?.value;
     const crew_assigned = crewValue === '' ? null : crewValue; // Empty string = unassign
-    try { 
+    try {
         await fetch('/api/jobs/'+id, {
             method:'PATCH',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({status, crew_assigned})
-        }); 
-        showToast('Updated'); 
-        closePanel(); 
-        loadJobs(); 
+        });
+        showToast('Updated');
+        closePanel();
+        loadJobs();
     }
     catch(e) { showToast('Update failed'); }
 }
@@ -2495,11 +2495,11 @@ function openCompleteModal(id) {
     if (blockReadOnlyScheduleAction()) return;
     const job = allJobs.find(j => j.id === id);
     if (!job) return;
-    
+
     currentCompleteJobId = id;
     completePhotos = [];
     completeLocation = null;
-    
+
     document.getElementById('completeJobInfo').innerHTML = `
         <div style="font-weight:600;margin-bottom:4px;">${esc(job.customer_name)}</div>
         <div style="font-size:13px;color:var(--gray-500);">${esc(job.address)}</div>
@@ -2508,7 +2508,7 @@ function openCompleteModal(id) {
     document.getElementById('completeNotes').value = '';
     document.getElementById('completePhotoPreview').innerHTML = '';
     document.getElementById('completeModal').classList.add('open');
-    
+
     // Get GPS location
     getCompleteLocation();
 }
@@ -2563,19 +2563,20 @@ function removeCompletePhoto(index) {
 }
 
 async function submitJobCompletion() {
+    if (!confirm('Complete this visit in Homeworks? Billable visits may create an invoice.')) return;
     if (blockReadOnlyScheduleAction()) return;
     if (!currentCompleteJobId) return;
-    
+
     const completedBy = document.getElementById('completedBy').value;
     if (!completedBy) {
         showToast('Please select who completed this job');
         return;
     }
-    
+
     const btn = document.getElementById('submitCompleteBtn');
     btn.disabled = true;
     btn.textContent = 'Saving...';
-    
+
     try {
         // Upload photos first
         let photoUrls = [];
@@ -2588,12 +2589,13 @@ async function submitJobCompletion() {
                 photoUrls = photoData.photos || [];
             }
         }
-        
+
         // Complete the job
-        await fetch('/api/jobs/' + currentCompleteJobId + '/complete', {
+        const completionResponse = await fetch('/api/jobs/' + currentCompleteJobId + '/complete', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                confirm_billing: true,
                 completion_lat: completeLocation?.lat || null,
                 completion_lng: completeLocation?.lng || null,
                 completion_notes: document.getElementById('completeNotes').value || null,
@@ -2601,21 +2603,15 @@ async function submitJobCompletion() {
                 completed_by: completedBy
             })
         });
-        
+
+        const completionResult = await completionResponse.json();
+        if (!completionResponse.ok || !completionResult.success) throw new Error(completionResult.error || 'Homeworks could not confirm completion.');
         showToast('Job completed!');
         closeCompleteModal();
         closePanel();
         loadJobs();
 
-        // Offer to create invoice for completed job
-        const job = allJobs.find(j => j.id == currentCompleteJobId);
-        if (job) {
-            setTimeout(() => {
-                if (confirm(`Job completed! Create an invoice for ${job.customer_name} ($${parseFloat(job.service_price || 0).toFixed(2)})?`)) {
-                    window.location.href = `invoices.html?create=true&customer=${encodeURIComponent(job.customer_name)}&amount=${job.service_price || 0}&service=${encodeURIComponent(job.service_type || '')}&address=${encodeURIComponent(job.address || '')}`;
-                }
-            }, 500);
-        }
+        // Homeworks owns invoice creation for completed visits.
     } catch (e) {
         showToast('Failed to complete');
     } finally {
@@ -2804,14 +2800,14 @@ async function optimizeRoute() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         const data = await response.json();
-        
+
         if (!data.success) {
             showToast('Error: ' + (data.error || 'Failed to optimize route'));
             return;
         }
-        
+
         // Show success with stats if available
         if (data.stats) {
             const skipNote = data.stats.skipped ? ` (${data.stats.skipped} skipped — missing address)` : '';
@@ -2825,7 +2821,7 @@ async function optimizeRoute() {
         } else {
             showToast(data.message || 'Route optimized successfully!');
         }
-        
+
         // Reload jobs to show new order
         await loadJobs();
 
@@ -2866,10 +2862,10 @@ function printRoute() {
         } else if (crew && j.crew_assigned !== crew) return false;
         return true;
     });
-    
+
     const dateLabel = document.getElementById('dayLabel').textContent;
     const totalRevenue = filtered.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
-    
+
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
         <!DOCTYPE html>
@@ -2889,7 +2885,7 @@ function printRoute() {
                 .checkbox { width: 30px; text-align: center; }
                 .checkbox-box { width: 18px; height: 18px; border: 2px solid #999; display: inline-block; }
                 @media print { body { padding: 0; } }
-            
+
 </style>
         </head>
         <body>
@@ -2959,11 +2955,11 @@ function updateBulkActionsUI() {
 async function bulkComplete() {
     if (blockReadOnlyScheduleAction()) return;
     if (selectedJobs.size === 0) return;
-    
-    const promises = Array.from(selectedJobs).map(id => 
+
+    const promises = Array.from(selectedJobs).map(id =>
         fetch('/api/jobs/' + id + '/complete', { method: 'PATCH' })
     );
-    
+
     try {
         await Promise.all(promises);
         showToast(`Completed ${selectedJobs.size} jobs`);
@@ -2997,20 +2993,20 @@ async function initMapView() {
     // Populate crew dropdown for map
     const mapCrewFilter = document.getElementById('mapCrewFilter');
     const bulkCrewSelect = document.getElementById('bulkCrewSelect');
-    
-    mapCrewFilter.innerHTML = '<option value="">All Crews</option>' + 
+
+    mapCrewFilter.innerHTML = '<option value="">All Crews</option>' +
         allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('') +
         '<option value="unassigned">— Unassigned —</option>';
-    
-    bulkCrewSelect.innerHTML = '<option value="">Assign Crew...</option>' + 
+
+    bulkCrewSelect.innerHTML = '<option value="">Assign Crew...</option>' +
         '<option value="__unassign__">— Unassign —</option>' +
         allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
-    
+
     // Load and display jobs
     await loadJobs();
     mapFilteredJobs = [...allJobs];
     renderMapJobList();
-    
+
     // Initialize Google Map
     if (!map) {
         initGoogleMap();
@@ -3036,10 +3032,10 @@ function initGoogleMap() {
         loadGoogleMapsAPI();
         return;
     }
-    
+
     // Cleveland area center
     const center = { lat: 41.4822, lng: -81.7988 };
-    
+
     map = new google.maps.Map(mapEl, {
         zoom: 11,
         center: center,
@@ -3051,12 +3047,12 @@ function initGoogleMap() {
             { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
         ]
     });
-    
+
     infoWindow = new google.maps.InfoWindow();
-    
+
     // Add drawing manager for lasso selection
     initDrawingManager();
-    
+
     updateMapMarkers();
 }
 
@@ -3068,7 +3064,7 @@ function initDrawingManager() {
         console.log('Drawing library not loaded');
         return;
     }
-    
+
     drawingManager = new google.maps.drawing.DrawingManager({
         drawingMode: null, // Start with no drawing mode
         drawingControl: false, // Hide default controls - we use our own Lasso button
@@ -3086,9 +3082,9 @@ function initDrawingManager() {
             zIndex: 1
         }
     });
-    
+
     drawingManager.setMap(map);
-    
+
     // Listen for polygon complete
     google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
         // Remove previous selection polygon
@@ -3096,13 +3092,13 @@ function initDrawingManager() {
             selectionPolygon.setMap(null);
         }
         selectionPolygon = polygon;
-        
+
         // Select jobs within the polygon
         selectJobsInPolygon(polygon);
-        
+
         // Switch back to hand mode
         drawingManager.setDrawingMode(null);
-        
+
         // Reset lasso button
         resetLassoButton();
     });
@@ -3118,7 +3114,7 @@ function resetLassoButton() {
 
 function selectJobsInPolygon(polygon) {
     const selectedInPolygon = [];
-    
+
     markers.forEach(markerData => {
         if (markerData.marker) {
             const pos = markerData.marker.getPosition();
@@ -3127,7 +3123,7 @@ function selectJobsInPolygon(polygon) {
             }
         }
     });
-    
+
     if (selectedInPolygon.length > 0) {
         // Add to selection (or replace)
         selectedInPolygon.forEach(id => mapSelectedJobs.add(id));
@@ -3138,7 +3134,7 @@ function selectJobsInPolygon(polygon) {
     } else {
         showToast('No jobs found in selected area');
     }
-    
+
     // Remove the polygon after a short delay
     setTimeout(() => {
         if (selectionPolygon) {
@@ -3153,7 +3149,7 @@ function updateMarkerColors() {
         if (markerData.marker) {
             const isSelected = mapSelectedJobs.has(markerData.job.id);
             const isCompleted = markerData.job.status === 'completed';
-            
+
             markerData.marker.setIcon({
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 12,
@@ -3171,15 +3167,15 @@ function startLassoSelect() {
         showToast('Drawing tool not available');
         return;
     }
-    
+
     // Enable polygon drawing mode
     drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-    
+
     // Update button to show active state
     const btn = document.getElementById('lassoBtn');
     btn.classList.add('active');
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 18a6 6 0 100-12 6 6 0 000 12z"/></svg> Drawing...';
-    
+
     showToast('Draw a shape around jobs to select them. Click to add points, double-click to finish.');
 }
 
@@ -3188,13 +3184,13 @@ function clearMapSelection() {
     updateMapBulkActions();
     renderMapJobList();
     updateMarkerColors();
-    
+
     // Clear any selection polygon
     if (selectionPolygon) {
         selectionPolygon.setMap(null);
         selectionPolygon = null;
     }
-    
+
     // Update select all checkbox
     document.getElementById('selectAllJobs').checked = false;
 }
@@ -3400,12 +3396,12 @@ function placeMarkerAtPosition(markerData, pos, bounds) {
 
 function renderMapJobList() {
     const container = document.getElementById('mapJobList');
-    
+
     if (mapFilteredJobs.length === 0) {
         container.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No jobs for this day</div>';
         return;
     }
-    
+
     container.innerHTML = mapFilteredJobs.map((job, index) => {
         const isSelected = mapSelectedJobs.has(job.id);
         const isCompleted = job.status === 'completed';
@@ -3468,14 +3464,14 @@ function updateMapBulkActions() {
     const count = mapSelectedJobs.size;
     const bar = document.getElementById('mapBulkActions');
     const countEl = document.getElementById('mapSelectedCount');
-    
+
     if (count > 0) {
         bar.style.display = 'flex';
         countEl.textContent = count;
     } else {
         bar.style.display = 'none';
     }
-    
+
     // Update select all checkbox
     const selectAll = document.getElementById('selectAllJobs');
     selectAll.checked = mapFilteredJobs.length > 0 && mapSelectedJobs.size === mapFilteredJobs.length;
@@ -3484,7 +3480,7 @@ function updateMapBulkActions() {
 function filterMapJobs() {
     const crewFilter = document.getElementById('mapCrewFilter').value;
     const optimizeBtn = document.getElementById('optimizeCrewBtn');
-    
+
     if (crewFilter === '') {
         mapFilteredJobs = [...allJobs];
         optimizeBtn.style.display = 'none';
@@ -3495,7 +3491,7 @@ function filterMapJobs() {
         mapFilteredJobs = allJobs.filter(j => j.crew_assigned === crewFilter);
         optimizeBtn.style.display = 'inline-flex';
     }
-    
+
     mapSelectedJobs.clear();
     updateMapBulkActions();
     renderMapJobList();
@@ -3505,7 +3501,7 @@ function filterMapJobs() {
 function highlightMapJob(id) {
     // Remove existing highlights
     document.querySelectorAll('.map-job-item.highlighted').forEach(el => el.classList.remove('highlighted'));
-    
+
     // Add highlight to clicked job
     const jobEl = document.querySelector(`.map-job-item[data-id="${id}"]`);
     if (jobEl) {
@@ -3521,16 +3517,16 @@ async function bulkAssignCrew() {
         showToast('Please select a crew');
         return;
     }
-    
+
     if (mapSelectedJobs.size === 0) {
         showToast('No jobs selected');
         return;
     }
-    
+
     // Handle unassign option
     const crew = crewValue === '__unassign__' ? null : crewValue;
     const actionText = crewValue === '__unassign__' ? 'Unassigned' : `Assigned to ${crew}`;
-    
+
     try {
         const promises = Array.from(mapSelectedJobs).map(id =>
             fetch(`/api/jobs/${id}`, {
@@ -3539,10 +3535,10 @@ async function bulkAssignCrew() {
                 body: JSON.stringify({ crew_assigned: crew })
             })
         );
-        
+
         await Promise.all(promises);
         showToast(`${actionText} ${mapSelectedJobs.size} jobs`);
-        
+
         // Reload and refresh
         await loadJobs();
         mapSelectedJobs.clear();
@@ -3558,15 +3554,15 @@ async function bulkCompleteJobs() {
         showToast('No jobs selected');
         return;
     }
-    
+
     try {
         const promises = Array.from(mapSelectedJobs).map(id =>
             fetch(`/api/jobs/${id}/complete`, { method: 'PATCH' })
         );
-        
+
         await Promise.all(promises);
         showToast(`Completed ${mapSelectedJobs.size} jobs`);
-        
+
         // Reload and refresh
         await loadJobs();
         mapSelectedJobs.clear();
@@ -4161,7 +4157,7 @@ document.addEventListener('DOMContentLoaded', init);
     fetch('/api/config/maps-key').then(r => r.json()).then(d => {
         if (d.key) window.GOOGLE_MAPS_API_KEY = d.key;
     }).catch(() => {});
-    
+
     // Fallback callback if Maps loads without our handler
     window.onGoogleMapsLoaded = function() {
         if (typeof initGoogleMap === 'function' && currentView === 'map') {

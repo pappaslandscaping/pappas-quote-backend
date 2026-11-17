@@ -3,8 +3,6 @@
 require('dotenv').config();
 
 const { Pool } = require('pg');
-const { parseInvoiceListHtml } = require('./parse-copilot-invoices');
-const { getCopilotToken } = require('../services/copilot/client');
 
 function parseArgs(argv) {
   const args = { pageSize: 100, maxPages: 150 };
@@ -22,64 +20,9 @@ function parseArgs(argv) {
   return args;
 }
 
-function buildCopilotInvoiceRequestBody({ page = 1, pageSize = 100, sort = 'datedesc' } = {}) {
-  const formData = new URLSearchParams();
-  formData.append('pagination[]', `p=${page}`);
-  formData.append('pagination[]', `iop=${pageSize}`);
-  formData.append('pagination[]', `sort=${sort}`);
-  return formData.toString();
-}
-
-function extractCopilotInvoiceTotalCount(html) {
-  const match = String(html || '').match(/(\d+)\s*-\s*(\d+)\s+of\s+(\d+)/i);
-  if (!match) return null;
-  const total = parseInt(match[3], 10);
-  return Number.isFinite(total) ? total : null;
-}
-
-async function fetchAllCopilotInvoices(pool, { pageSize, maxPages }) {
-  const tokenInfo = await getCopilotToken(pool);
-  if (!tokenInfo || !tokenInfo.cookieHeader) {
-    return { available: false, reason: 'No CopilotCRM cookies/token configured', invoices: [], totalCount: null };
-  }
-
-  const allInvoices = [];
-  const seenFirstIds = new Set();
-  let totalCount = null;
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const res = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': tokenInfo.cookieHeader,
-        'Origin': 'https://secure.copilotcrm.com',
-        'Referer': 'https://secure.copilotcrm.com/',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: buildCopilotInvoiceRequestBody({ page, pageSize }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(`Copilot invoice fetch failed on page ${page} (${res.status}): ${body.slice(0, 200)}`);
-    }
-
-    const payload = await res.json();
-    const invoices = parseInvoiceListHtml(payload.html || '');
-    if (!invoices.length) break;
-
-    const firstId = invoices[0].external_invoice_id;
-    if (firstId && seenFirstIds.has(firstId)) break;
-    if (firstId) seenFirstIds.add(firstId);
-
-    allInvoices.push(...invoices);
-    if (payload.html) totalCount = extractCopilotInvoiceTotalCount(payload.html) || totalCount;
-    if (invoices.length < pageSize) break;
-    if (totalCount && page * pageSize >= totalCount) break;
-  }
-
-  return { available: true, invoices: allInvoices, totalCount };
+async function fetchAllCopilotInvoices(pool) {
+  const invoices = await require('../services/homeworks/records').loadInvoices({pool}, {}, {details:false});
+  return {available:true,invoices,totalCount:invoices.length,source:'official_homeworks_graphql'};
 }
 
 async function queryDbAudit(pool) {

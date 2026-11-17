@@ -17,30 +17,9 @@ const COPILOT_SCHEDULE_GRID_DAY_PATH = '/scheduler/grid/day/';
  * Returns { cookieHeader, expiresAt, daysUntilExpiry } or null if not configured.
  */
 async function getCopilotToken(pool) {
-  const result = await pool.query(
-    "SELECT key, value FROM copilot_sync_settings WHERE key IN ('copilot_token', 'copilot_cookies')"
-  );
-  const settings = {};
-  for (const row of result.rows) settings[row.key] = row.value;
-
-  const cookies = settings.copilot_cookies || null;
-  const token = settings.copilot_token || null;
-
-  if (!cookies && !token) return null;
-
-  const cookieHeader = cookies || `copilotApiAccessToken=${token}`;
-
-  let expiresAt = null, daysUntilExpiry = null;
-  const jwtMatch = (cookies || '').match(/copilotApiAccessToken=([^;]+)/) || (token ? [null, token] : null);
-  if (jwtMatch && jwtMatch[1]) {
-    try {
-      const payload = JSON.parse(Buffer.from(jwtMatch[1].split('.')[1], 'base64').toString());
-      expiresAt = new Date(payload.exp * 1000);
-      daysUntilExpiry = (expiresAt - new Date()) / (1000 * 60 * 60 * 24);
-    } catch { /* not a valid JWT — that's ok */ }
-  }
-
-  return { cookieHeader, expiresAt, daysUntilExpiry };
+  const auth = require('../homeworks/auth');
+  const accessToken = await auth.getHomeWorksAccessToken(pool);
+  return accessToken ? {accessToken,cookieHeader:'copilotApiAccessToken='+accessToken,...auth.tokenExpiry(accessToken),source:'official_homeworks_graphql'} : null;
 }
 
 /**
@@ -241,111 +220,22 @@ function parseCopilotScheduleGridDayHtml(html) {
   return { jobs, diagnostics };
 }
 
-async function fetchCopilotRouteJobsForDate({
-  cookieHeader,
-  syncDate,
-  fetchImpl = fetch,
-} = {}) {
-  if (!cookieHeader) throw new Error('CopilotCRM cookies are required');
-  if (!syncDate) throw new Error('syncDate is required');
-
-  const response = await fetchImpl(`${COPILOT_WEB_BASE}${COPILOT_ROUTE_LIST_PATH}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': cookieHeader,
-      'Origin': COPILOT_WEB_BASE,
-      'Referer': `${COPILOT_WEB_BASE}/`,
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    body: buildCopilotRouteFormData(syncDate).toString(),
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`CopilotCRM returned ${response.status}: ${errBody.substring(0, 200)}`);
-  }
-
-  const data = await response.json();
-  if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
-    throw new Error(`CopilotCRM returned non-success status: ${data.status}`);
-  }
-  const html = data.html || '';
-  const jobs = parseCopilotRouteHtml(html, data.employees || []);
-  const $ = cheerio.load(html);
-
-  return {
-    sync_date: syncDate,
-    raw: data,
-    jobs,
-    diagnostics: {
-      html_source_length: html.length,
-      contains_expected_grid_table_markers:
-        html.includes('copilot-table') && html.includes('data-row-event-id'),
-      parsed_row_count_before_filtering: $('tr[data-row-event-id]').length,
-      parsed_row_count_after_filtering: jobs.length,
-      total_event_count: Number.parseInt(data.totalEventCount, 10) || 0,
-    },
-  };
+async function fetchCopilotRouteJobsForDate({pool,cookieHeader,syncDate,fetchImpl=fetch}) {
+  const client=require('../homeworks/client');
+  const jobs=await client.fetchHomeWorksEvents({pool,accessToken:cookieHeader?client.extractAccessToken(cookieHeader):undefined,startDate:syncDate,endDate:syncDate,fetchImpl});
+  return {jobs,diagnostics:{source:'official_homeworks_graphql',count:jobs.length}};
 }
 
-async function fetchCopilotScheduleGridJobsForDate({
-  cookieHeader,
-  syncDate,
-  fetchImpl = fetch,
-} = {}) {
-  if (!cookieHeader) throw new Error('CopilotCRM cookies are required');
-  if (!syncDate) throw new Error('syncDate is required');
-
-  const url = `${COPILOT_WEB_BASE}${COPILOT_SCHEDULE_GRID_DAY_PATH}?d=${encodeURIComponent(syncDate)}`;
-  const response = await fetchImpl(url, {
-    headers: {
-      'Cookie': cookieHeader,
-      'Referer': `${COPILOT_WEB_BASE}${COPILOT_SCHEDULE_GRID_DAY_PATH}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`CopilotCRM schedule grid/day returned ${response.status}: ${errBody.substring(0, 200)}`);
-  }
-
-  const html = await response.text();
-  const parsed = parseCopilotScheduleGridDayHtml(html);
-
-  return {
-    sync_date: syncDate,
-    source_surface: 'schedule_grid',
-    raw: {
-      html_length: html.length,
-      url,
-      no_events_found: parsed.diagnostics.no_events_found,
-    },
-    jobs: parsed.jobs,
-    diagnostics: parsed.diagnostics,
-  };
+async function fetchCopilotScheduleGridJobsForDate(options) {
+  return fetchCopilotRouteJobsForDate(options);
 }
 
 /**
  * Login with username/password and return Set-Cookie headers.
  * Used by the contract-sign flow when long-lived cookies are not configured.
  */
-async function loginWithCredentials(username, password) {
-  const res = await fetch(`${COPILOT_API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': COPILOT_WEB_BASE },
-    body: JSON.stringify({ username, password }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`CopilotCRM login failed (${res.status}): ${body.slice(0, 200)}`);
-  }
-  return {
-    setCookies: res.headers.getSetCookie?.() || [],
-    body: await res.json().catch(() => ({})),
-  };
+async function loginWithCredentials() {
+  throw new Error('Browser-session login was retired. Configure the official Homeworks API token in integration settings.');
 }
 
 module.exports = {

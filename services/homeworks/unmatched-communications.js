@@ -74,10 +74,10 @@ async function matchCommunication({ pool, getCopilotToken, sourceType, sourceId,
   `, [remotePhone, numericCustomerId, String(customerName || '').trim() || null]);
   await pool.query(`
     UPDATE homeworks_communication_sync
-    SET status = 'synced', homeworks_customer_id = $3, synced_at = CURRENT_TIMESTAMP, error = NULL
+    SET status = 'saved_local', homeworks_customer_id = $3, synced_at = CURRENT_TIMESTAMP, error = NULL
     WHERE source_type = $1 AND source_id = $2
   `, [sourceType, sourceId, numericCustomerId]);
-  return { success: true, customerId: numericCustomerId, phone: remotePhone, status: 'synced' };
+  return { success: true, customerId: numericCustomerId, phone: remotePhone, status: 'saved_local', homeworksSynced: false };
 }
 
 async function createLeadForPhone({ pool, fullName, phone, fetchImpl = fetch }) {

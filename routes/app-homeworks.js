@@ -158,7 +158,7 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
       if (!snapshot) return res.status(404).json({ success: false, error: 'HomeWorks customer not found' });
       const [localCommunications, callNotes] = await Promise.all([
         loadLocalCommunications(pool, snapshot.customer.phone || phone, snapshot.customer.id),
-        fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId: snapshot.customer.id }).catch(() => []),
+        fetchHomeWorksCallNotes({ pool, getCopilotToken, customerId: snapshot.customer.id }),
       ]);
       res.json({
         success: true,
@@ -169,9 +169,9 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
         communicationWriteSupport: {
           generalSms: true,
           generalCalls: true,
-          destination: 'customer_call_notes',
+          destination: 'office_notes',
           eventDispatchNotes: true,
-          explanation: 'Twilio Connect calls and texts are journaled in the customer Call Notes. Customer Notes remain reserved for durable account and service instructions.',
+          explanation: 'Calls and texts are recorded in YardDesk office notes. Homeworks customer call-note access is not available through its official API.',
         },
       });
     } catch (error) {
@@ -195,7 +195,7 @@ function createAppHomeWorksRoutes({ pool, authenticateToken, serverError, getCop
         createFollowUp: req.body.createFollowUp === true,
         followUpDate: req.body.followUpDate,
       });
-      res.json({ ...result, destination: 'customer_call_notes' });
+      res.json({ ...result, destination: 'office_notes' });
     } catch (error) {
       serverError(res, error, 'Failed to save HomeWorks Call Note');
     }

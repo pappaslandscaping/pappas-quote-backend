@@ -46,20 +46,24 @@ async function list(context, params = {}) {
   const owners = await customers.directory(context),
     ownerIds = new Map(owners.map((row) => [row.homeworks_customer_id, row.id])),
     mapped = [];
+  const aliasMatches = (row, property) => row.customer_id === ownerIds.get(property.customerId) &&
+    normalize(row.street) && normalize(row.street) === normalize(property.address?.street1) &&
+    normalize(row.zip) === normalize(property.address?.zip);
+  const claims = new Map(local.map((row) => [row.id, remote.filter((property) => aliasMatches(row, property)).map((property) => property.id)]));
   for (const property of remote) {
-    const matches = local.filter(
-      (row) =>
-        Number(row.homeworks_property_id) === property.id ||
-        (!row.homeworks_property_id &&
-          row.customer_id === ownerIds.get(property.customerId) &&
-          normalize(row.street) === normalize(property.address?.street1) &&
-          normalize(row.zip) === normalize(property.address?.zip)),
-    );
-    if (matches.length > 1)
-      throw new Error(
-        'More than one YardDesk property matches ' + property.name + '. Review the property linkage.',
+    const linked = local.filter((row) => Number(row.homeworks_property_id) === property.id);
+    if (linked.length > 1) throw new Error('Duplicate canonical Homeworks property linkage.');
+    const aliases = local.filter((row) => !row.homeworks_property_id && aliasMatches(row, property));
+    const ambiguous = aliases.length > 1 || aliases.some((row) => claims.get(row.id).length > 1) ||
+      linked.some((row) => claims.get(row.id).length > 1);
+    let row = linked[0];
+    if (!row && aliases.length === 1 && !ambiguous) {
+      const claimed = await context.pool.query(
+        'UPDATE properties SET homeworks_property_id=$2 WHERE id=$1 AND homeworks_property_id IS NULL RETURNING *',
+        [aliases[0].id, property.id],
       );
-    let row = matches[0];
+      row = claimed.rows[0];
+    }
     if (!row) {
       const inserted = await context.pool.query(
         'INSERT INTO properties(property_name,street,street2,city,state,country,zip,notes,status,customer_id,homeworks_property_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(homeworks_property_id) WHERE homeworks_property_id IS NOT NULL DO UPDATE SET homeworks_property_id=EXCLUDED.homeworks_property_id RETURNING *',
@@ -78,13 +82,12 @@ async function list(context, params = {}) {
         ],
       );
       row = inserted.rows[0];
-    } else if (!row.homeworks_property_id)
-      await context.pool.query(
-        'UPDATE properties SET homeworks_property_id=$2 WHERE id=$1 AND homeworks_property_id IS NULL',
-        [row.id, property.id],
-      );
+    }
     mapped.push({
       ...view(property, row),
+      customer_id: ownerIds.get(property.customerId),
+      linkage_review_required: ambiguous,
+      service_history_available: false,
       customer_display_name: owners.find((owner) => owner.homeworks_customer_id === property.customerId)
         ?.name,
     });

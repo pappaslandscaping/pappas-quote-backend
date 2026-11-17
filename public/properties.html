@@ -993,7 +993,7 @@
                     document.getElementById('statTotal').textContent = Number(s.total || 0).toLocaleString();
                     document.getElementById('statActive').textContent = Number(s.active || 0).toLocaleString();
                     const pricedCount = s.withPricing || s.revenue?.pricedProperties || 0;
-                    document.getElementById('statLinked').textContent = Number(pricedCount).toLocaleString();
+                    document.getElementById('statLinked').textContent = s.pricingAvailable === false || data.stats.pricingAvailable === false ? 'Unavailable' : (s.withPricing == null ? 'Unavailable' : Number(pricedCount).toLocaleString());
                     const citiesCount = s.citiesServed || s.topCities?.length || 0;
                     document.getElementById('statCities').textContent = Number(citiesCount).toLocaleString();
                 } else {
@@ -1124,7 +1124,7 @@
             const needsService = properties.filter(p =>
                 (p.status || '').toLowerCase() === 'active' && !p.next_service_date
             ).length;
-            document.getElementById('statNeedsService').textContent = needsService.toLocaleString();
+            document.getElementById('statNeedsService').textContent = properties.some(p=>p.service_history_available===false) ? 'Unavailable' : needsService.toLocaleString();
 
             const rows = properties.map(p => {
                 const statusClass = (p.status || '').toLowerCase() === 'active' ? 'status-active' : 'status-inactive';
@@ -1138,12 +1138,12 @@
                 const streetDisplay = p.street || p.address || '';
                 const locationDisplay = [p.city, p.state, p.postal_code].filter(Boolean).join(', ');
 
-                const lastService = p.last_service_date ? formatDate(p.last_service_date) : '<span class="no-customer">Never</span>';
-                const nextService = p.next_service_date ? formatDate(p.next_service_date) : '<span class="no-customer">None</span>';
+                const lastService = p.service_history_available === false ? '<span class="no-customer">Unavailable</span>' : p.last_service_date ? formatDate(p.last_service_date) : '<span class="no-customer">Never</span>';
+                const nextService = p.service_history_available === false ? '<span class="no-customer">Unavailable</span>' : p.next_service_date ? formatDate(p.next_service_date) : '<span class="no-customer">None</span>';
 
                 return `
                     <tr onclick="openPropertyDetail(${p.id})" style="cursor:pointer">
-                        <td class="property-name">${esc(streetDisplay || 'Unnamed')}</td>
+                        <td class="property-name">${esc(streetDisplay || 'Unnamed')}${p.linkage_review_required?'<small style="display:block">Historical property linkage needs review</small>':''}</td>
                         <td class="city-cell">${esc(locationDisplay)}</td>
                         <td class="lot-size">${lotSizeDisplay}</td>
                         <td><span class="status-badge ${statusClass}">${esc(p.status || 'active')}</span></td>

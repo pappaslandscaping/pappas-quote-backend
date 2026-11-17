@@ -9,6 +9,7 @@ const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
 const { loadCustomerEstimates, renderMailEstimate } = require('../lib/homeworks-customer-estimates');
 const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances, resolveHomeworksCustomer } = require('../lib/homeworks-customer-billing');
+const { scoreCustomerRelationship } = require('../lib/homeworks-crm-scoring');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
   const router = express.Router();
@@ -919,11 +920,11 @@ router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res
     yearAgo.setUTCFullYear(yearAgo.getUTCFullYear() - 1);
     const since = yearAgo.toISOString().slice(0, 10);
     const result = await query('YardDeskCrmSignals', `query YardDeskCrmSignals($customerId: SafeInt!, $today: Date!, $since: Date!) {
-      customer(customerId: $customerId) { id fullName status outstanding pastDue }
+      customer(customerId: $customerId) { id fullName status email phone cell outstanding pastDue address { street1 } }
       completed: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false }, take: 1, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
       recentCompleted: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false, startDate: { gte: $since } }, take: 500, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
       upcoming: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: OPEN }, isDeleted: false, startDate: { gte: $today } }, take: 1, orderBy: [{ startDate: asc }, { id: asc }]) { id startDate title }
-      estimates(where: { customerId: { equals: $customerId }, isDeleted: false }, take: 100, orderBy: [{ date: desc }, { id: desc }]) { id number date title status lineItems { name } }
+      estimates(where: { customerId: { equals: $customerId }, isDeleted: false }, take: 100, orderBy: [{ date: desc }, { id: desc }]) { id number date title status isSent lineItems { name } }
     }`, { customerId: owner.id, today, since });
     if (result.customer?.id !== owner.id || !Array.isArray(result.completed)
       || !Array.isArray(result.recentCompleted) || !Array.isArray(result.upcoming)
@@ -934,8 +935,13 @@ router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res
       || estimate.lineItems?.some(item => /snow/i.test(item.name || '')));
     const pendingEstimates = result.estimates.filter(estimate => estimate.status === 'PENDING');
     const draftEstimates = result.estimates.filter(estimate => estimate.status === 'DRAFT');
+    const scores = scoreCustomerRelationship({ customer: result.customer,
+      localType: local.rows[0].customer_type, lastCompletedVisit: result.completed[0],
+      nextScheduledVisit: result.upcoming[0], completedVisitsLast12Months: result.recentCompleted.length,
+      estimates: result.estimates, today });
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, source: 'homeworks', asOf: new Date().toISOString(),
+      leadScore: scores.lead, churnRisk: scores.churn,
       accountStatus: result.customer.status, outstanding: result.customer.outstanding,
       pastDue: result.customer.pastDue,
       lastCompletedVisit: result.completed[0] || null, nextScheduledVisit: result.upcoming[0] || null,

@@ -923,11 +923,13 @@ router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res
       customer(customerId: $customerId) { id fullName status email phone cell outstanding pastDue address { street1 } }
       completed: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false }, take: 1, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
       recentCompleted: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false, startDate: { gte: $since } }, take: 500, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
+      recentVisits: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, isDeleted: false, startDate: { gte: $since } }, take: 100, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title status }
       upcoming: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: OPEN }, isDeleted: false, startDate: { gte: $today } }, take: 1, orderBy: [{ startDate: asc }, { id: asc }]) { id startDate title }
       estimates(where: { customerId: { equals: $customerId }, isDeleted: false }, take: 100, orderBy: [{ date: desc }, { id: desc }]) { id number date title status isSent lineItems { name } }
     }`, { customerId: owner.id, today, since });
     if (result.customer?.id !== owner.id || !Array.isArray(result.completed)
-      || !Array.isArray(result.recentCompleted) || !Array.isArray(result.upcoming)
+      || !Array.isArray(result.recentCompleted) || !Array.isArray(result.recentVisits)
+      || !Array.isArray(result.upcoming)
       || !Array.isArray(result.estimates)) {
       throw new Error('HomeWorks returned incomplete customer activity');
     }
@@ -938,13 +940,16 @@ router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res
     const scores = scoreCustomerRelationship({ customer: result.customer,
       localType: local.rows[0].customer_type, lastCompletedVisit: result.completed[0],
       nextScheduledVisit: result.upcoming[0], completedVisitsLast12Months: result.recentCompleted.length,
-      estimates: result.estimates, today });
+      recentVisits: result.recentVisits, estimates: result.estimates, today });
+    const waitlistedVisit = result.recentVisits.find(visit => visit.status === 'WAITLISTED'
+      && visit.startDate < today);
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, source: 'homeworks', asOf: new Date().toISOString(),
       leadScore: scores.lead, churnRisk: scores.churn,
       accountStatus: result.customer.status, outstanding: result.customer.outstanding,
       pastDue: result.customer.pastDue,
       lastCompletedVisit: result.completed[0] || null, nextScheduledVisit: result.upcoming[0] || null,
+      waitlistedVisitToReview: waitlistedVisit || null,
       completedVisitsLast12Months: result.recentCompleted.length,
       completedVisitHistoryLimited: result.recentCompleted.length === 500,
       pendingEstimateCount: pendingEstimates.length,

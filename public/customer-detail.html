@@ -421,9 +421,9 @@ function render() {
             </div>
 
             <div class="right-col">
-                <!-- Verified customer context -->
+                <!-- Verified customer activity -->
                 <div class="sidebar-card">
-                    <div class="sc-header">Customer overview</div>
+                    <div class="sc-header">CRM Intelligence</div>
                     <div class="sc-body" id="aiIntelCard" style="padding:16px 20px;">
                         <div style="text-align:center;color:var(--gray-400);font-size:13px">Loading...</div>
                     </div>
@@ -948,31 +948,36 @@ async function applyReferralCredit(referralId, referredName) {
     } catch(e) { showToast('Failed to apply credit'); }
 }
 
-// ─── Customer overview from the profile and live HomeWorks estimates ────────────
+// ─── CRM Intelligence from live HomeWorks customer activity ────────────
 
 async function loadAIIntel() {
     const el = document.getElementById('aiIntelCard');
     if (!el) return;
     try {
-        const status = customer && customer.status ? String(customer.status) : 'Unknown';
-        let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
-            + '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Account status</span>'
-            + '<strong style="font-size:13px;">' + esc(status) + '</strong></div>';
-        const response = await fetch('/api/customers/' + encodeURIComponent(customerId) + '/quotes', { cache: 'no-store' });
-        if (!response.ok) throw new Error('HomeWorks estimates unavailable');
+        const response = await fetch('/api/customers/' + encodeURIComponent(customerId) + '/intelligence', { cache: 'no-store' });
+        if (!response.ok) throw new Error('HomeWorks customer activity unavailable');
         const data = await response.json();
-        if (!data.success || data.source !== 'homeworks' || !Array.isArray(data.quotes)) throw new Error('HomeWorks estimates unverified');
-        const snow = data.quotes.find(q => /snow/i.test(q.title || ''));
-        html += '<div style="border-top:1px solid var(--gray-100);padding-top:12px;">'
-            + '<div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;margin-bottom:6px;">Latest snow estimate</div>'
-            + (snow ? '<div style="font-size:13px;">#' + esc(snow.quote_number || snow.id) + ' · ' + esc(snow.status || 'Unknown') + '</div>'
-                : '<div style="font-size:12px;color:var(--gray-500);">No snow estimate found</div>')
-            + '</div>';
+        if (!data.success || data.source !== 'homeworks') throw new Error('HomeWorks customer activity unverified');
+        const formatDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
+            ? new Date(value + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date unavailable';
+        const row = (label, value) => '<div style="padding:8px 0;border-bottom:1px solid var(--gray-100);">'
+            + '<div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;margin-bottom:3px;">' + label + '</div>'
+            + '<div style="font-size:13px;color:var(--gray-700);">' + value + '</div></div>';
+        const visit = item => item ? esc(formatDate(item.startDate)) + ' · ' + esc(item.title || 'Visit') : 'None scheduled';
+        let html = row('HomeWorks account', esc(data.accountStatus || 'Unknown'))
+            + row('Last completed visit', data.lastCompletedVisit ? visit(data.lastCompletedVisit) : 'No completed visit found')
+            + row('Next scheduled visit', visit(data.nextScheduledVisit));
+        const snow = data.latestSnowEstimate;
+        html += row('Latest snow estimate', snow
+            ? '#' + esc(snow.number || snow.id) + ' · ' + esc(snow.status || 'Unknown') + ' · ' + esc(formatDate(snow.date))
+            : data.snowEstimateHistoryLimited ? 'No snow estimate in the most recent 100 estimates' : 'None found');
+        const pastDue = Number(data.pastDue);
+        if (Number.isFinite(pastDue) && pastDue > 0) html += row('Past-due balance', '$' + pastDue.toFixed(2));
+        html += '<div style="font-size:11px;color:var(--gray-400);padding-top:9px;">Activity verified with HomeWorks.</div>';
         el.innerHTML = html;
     } catch (e) {
-        el.innerHTML = '<div style="font-size:13px;color:var(--gray-500);">Account status: ' + esc(customer?.status || 'Unknown')
-            + '</div><div style="font-size:12px;color:var(--gray-400);margin-top:8px;">Unable to verify current estimates with HomeWorks.</div>';
-        console.error('Customer overview error:', e);
+        el.innerHTML = '<div style="font-size:13px;color:var(--gray-500);">Unable to verify customer activity with HomeWorks. Please try again.</div>';
+        console.error('CRM intelligence error:', e);
     }
 }
 

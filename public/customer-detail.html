@@ -973,10 +973,28 @@ async function loadAIIntel() {
             return Number.isSafeInteger(id) && id > 0
                 ? '<a href="https://secure.copilotcrm.com/finances/estimates/view/' + id + '" target="_blank" rel="noopener">' + label + '</a>' : label;
         };
+        const scoreRow = (label, signal) => {
+            if (!signal || !signal.label) return row(label, 'Unavailable');
+            const color = signal.label === 'Low' || signal.label === 'Existing customer'
+                ? 'background:var(--green-bg);color:var(--green)'
+                : signal.label === 'Hot' || signal.label === 'Needs review'
+                    ? 'background:var(--amber-bg);color:var(--amber)'
+                    : 'background:var(--blue-bg);color:var(--blue)';
+            const points = typeof signal.score === 'number' && Number.isFinite(signal.score)
+                ? ' (' + signal.score + ' pts)' : '';
+            return '<div style="padding:8px 0;border-bottom:1px solid var(--gray-100);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+                + '<span style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;">' + label + '</span>'
+                + '<span style="display:inline-block;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:700;' + color + '">'
+                + esc(signal.label) + points + '</span></div>'
+                + (Array.isArray(signal.factors) ? signal.factors.map(factor => '<div style="font-size:11px;color:var(--gray-500);padding-top:4px;">' + esc(factor) + '</div>').join('') : '')
+                + '</div>';
+        };
         const pending = Number(data.pendingEstimateCount) || 0;
         const drafts = Number(data.draftEstimateCount) || 0;
         const pastDue = Number(data.pastDue);
-        let html = section('Needs review');
+        let html = scoreRow('Lead score', data.leadScore) + scoreRow('Churn risk', data.churnRisk)
+            + section('Needs review');
         if (!pending && !drafts && !(pastDue > 0)) {
             html += '<div style="font-size:12px;color:var(--gray-500);padding:8px 0;">No pending estimates, drafts, or past-due balance found.</div>';
         } else {

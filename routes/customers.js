@@ -915,25 +915,40 @@ router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
-    const result = await query('YardDeskCrmSignals', `query YardDeskCrmSignals($customerId: SafeInt!, $today: Date!) {
-      customer(customerId: $customerId) { id fullName status pastDue }
+    const yearAgo = new Date(`${today}T12:00:00Z`);
+    yearAgo.setUTCFullYear(yearAgo.getUTCFullYear() - 1);
+    const since = yearAgo.toISOString().slice(0, 10);
+    const result = await query('YardDeskCrmSignals', `query YardDeskCrmSignals($customerId: SafeInt!, $today: Date!, $since: Date!) {
+      customer(customerId: $customerId) { id fullName status outstanding pastDue }
       completed: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false }, take: 1, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
+      recentCompleted: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false, startDate: { gte: $since } }, take: 500, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
       upcoming: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: OPEN }, isDeleted: false, startDate: { gte: $today } }, take: 1, orderBy: [{ startDate: asc }, { id: asc }]) { id startDate title }
       estimates(where: { customerId: { equals: $customerId }, isDeleted: false }, take: 100, orderBy: [{ date: desc }, { id: desc }]) { id number date title status lineItems { name } }
-    }`, { customerId: owner.id, today });
+    }`, { customerId: owner.id, today, since });
     if (result.customer?.id !== owner.id || !Array.isArray(result.completed)
-      || !Array.isArray(result.upcoming) || !Array.isArray(result.estimates)) {
+      || !Array.isArray(result.recentCompleted) || !Array.isArray(result.upcoming)
+      || !Array.isArray(result.estimates)) {
       throw new Error('HomeWorks returned incomplete customer activity');
     }
     const snowEstimate = result.estimates.find(estimate => /snow/i.test(estimate.title || '')
       || estimate.lineItems?.some(item => /snow/i.test(item.name || '')));
+    const pendingEstimates = result.estimates.filter(estimate => estimate.status === 'PENDING');
+    const draftEstimates = result.estimates.filter(estimate => estimate.status === 'DRAFT');
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, source: 'homeworks', asOf: new Date().toISOString(),
-      accountStatus: result.customer.status, pastDue: result.customer.pastDue,
+      accountStatus: result.customer.status, outstanding: result.customer.outstanding,
+      pastDue: result.customer.pastDue,
       lastCompletedVisit: result.completed[0] || null, nextScheduledVisit: result.upcoming[0] || null,
+      completedVisitsLast12Months: result.recentCompleted.length,
+      completedVisitHistoryLimited: result.recentCompleted.length === 500,
+      pendingEstimateCount: pendingEstimates.length,
+      pendingEstimates: pendingEstimates.slice(0, 3).map(estimate => ({
+        id: estimate.id, number: estimate.number, date: estimate.date, title: estimate.title,
+      })),
+      draftEstimateCount: draftEstimates.length,
       latestSnowEstimate: snowEstimate ? { id: snowEstimate.id, number: snowEstimate.number,
         date: snowEstimate.date, status: snowEstimate.status } : null,
-      snowEstimateHistoryLimited: result.estimates.length === 100 });
+      estimateHistoryLimited: result.estimates.length === 100 });
   } catch (error) {
     console.error('Customer intelligence unavailable:', error.message);
     res.status(503).json({ success: false, error: 'Unable to verify customer activity with HomeWorks. Please try again.' });

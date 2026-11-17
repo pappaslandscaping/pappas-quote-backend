@@ -148,7 +148,7 @@ function mapInvoice(invoice, customer = {}) {
     },
   };
 }
-async function loadInvoices(context, where = {}, { details = true } = {}) {
+async function loadInvoices(context, where = {}, { details = true, allowUnverifiedCustomers = false } = {}) {
   const fields = details ? INVOICE_FIELDS : INVOICE_FIELDS.slice(0, INVOICE_FIELDS.indexOf(' lineItems'));
   const invoices = await listAll(context, {
     entity: 'invoices',
@@ -166,12 +166,19 @@ async function loadInvoices(context, where = {}, { details = true } = {}) {
       `query YardDeskInvoiceOwners($ids: [SafeInt!]!) { customers(where: { id: { in: $ids } }, take: 200) { ${CUSTOMER_FIELDS} } }`,
       { ids: ids.slice(start, start + 200) },
     );
-    for (const customer of data.customers || []) customers.set(customer.id, customer);
+    if (!Array.isArray(data.customers)) throw new Error('Homeworks customer verification is unavailable.');
+    for (const customer of data.customers) customers.set(customer.id, customer);
   }
   return invoices.map((invoice) => {
     const owner = customers.get(invoice.customerId);
-    if (!owner) throw new Error(`Homeworks invoice ${invoice.number} has no verified customer.`);
-    return { ...mapInvoice(invoice, owner), homeworks: invoice, owner };
+    if (!owner && !allowUnverifiedCustomers)
+      throw new Error(`Homeworks invoice ${invoice.number} has no verified customer.`);
+    const mapped = mapInvoice(invoice, owner || {});
+    if (!owner) {
+      mapped.customer_name = `Customer unavailable (Homeworks #${invoice.customerId})`;
+      mapped.metadata.customer_verification_required = true;
+    }
+    return { ...mapped, homeworks: invoice, owner: owner || null, customer_verification_required: !owner };
   });
 }
 

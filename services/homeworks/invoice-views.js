@@ -2,7 +2,7 @@
 const records = require('./records');
 const { mirrorInvoices } = require('./invoice-cache');
 async function index(context) {
-  return records.loadInvoices(context, {}, { details: false });
+  return records.loadInvoices(context, {}, { details: false, allowUnverifiedCustomers: true });
 }
 async function list(context, params = {}, mailState = (row) => row.mail_state) {
   let rows = await index(context);

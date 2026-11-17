@@ -345,7 +345,7 @@ async function uniqueCustomer(context, { customerId, name, phone, email } = {}) 
     where,
     fields:
       CUSTOMER_FIELDS +
-      ' description status tags emailSendability smsSendability customerType{name} createdAt',
+      ' description status tags emailSendability smsSendability customerType{id name} customerTypeId createdAt',
   });
   const matches = phone
     ? rows.filter((row) =>

@@ -172,6 +172,42 @@ describe('invoice request receipts', () => {
   });
 });
 
+describe('invoice selection and conversion safety', () => {
+  test('the selected customer takes precedence over an edited email', async () => {
+    const remote = { id: 9, fullName: 'Jane' };
+    const resolve = jest.spyOn(customers, 'resolve').mockResolvedValue({ remote });
+    const owner = jest.spyOn(records, 'uniqueCustomer');
+    const pool = { query: jest.fn().mockResolvedValue({ rows: [] }) };
+    // Stop at validation, before creating any invoice; identity must already be canonical.
+    await expect(
+      invoices.create(
+        { pool },
+        { customer_id: 44, customer_email: 'another@example.com', line_items: [] },
+        'request-1234567890',
+      ),
+    ).rejects.toThrow('Review invoice services');
+    expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ pool }), 44);
+    expect(owner).not.toHaveBeenCalled();
+  });
+
+  test('a concurrent estimate conversion cannot create a second invoice', async () => {
+    const pool = {
+      query: jest.fn(async (sql) => ({
+        rows: sql.startsWith('SELECT quote_number') ? [{ quote_number: 123 }] : [],
+      })),
+    };
+    const queryImpl = jest.fn(async (request) =>
+      request.operationName === 'YardDeskEstimateInvoice'
+        ? { estimate: { id: 8, status: 'ACCEPTED', invoiceId: null } }
+        : { estimates: [{ id: 8, number: 123 }] },
+    );
+    await expect(invoices.fromQuote({ pool, queryImpl }, 1)).rejects.toThrow('needs verification');
+    expect(
+      queryImpl.mock.calls.some(([request]) => request.operationName === 'YardDeskInvoiceEstimate'),
+    ).toBe(false);
+  });
+});
+
 describe('agreement attachment recovery', () => {
   const quote = {
     id: 1,

@@ -940,7 +940,9 @@
                 sessionStorage.removeItem('yarddeskInvoiceRequestId');
                 delete window.invoiceCreateRequestId;
 
-                if (action === 'send' && invoiceId) {
+                if (data.review_required) {
+                    showToast(data.message || 'Review the Homeworks draft before sending.', true);
+                } else if (action === 'send' && invoiceId) {
                     showToast('Invoice saved as draft. Send it from Homeworks.');
                 } else if (action === 'print' && invoiceId) {
                     showToast('Invoice saved — generating PDF...');

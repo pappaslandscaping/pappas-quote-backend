@@ -84,13 +84,9 @@ describe('Homeworks migration financial fidelity', () => {
   });
   test('a conflicting mirror identity is not reassigned by invoice number', async () => {
     const pool = {
-      query: jest
-        .fn()
-        .mockResolvedValue({
-          rows: [
-            { id: 99, invoice_number: '123', external_source: 'copilotcrm', external_invoice_id: '999' },
-          ],
-        }),
+      query: jest.fn().mockResolvedValue({
+        rows: [{ id: 99, invoice_number: '123', external_source: 'copilotcrm', external_invoice_id: '999' }],
+      }),
     };
     await expect(mirrorInvoices(pool, [records.mapInvoice(remote, owner)])).rejects.toThrow(
       'conflicting YardDesk identity',
@@ -270,4 +266,17 @@ describe('Homeworks migration communications and snow review', () => {
     );
     expect(result.issues.some((row) => row.type === 'multiple_dispatch_entries')).toBe(true);
   });
+});
+
+test('snow readiness recognizes the abbreviated current season without accepting last year', () => {
+  const result = snowReadiness(
+    [],
+    [
+      { id: 1, name: 'Snow 2026–27', properties: [] },
+      { id: 2, name: 'Snow 2025-2026', properties: [] },
+    ],
+    '2026-2027',
+  );
+  expect(result.currentTemplateCount).toBe(1);
+  expect(result.legacyTemplates.map((row) => row.id)).toEqual([2]);
 });

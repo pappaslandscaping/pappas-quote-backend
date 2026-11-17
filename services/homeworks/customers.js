@@ -33,6 +33,9 @@ function view(remote, local) {
     homeworks_customer_id: remote.id,
     copilot_customer_id: remote.id,
     name: remote.fullName,
+    type: remote.customerType?.name || '',
+    tax_exempt: null,
+    tax_exempt_available: false,
     first_name: remote.firstName,
     last_name: remote.lastName,
     email: remote.email,
@@ -176,11 +179,31 @@ async function update(context, localId, input) {
     'postal_code',
     'country',
     'status',
+    'type',
+    'customer_type',
   ]);
   const unsupported = Object.keys(input).filter((key) => !allowed.has(key));
   if (unsupported.length)
     throw new Error('Review these customer settings in Homeworks: ' + unsupported.join(', '));
   for (const [from, to] of Object.entries(names)) if (input[from] !== undefined) mapped[to] = input[from];
+  if (mapped.tags !== undefined)
+    mapped.tags = Array.isArray(mapped.tags)
+      ? mapped.tags
+      : String(mapped.tags)
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean);
+  const requestedType = input.type ?? input.customer_type;
+  if (requestedType !== undefined && normalize(requestedType) !== normalize(remote.customerType?.name)) {
+    const options = await records.call(
+      context,
+      'YardDeskCustomerTypes',
+      'query YardDeskCustomerTypes{customerTypes{id name}}',
+    );
+    const matches = options.customerTypes.filter((type) => normalize(type.name) === normalize(requestedType));
+    if (matches.length !== 1) throw new Error('Choose a supported Homeworks customer type.');
+    mapped.customerTypeId = matches[0].id;
+  }
   if (
     ['street', 'street2', 'city', 'state', 'postal_code', 'country'].some((key) => input[key] !== undefined)
   )
@@ -214,8 +237,20 @@ async function update(context, localId, input) {
   }
   const check = await records.uniqueCustomer(context, { customerId: remote.id });
   for (const [key, value] of Object.entries(mapped))
-    if (key !== 'address' && JSON.stringify(check[key]) !== JSON.stringify(value))
+    if (
+      key !== 'address' &&
+      (key === 'tags'
+        ? JSON.stringify([...(check.tags || [])].sort()) !== JSON.stringify([...value].sort())
+        : JSON.stringify(check[key]) !== JSON.stringify(value))
+    )
       throw new Error('The customer update needs verification. Refresh before retrying.');
+  if (input.status && check.status !== String(input.status).toUpperCase())
+    throw new Error('The customer status needs verification. Refresh before retrying.');
+  if (
+    mapped.address &&
+    Object.entries(mapped.address).some(([key, value]) => (check.address?.[key] ?? '') !== (value ?? ''))
+  )
+    throw new Error('The customer address needs verification. Refresh before retrying.');
   return { success: true, source: records.SOURCE, customer: view(check, local) };
 }
 async function create(context, input) {

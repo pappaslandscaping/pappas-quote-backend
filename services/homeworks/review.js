@@ -1,6 +1,11 @@
 'use strict';
 const { call, listAll, dateKey, cents, SOURCE } = require('./records');
 
+function isSeason(name, season) {
+  const [start, end] = season.split('-');
+  return new RegExp(`${start}\\s*[-–—]\\s*(?:${end}|${end.slice(-2)})(?!\\d)`).test(String(name));
+}
+
 function snowReadiness(estimates, templates, season) {
   const accepted = new Map(),
     roster = new Map(),
@@ -25,7 +30,7 @@ function snowReadiness(estimates, templates, season) {
       });
       accepted.set(line.propertyId, list);
     }
-  const current = templates.filter((template) => template.name.includes(season));
+  const current = templates.filter((template) => isSeason(template.name, season));
   for (const template of current)
     for (const row of template.properties || []) {
       const list = roster.get(row.propertyId) || [];
@@ -64,7 +69,7 @@ function snowReadiness(estimates, templates, season) {
     acceptedPropertyCount: accepted.size,
     currentTemplateCount: current.length,
     legacyTemplates: templates
-      .filter((template) => !template.name.includes(season))
+      .filter((template) => !isSeason(template.name, season))
       .map((template) => ({ id: template.id, name: template.name, propertyCount: template.propertyCount })),
     issues,
     reviewOnly: true,

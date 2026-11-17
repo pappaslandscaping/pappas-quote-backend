@@ -6,7 +6,9 @@ async function create(context, input, requestId) {
     throw new Error('Refresh the invoice form before creating an invoice. A request ID is required.');
   const customer = input.homeworks_customer_id
     ? await records.uniqueCustomer(context, { customerId: input.homeworks_customer_id })
-    : await records.uniqueCustomer(context, { email: input.customer_email });
+    : input.customer_id
+      ? (await require('./customers').resolve(context, input.customer_id)).remote
+      : await records.uniqueCustomer(context, { email: input.customer_email });
   const lineItems = (input.line_items || []).map((line) => ({
     name: line.name || line.description,
     description: line.description || '',
@@ -98,12 +100,24 @@ async function create(context, input, requestId) {
   }
   const invoice = await records.invoiceSnapshot(context, invoiceId),
     rows = await mirrorInvoices(context.pool, [invoice]);
+  if (Number(invoice.copilot_customer_id) !== customer.id)
+    throw new Error(
+      'The created invoice belongs to a different customer. Verify it in Homeworks before continuing.',
+    );
+  const reviewRequired = input.total != null && records.cents(input.total) !== records.cents(invoice.total);
   return {
     success: true,
     source: records.SOURCE,
     invoice: rows[0],
     id: rows[0].id,
     homeworks_invoice_id: invoiceId,
+    review_required: reviewRequired,
+    ...(reviewRequired
+      ? {
+          message:
+            'The Homeworks draft total differs from this preview. Review tax, discounts, and company fees in Homeworks before sending.',
+        }
+      : {}),
   };
 }
 async function fromQuote(context, quoteId) {

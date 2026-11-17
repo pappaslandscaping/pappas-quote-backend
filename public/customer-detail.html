@@ -505,7 +505,7 @@ function renderEditMode(c, name) {
             <div class="edit-field"><label>First Name</label><input id="f_first_name" value="${esc(c.first_name||'')}"></div>
             <div class="edit-field"><label>Last Name</label><input id="f_last_name" value="${esc(c.last_name||'')}"></div>
         </div>
-        <div class="edit-field"><label>Company Name</label><input id="f_company_name" value="${esc(c.customer_company_name||'')}"></div>
+        <div class="edit-field"><label>Company Name</label><input id="f_company_name" value="Use the full name field above" disabled></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="edit-field"><label>Email</label><input id="f_email" value="${esc(c.email||'')}"></div>
             <div class="edit-field"><label>Phone</label><input id="f_phone" value="${esc(c.phone||'')}"></div>
@@ -521,21 +521,15 @@ function renderEditMode(c, name) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="edit-field"><label>Type</label><select id="f_type">
                 <option value="">— Select —</option>
-                ${['Customer','Potential Customer','Leads','Commercial','Residential','Former Client'].map(t => `<option value="${t}"${c.type===t?' selected':''}>${t}</option>`).join('')}
+                ${[...new Set([c.type,'Customer','Potential Customer','Leads','Commercial','Residential','Former Client'].filter(Boolean))].map(t => `<option value="${t}"${c.type===t?' selected':''}>${t}</option>`).join('')}
             </select></div>
             <div class="edit-field"><label>Status</label><select id="f_status">
-                <option value="Active"${c.status==='Active'?' selected':''}>Active</option>
-                <option value="Inactive"${c.status!=='Active'?' selected':''}>Inactive</option>
+                <option value="Active"${(c.status||'').toLowerCase()==='active'?' selected':''}>Active</option>
+                <option value="Inactive"${(c.status||'').toLowerCase()!=='active'?' selected':''}>Inactive</option>
             </select></div>
         </div>
         <div class="edit-field"><label>Tags (comma separated)</label><input id="f_tags" value="${esc(c.tags||'')}"></div>
-        <div class="edit-field">
-            <label>Tax Exempt</label>
-            <div class="toggle-wrap">
-                <label class="toggle-switch"><input type="checkbox" id="f_tax_exempt" ${c.tax_exempt ? 'checked' : ''}><span class="toggle-slider"></span></label>
-                <span style="font-size:13px;color:var(--gray-600);">This customer is exempt from sales tax</span>
-            </div>
-        </div>
+        <div class="edit-field"><label>Tax settings</label><a href="https://secure.copilotcrm.com" target="_blank" rel="noopener noreferrer">Review tax exemption in Homeworks</a></div>
         <div class="edit-field"><label>Notes</label><textarea id="f_notes">${esc(c.notes||'')}</textarea></div>
     </div>`;
 }
@@ -1039,7 +1033,6 @@ async function saveCustomer() {
         name: document.getElementById('f_name').value,
         first_name: document.getElementById('f_first_name').value,
         last_name: document.getElementById('f_last_name').value,
-        company_name: document.getElementById('f_company_name').value,
         email: document.getElementById('f_email').value,
         phone: document.getElementById('f_phone').value,
         mobile: document.getElementById('f_mobile').value,
@@ -1051,14 +1044,19 @@ async function saveCustomer() {
         type: document.getElementById('f_type').value,
         status: document.getElementById('f_status').value,
         tags: document.getElementById('f_tags').value,
-        notes: document.getElementById('f_notes').value,
-        tax_exempt: document.getElementById('f_tax_exempt').checked
+        notes: document.getElementById('f_notes').value
     };
+    for (const key of Object.keys(u)) {
+        const previous = key === 'tags' ? (Array.isArray(customer.tags) ? customer.tags.join(',') : customer.tags) : customer[key];
+        const normalize = value => String(value ?? '').trim();
+        if ((key === 'status' ? normalize(previous).toLowerCase() === normalize(u[key]).toLowerCase() : normalize(previous) === normalize(u[key]))) delete u[key];
+    }
+    if (!Object.keys(u).length) { editMode = false; render(); return; }
     try {
         const res = await fetch('/api/customers/' + customerId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
         const data = await res.json();
         if (data.success) { customer = data.customer; editMode = false; render(); showToast('Saved'); loadProperties(); loadJobs(); loadQuotes(); loadInvoices(); loadNotes(); loadSavedCards(); }
-        else showToast('Save failed');
+        else showToast(data.error || 'Save failed');
     } catch (e) { showToast('Save failed'); }
 }
 

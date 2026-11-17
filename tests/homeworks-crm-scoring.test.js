@@ -32,11 +32,35 @@ test('a seasonal scheduling gap alone cannot produce a churn rating', () => {
   assert.equal(result.churn.score, null);
 });
 
-test('inactive status and past-due balances call for review without pretending to predict churn', () => {
+test('inactive status needs review while a past-due balance remains separate from churn', () => {
   const inactive = scoreCustomerRelationship({ customer: { ...customer, status: 'INACTIVE' }, localType: 'customer', today });
   const overdue = scoreCustomerRelationship({ customer: { ...customer, pastDue: '125.00' }, localType: 'customer',
     nextScheduledVisit: { startDate: '2026-11-23' }, today });
   assert.equal(inactive.churn.label, 'Needs review');
-  assert.equal(overdue.churn.label, 'Needs review');
-  assert.equal(overdue.churn.score, null);
+  assert.equal(overdue.churn.label, 'Low');
+});
+
+test('Mary’s past waitlisted fertilizing visit prompts a service review, not a generic seasonal churn guess', () => {
+  const result = scoreCustomerRelationship({ customer, localType: 'customer',
+    lastCompletedVisit: { startDate: '2026-06-30', title: 'Early Summer Fertilizing' },
+    completedVisitsLast12Months: 3, recentVisits: [
+      { startDate: '2026-09-25', title: 'Fall Fertilizing', status: 'WAITLISTED' },
+      { startDate: '2026-09-20', title: 'Late Summer Fertilizing', status: 'SKIPPED' },
+    ], today });
+  assert.equal(result.churn.label, 'Needs review');
+  assert(result.churn.factors.some(factor => factor.includes('Fall Fertilizing')));
+});
+
+test('a completed seasonal service without unfinished work is a seasonal pause', () => {
+  const result = scoreCustomerRelationship({ customer, localType: 'customer',
+    lastCompletedVisit: { startDate: '2026-06-30', title: 'Early Summer Fertilizing' }, today });
+  assert.equal(result.churn.label, 'Seasonal pause');
+  assert.equal(result.churn.score, null);
+});
+
+test('a current sent renewal estimate is pending rather than evidence of churn', () => {
+  const result = scoreCustomerRelationship({ customer, localType: 'customer',
+    lastCompletedVisit: { startDate: '2026-03-10', title: 'Snow Removal' },
+    estimates: [{ id: 7, number: 1782, status: 'PENDING', isSent: true, date: '2026-10-25' }], today });
+  assert.equal(result.churn.label, 'Estimate pending');
 });

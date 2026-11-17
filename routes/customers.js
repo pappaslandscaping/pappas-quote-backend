@@ -8,7 +8,7 @@ const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 const { getCustomer360 } = require('../services/copilot/integration');
 const { loadCustomerEstimates, renderMailEstimate } = require('../lib/homeworks-customer-estimates');
-const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances } = require('../lib/homeworks-customer-billing');
+const { loadHomeworksCustomerBilling, auditHomeworksCustomerBalances, resolveHomeworksCustomer } = require('../lib/homeworks-customer-billing');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload, generateStatementPDF, getCopilotToken }) {
   const router = express.Router();
@@ -904,6 +904,40 @@ router.delete('/api/customers/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM customers WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) { serverError(res, error); }
+});
+
+// Verified customer activity, with no lead or churn guess based on imported jobs.
+router.get('/api/customers/:id/intelligence', authenticateToken, async (req, res) => {
+  try {
+    const local = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
+    if (!local.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const { owner, query } = await resolveHomeworksCustomer({ customer: local.rows[0], getCopilotToken });
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const result = await query('YardDeskCrmSignals', `query YardDeskCrmSignals($customerId: SafeInt!, $today: Date!) {
+      customer(customerId: $customerId) { id fullName status pastDue }
+      completed: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: CLOSED }, isDeleted: false }, take: 1, orderBy: [{ startDate: desc }, { id: desc }]) { id startDate title }
+      upcoming: events(where: { customerId: { equals: $customerId }, type: { equals: VISIT }, status: { equals: OPEN }, isDeleted: false, startDate: { gte: $today } }, take: 1, orderBy: [{ startDate: asc }, { id: asc }]) { id startDate title }
+      estimates(where: { customerId: { equals: $customerId }, isDeleted: false }, take: 100, orderBy: [{ date: desc }, { id: desc }]) { id number date title status lineItems { name } }
+    }`, { customerId: owner.id, today });
+    if (result.customer?.id !== owner.id || !Array.isArray(result.completed)
+      || !Array.isArray(result.upcoming) || !Array.isArray(result.estimates)) {
+      throw new Error('HomeWorks returned incomplete customer activity');
+    }
+    const snowEstimate = result.estimates.find(estimate => /snow/i.test(estimate.title || '')
+      || estimate.lineItems?.some(item => /snow/i.test(item.name || '')));
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, source: 'homeworks', asOf: new Date().toISOString(),
+      accountStatus: result.customer.status, pastDue: result.customer.pastDue,
+      lastCompletedVisit: result.completed[0] || null, nextScheduledVisit: result.upcoming[0] || null,
+      latestSnowEstimate: snowEstimate ? { id: snowEstimate.id, number: snowEstimate.number,
+        date: snowEstimate.date, status: snowEstimate.status } : null,
+      snowEstimateHistoryLimited: result.estimates.length === 100 });
+  } catch (error) {
+    console.error('Customer intelligence unavailable:', error.message);
+    res.status(503).json({ success: false, error: 'Unable to verify customer activity with HomeWorks. Please try again.' });
+  }
 });
 
 // Live HomeWorks estimates also work for customers without email.

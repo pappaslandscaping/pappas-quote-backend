@@ -386,12 +386,13 @@ async function loadStats(){
         ]);
         const d=await r.json();
         const pd=await pr.json();
+        if(!r.ok || !d.success || !d.stats || !pr.ok || !pd.success || !pd.stats) throw new Error(d.error || pd.error || 'Customer totals are unavailable.');
         const s=d.stats;
         const ps=pd.stats || {};
         document.getElementById('statTotal').textContent=s.total;
-        document.getElementById('statActive').textContent=ps.totalCustomers || s.active;
+        document.getElementById('statActive').textContent=ps.totalCustomers ?? s.active;
         document.getElementById('statLeads').textContent=ps.totalLeads || 0;
-        document.getElementById('statConversion').textContent=(ps.conversionRate || 0) + '%';
+        document.getElementById('statConversion').textContent=ps.conversionRate == null ? 'Unavailable' : ps.conversionRate + '%';
         document.getElementById('statNewMonth').textContent=ps.newLeadsThisMonth || 0;
         document.getElementById('tabCustomerCount').textContent='(' + (ps.totalCustomers || 0) + ')';
         document.getElementById('tabLeadCount').textContent='(' + (ps.totalLeads || 0) + ')';
@@ -428,6 +429,7 @@ async function loadStats(){
         }
     } catch(e) {
         console.error(e);
+        ['statTotal','statActive','statLeads','statConversion','statNewMonth'].forEach(id=>document.getElementById(id).textContent='Unavailable');
     }
 }
 
@@ -435,7 +437,8 @@ async function loadTypes(){
     try {
         const r=await fetch('/api/customers?limit=5000');
         const d=await r.json();
-        const customers=d.customers||[];
+        if(!r.ok || !d.success || !Array.isArray(d.customers)) throw new Error(d.error || 'Customers are unavailable.');
+        const customers=d.customers;
 
         // Get unique types
         const typeMap={};
@@ -484,7 +487,8 @@ async function loadCustomers(){
 
         const r=await fetch('/api/customers?'+p);
         const d=await r.json();
-        allCustomers=d.customers||[];
+        if(!r.ok || !d.success || !Array.isArray(d.customers)) throw new Error(d.error || 'Customers are unavailable.');
+        allCustomers=d.customers;
         renderTable();
 
         const total=d.total||0;
@@ -499,7 +503,10 @@ async function loadCustomers(){
         }
     } catch(e) {
         console.error(e);
-        document.getElementById('loadingState').innerHTML='<p>Failed to load</p>';
+        allCustomers=[];
+        document.getElementById('pagination').style.display='none';
+        document.getElementById('loadingState').style.display='block';
+        document.getElementById('loadingState').innerHTML='<p>Customers unavailable: '+esc(e.message)+'</p>';
     }
 }
 
@@ -539,14 +546,14 @@ function renderTable(){
 
     tb.innerHTML=allCustomers.map(c=>{
         const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'—';
-        const tags=c.tags?c.tags.split(',').map(t=>'<span class="tag">'+esc(t.trim())+'</span>').join(' '):'—';
+        const tags=c.tags?(Array.isArray(c.tags)?c.tags:String(c.tags).split(',')).map(t=>'<span class="tag">'+esc(t.trim())+'</span>').join(' '):'—';
         const isA=(c.status||'').toLowerCase()==='active';
         const cType = c.customer_type || 'customer';
         const typePill = '<span class="type-pill type-'+cType+'">'+(cType === 'lead' ? 'Lead' : 'Customer')+'</span>';
 
         return '<tr style="cursor:pointer" onclick="window.location.href=\'customer-detail.html?id='+c.id+'\'">'+
             '<td style="color:var(--gray-400);font-size:12px">'+esc(c.customer_number||'—')+'</td>'+
-            '<td><div class="td-name">'+esc(name)+'</div></td>'+
+            '<td><div class="td-name">'+esc(name)+'</div>'+(c.linkage_review_required?'<small>Historical contact linkage needs review</small>':'')+'</td>'+
             '<td>'+esc(c.email||'—')+'</td>'+
             '<td>'+esc(c.phone||c.mobile||'—')+'</td>'+
             '<td>'+esc(c.city||'—')+'</td>'+

@@ -1100,7 +1100,7 @@ router.get('/api/messages/conversations', async (req, res) => {
             ),
             10
           ) AS contact_key
-        FROM messages
+        FROM messages m
       ),
       latest_messages AS (
         SELECT DISTINCT ON (nm.contact_key)

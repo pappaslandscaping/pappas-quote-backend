@@ -64,57 +64,47 @@ async function directory(context) {
     fields:
       'id fullName firstName lastName email phone cell status description tags address{street1 street2 city state zip country} customerType{name} createdAt',
   });
-  const local = (await context.pool.query('SELECT * FROM customers')).rows,
-    used = new Set(),
-    result = [];
+  const local = (await context.pool.query('SELECT * FROM customers')).rows;
+  const matches = (row, owner) =>
+    normalize(row.name) === normalize(owner.fullName) &&
+    ((normalize(owner.email) && normalize(row.email) === normalize(owner.email)) ||
+      [row.phone, row.mobile].some((value) => phone(value).length === 10 &&
+        [owner.cell, owner.phone].some((candidate) => phone(candidate) === phone(value))));
+  // Plan every alias before linking any of them. Shared household details cannot
+  // establish which historical account belongs to which source customer.
+  const claims = new Map();
+  for (const row of local) {
+    claims.set(row.id, remote.filter((owner) => matches(row, owner)).map((owner) => owner.id));
+  }
+  const result = [];
   for (const owner of remote) {
     const linked = local.filter((row) => Number(row.homeworks_customer_id) === owner.id);
-    const candidates = linked.length
-      ? linked
-      : local.filter(
-          (row) =>
-            !row.homeworks_customer_id &&
-            normalize(row.name) === normalize(owner.fullName) &&
-            ((normalize(owner.email) && normalize(row.email) === normalize(owner.email)) ||
-              [row.phone, row.mobile].some(
-                (value) =>
-                  phone(value).length === 10 &&
-                  [owner.cell, owner.phone].some((candidate) => phone(candidate) === phone(value)),
-              )),
-        );
-    if (candidates.length > 1)
-      throw new Error(
-        'Multiple YardDesk contacts match ' + owner.fullName + '. Resolve the contact linkage first.',
+    if (linked.length > 1) throw new Error('Duplicate canonical Homeworks customer linkage.');
+    const aliases = local.filter((row) => !row.homeworks_customer_id && matches(row, owner));
+    const ambiguous = aliases.length > 1 || aliases.some((row) => claims.get(row.id).length > 1) ||
+      linked.some((row) => claims.get(row.id).length > 1);
+    let row = linked[0];
+    if (!row && aliases.length === 1 && !ambiguous) {
+      const claimed = await context.pool.query(
+        'UPDATE customers SET homeworks_customer_id=$2 WHERE id=$1 AND homeworks_customer_id IS NULL RETURNING *',
+        [aliases[0].id, owner.id],
       );
-    let row = candidates[0];
-    if (row && used.has(row.id))
-      throw new Error('A YardDesk contact matches multiple Homeworks customers. Review the account linkage.');
+      row = claimed.rows[0];
+    }
     if (!row) {
+      // A separate canonical mirror preserves ambiguous office history intact.
       const inserted = await context.pool.query(
         'INSERT INTO customers(customer_number,name,email,phone,mobile,street,city,state,postal_code,status,customer_type,homeworks_customer_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(homeworks_customer_id) WHERE homeworks_customer_id IS NOT NULL DO UPDATE SET homeworks_customer_id=EXCLUDED.homeworks_customer_id RETURNING *',
         [
-          'HW-' + owner.id,
-          owner.fullName,
-          owner.email,
-          owner.phone,
-          owner.cell,
-          owner.address?.street1,
-          owner.address?.city,
-          owner.address?.state,
-          owner.address?.zip,
-          owner.status.toLowerCase(),
-          normalize(owner.customerType?.name) || 'customer',
-          owner.id,
+          'HW-' + owner.id, owner.fullName, owner.email, owner.phone, owner.cell,
+          owner.address?.street1, owner.address?.city, owner.address?.state, owner.address?.zip,
+          owner.status.toLowerCase(), normalize(owner.customerType?.name) || 'customer', owner.id,
         ],
       );
       row = inserted.rows[0];
-    } else if (!row.homeworks_customer_id)
-      await context.pool.query(
-        'UPDATE customers SET homeworks_customer_id=$2 WHERE id=$1 AND homeworks_customer_id IS NULL',
-        [row.id, owner.id],
-      );
-    used.add(row.id);
-    result.push(view(owner, row));
+    }
+    result.push({ ...view(owner, row), linkage_review_required: ambiguous,
+      ...(ambiguous ? { linkage_note: 'Historical YardDesk contacts need review. Office history has not been merged.' } : {}) });
   }
   return result;
 }

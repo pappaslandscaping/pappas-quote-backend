@@ -269,8 +269,12 @@ function normalizeResolvedRow(row) {
   const effectiveCrewName = row.source_crew_name || null;
   const effectiveRouteOrder = row.source_stop_order ?? null;
   const sourceLocation = parseJsonObject(parseJsonObject(row.raw_payload).raw_data).location || {};
-  const mapLat = row.map_lat == null ? (sourceLocation.latitude ?? null) : Number.parseFloat(row.map_lat);
-  const mapLng = row.map_lng == null ? (sourceLocation.longitude ?? null) : Number.parseFloat(row.map_lng);
+  const localLat = toNullableCoordinate(row.map_lat), localLng = toNullableCoordinate(row.map_lng);
+  const sourceLat = toNullableCoordinate(sourceLocation.latitude), sourceLng = toNullableCoordinate(sourceLocation.longitude);
+  const validPair = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const localPin = validPair(localLat, localLng), sourcePin = validPair(sourceLat, sourceLng);
+  const mapLat = localPin ? localLat : sourcePin ? sourceLat : null;
+  const mapLng = localPin ? localLng : sourcePin ? sourceLng : null;
   const sourceDeleted = !!row.source_deleted_at;
   const rawPayload = parseJsonObject(row.raw_payload);
   const rawData = parseJsonObject(rawPayload.raw_data);
@@ -329,7 +333,7 @@ function normalizeResolvedRow(row) {
       map_lat: mapLat,
       map_lng: mapLng,
       map_source: row.map_source || 'none',
-      map_quality: row.map_quality && row.map_quality !== 'missing' ? row.map_quality : (mapLat != null && mapLng != null ? 'source' : 'missing'),
+      map_quality: localPin ? (row.map_quality || 'street') : sourcePin ? 'source' : 'missing',
       print_group_key: row.print_group_key || null,
       print_note: row.print_note || null,
       updated_at: dispatchPlanExists ? row.dispatch_updated_at : null,
@@ -342,7 +346,7 @@ function normalizeResolvedRow(row) {
       included_in_dispatch: !row.hold_from_dispatch && !sourceDeleted,
       map_lat: mapLat,
       map_lng: mapLng,
-      map_quality: row.map_quality && row.map_quality !== 'missing' ? row.map_quality : (mapLat != null && mapLng != null ? 'source' : 'missing'),
+      map_quality: localPin ? (row.map_quality || 'street') : sourcePin ? 'source' : 'missing',
     },
     flags: {
       needs_address_review: !effectiveAddress,

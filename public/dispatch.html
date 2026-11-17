@@ -1746,7 +1746,7 @@ async function updateMapMarkers(jobs) {
 
         const isUnassigned = !job.crew_assigned;
         const pinColor = isUnassigned ? '#dc4a4a' : (crewColorMap[job.crew_assigned] || '#2e403d');
-        const isBadAddress = job.geocode_quality && job.geocode_quality !== 'street';
+        const isBadAddress = job.geocode_quality && !['street', 'source'].includes(job.geocode_quality);
         const pin = document.createElement('div');
         pin.style.cssText = `width:32px;height:32px;border-radius:50%;background:${pinColor};color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;transition:transform 0.15s,z-index 0s;`;
         if (isBadAddress) {
@@ -2594,7 +2594,7 @@ function renderJobCard(job) {
     const statusClass = getStatusClass(job.status);
     const statusLabel = getStatusLabel(job.status);
     const displayAddr = buildDisplayAddress(job);
-    const badAddr = job.geocode_quality && job.geocode_quality !== 'street';
+    const badAddr = job.geocode_quality && !['street', 'source'].includes(job.geocode_quality);
     const jobId = normalizeJobId(job.id);
     const jobIdEsc = esc(jobId);
     const jobIdJs = jobIdLiteral(jobId);
@@ -3004,7 +3004,7 @@ function openJobDetail(jobId) {
             </div>
             <div class="detail-item full-width">
                 <div class="detail-label">Address</div>
-                <div class="detail-value">${esc(buildDisplayAddress(job))}${job.geocode_quality && job.geocode_quality !== 'street' ? ' <span style="color:#d97706;font-size:11px;">⚠ city-level only</span>' : ''}</div>
+                <div class="detail-value">${esc(buildDisplayAddress(job))}${job.geocode_quality && !['street', 'source'].includes(job.geocode_quality) ? ' <span style="color:#d97706;font-size:11px;">⚠ city-level only</span>' : ''}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Service Type</div>

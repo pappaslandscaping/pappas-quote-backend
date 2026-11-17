@@ -280,3 +280,9 @@ test('snow readiness recognizes the abbreviated current season without accepting
   expect(result.currentTemplateCount).toBe(1);
   expect(result.legacyTemplates.map((row) => row.id)).toEqual([2]);
 });
+
+test('source pins remain complete coordinate pairs when a historical local pin is incomplete',()=>{
+ const {normalizeResolvedRow}=require('../services/copilot/live-jobs');
+ const job=normalizeResolvedRow({raw_payload:{raw_data:{location:{latitude:41.5,longitude:-81.8}}},map_lat:'40',map_lng:null,map_quality:'failed'});
+ expect(job.resolved).toMatchObject({map_lat:41.5,map_lng:-81.8,map_quality:'source'});
+});

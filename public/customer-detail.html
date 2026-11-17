@@ -421,9 +421,9 @@ function render() {
             </div>
 
             <div class="right-col">
-                <!-- AI Intelligence -->
+                <!-- Verified customer context -->
                 <div class="sidebar-card">
-                    <div class="sc-header">CRM Intelligence</div>
+                    <div class="sc-header">Customer overview</div>
                     <div class="sc-body" id="aiIntelCard" style="padding:16px 20px;">
                         <div style="text-align:center;color:var(--gray-400);font-size:13px">Loading...</div>
                     </div>
@@ -948,66 +948,31 @@ async function applyReferralCredit(referralId, referredName) {
     } catch(e) { showToast('Failed to apply credit'); }
 }
 
-// ─── AI Intelligence (Lead Score + Churn Risk) ────────────
+// ─── Customer overview from the profile and live HomeWorks estimates ────────────
 
 async function loadAIIntel() {
     const el = document.getElementById('aiIntelCard');
     if (!el) return;
     try {
-        const [leadRes, churnRes] = await Promise.all([
-            fetch('/api/customers/' + customerId + '/lead-score').catch(() => null),
-            fetch('/api/ai/churn-risk').catch(() => null)
-        ]);
-        const leadData = leadRes && leadRes.ok ? await leadRes.json() : {};
-        const churnData = churnRes && churnRes.ok ? await churnRes.json() : {};
-
-        // Find this customer in churn results
-        const churnCustomer = (churnData.customers || []).find(c => String(c.id) === String(customerId));
-
-        let html = '';
-
-        // Lead Score
-        if (leadData.success) {
-            const gradeColors = { Hot: 'background:var(--red-bg);color:var(--red)', Warm: 'background:var(--amber-bg);color:var(--amber)', Cold: 'background:var(--blue-bg);color:var(--blue)' };
-            html += '<div style="margin-bottom:14px;">';
-            html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-            html += '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Lead Score</span>';
-            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;' + (gradeColors[leadData.grade] || '') + '">' + esc(leadData.grade) + ' (' + leadData.score + ' pts)</span>';
-            html += '</div>';
-            if (leadData.factors && leadData.factors.length) {
-                leadData.factors.forEach(f => {
-                    html += '<div style="font-size:12px;color:var(--gray-500);padding:2px 0;">' + esc(f) + '</div>';
-                });
-            } else {
-                html += '<div style="font-size:12px;color:var(--gray-400);">No scoring factors</div>';
-            }
-            html += '</div>';
-        }
-
-        // Churn Risk
-        html += '<div style="border-top:1px solid var(--gray-100);padding-top:14px;">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-        html += '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Churn Risk</span>';
-        if (churnCustomer) {
-            const riskColors = { High: 'background:var(--red-bg);color:var(--red)', Medium: 'background:var(--amber-bg);color:var(--amber)', Low: 'background:var(--green-bg);color:var(--green)' };
-            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;' + (riskColors[churnCustomer.risk_level] || '') + '">' + esc(churnCustomer.risk_level) + ' (' + churnCustomer.risk_score + ' pts)</span>';
-        } else {
-            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;background:var(--green-bg);color:var(--green);">No Risk</span>';
-        }
-        html += '</div>';
-        if (churnCustomer && churnCustomer.factors && churnCustomer.factors.length) {
-            churnCustomer.factors.forEach(f => {
-                html += '<div style="font-size:12px;color:var(--gray-500);padding:2px 0;">' + esc(f) + '</div>';
-            });
-        } else {
-            html += '<div style="font-size:12px;color:var(--gray-400);">No risk factors detected</div>';
-        }
-        html += '</div>';
-
+        const status = customer && customer.status ? String(customer.status) : 'Unknown';
+        let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+            + '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Account status</span>'
+            + '<strong style="font-size:13px;">' + esc(status) + '</strong></div>';
+        const response = await fetch('/api/customers/' + encodeURIComponent(customerId) + '/quotes', { cache: 'no-store' });
+        if (!response.ok) throw new Error('HomeWorks estimates unavailable');
+        const data = await response.json();
+        if (!data.success || data.source !== 'homeworks' || !Array.isArray(data.quotes)) throw new Error('HomeWorks estimates unverified');
+        const snow = data.quotes.find(q => /snow/i.test(q.title || ''));
+        html += '<div style="border-top:1px solid var(--gray-100);padding-top:12px;">'
+            + '<div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;margin-bottom:6px;">Latest snow estimate</div>'
+            + (snow ? '<div style="font-size:13px;">#' + esc(snow.quote_number || snow.id) + ' · ' + esc(snow.status || 'Unknown') + '</div>'
+                : '<div style="font-size:12px;color:var(--gray-500);">No snow estimate found</div>')
+            + '</div>';
         el.innerHTML = html;
     } catch (e) {
-        el.innerHTML = '<div style="font-size:13px;color:var(--gray-400);">Unable to load intelligence data</div>';
-        console.error('AI Intel error:', e);
+        el.innerHTML = '<div style="font-size:13px;color:var(--gray-500);">Account status: ' + esc(customer?.status || 'Unknown')
+            + '</div><div style="font-size:12px;color:var(--gray-400);margin-top:8px;">Unable to verify current estimates with HomeWorks.</div>';
+        console.error('Customer overview error:', e);
     }
 }
 

@@ -960,20 +960,50 @@ async function loadAIIntel() {
         if (!data.success || data.source !== 'homeworks') throw new Error('HomeWorks customer activity unverified');
         const formatDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
             ? new Date(value + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date unavailable';
+        const money = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+            ? Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'Unavailable';
+        const section = title => '<div style="font-size:12px;font-weight:700;color:var(--gray-700);margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-100);">' + title + '</div>';
         const row = (label, value) => '<div style="padding:8px 0;border-bottom:1px solid var(--gray-100);">'
             + '<div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;margin-bottom:3px;">' + label + '</div>'
             + '<div style="font-size:13px;color:var(--gray-700);">' + value + '</div></div>';
         const visit = item => item ? esc(formatDate(item.startDate)) + ' · ' + esc(item.title || 'Visit') : 'None scheduled';
-        let html = row('HomeWorks account', esc(data.accountStatus || 'Unknown'))
-            + row('Last completed visit', data.lastCompletedVisit ? visit(data.lastCompletedVisit) : 'No completed visit found')
-            + row('Next scheduled visit', visit(data.nextScheduledVisit));
-        const snow = data.latestSnowEstimate;
-        html += row('Latest snow estimate', snow
-            ? '#' + esc(snow.number || snow.id) + ' · ' + esc(snow.status || 'Unknown') + ' · ' + esc(formatDate(snow.date))
-            : data.snowEstimateHistoryLimited ? 'No snow estimate in the most recent 100 estimates' : 'None found');
+        const estimateLink = estimate => {
+            const id = Number(estimate.id);
+            const label = '#' + esc(estimate.number || estimate.id);
+            return Number.isSafeInteger(id) && id > 0
+                ? '<a href="https://secure.copilotcrm.com/finances/estimates/view/' + id + '" target="_blank" rel="noopener">' + label + '</a>' : label;
+        };
+        const pending = Number(data.pendingEstimateCount) || 0;
+        const drafts = Number(data.draftEstimateCount) || 0;
         const pastDue = Number(data.pastDue);
-        if (Number.isFinite(pastDue) && pastDue > 0) html += row('Past-due balance', '$' + pastDue.toFixed(2));
-        html += '<div style="font-size:11px;color:var(--gray-400);padding-top:9px;">Activity verified with HomeWorks.</div>';
+        let html = section('Needs review');
+        if (!pending && !drafts && !(pastDue > 0)) {
+            html += '<div style="font-size:12px;color:var(--gray-500);padding:8px 0;">No pending estimates, drafts, or past-due balance found.</div>';
+        } else {
+            if (pending) {
+                html += row('Pending estimates', pending + (data.estimateHistoryLimited ? ' in recent history' : ''));
+                (data.pendingEstimates || []).forEach(estimate => {
+                    html += '<div style="font-size:12px;color:var(--gray-600);padding:2px 0 4px 8px;">' + estimateLink(estimate)
+                        + ' · ' + esc(formatDate(estimate.date)) + ' · ' + esc(estimate.title || 'Estimate') + '</div>';
+                });
+            }
+            if (drafts) html += row('Draft estimates', drafts + (data.estimateHistoryLimited ? ' in recent history' : ''));
+            if (pastDue > 0) html += row('Past-due balance', money(pastDue));
+        }
+        html += section('Service activity')
+            + row('Last completed visit', data.lastCompletedVisit ? visit(data.lastCompletedVisit) : 'No completed visit found')
+            + row('Next scheduled visit', visit(data.nextScheduledVisit))
+            + row('Completed visits, past 12 months', esc(data.completedVisitsLast12Months || 0)
+                + (data.completedVisitHistoryLimited ? ' or more' : ''));
+        const snow = data.latestSnowEstimate;
+        html += section('Estimates') + row('Latest snow estimate', snow
+            ? estimateLink(snow) + ' · ' + esc(snow.status || 'Unknown') + ' · ' + esc(formatDate(snow.date))
+            : data.estimateHistoryLimited ? 'None in the most recent 100 estimates' : 'None found');
+        html += section('Account standing')
+            + row('HomeWorks status', esc(data.accountStatus || 'Unknown'))
+            + row('Outstanding balance', money(data.outstanding))
+            + row('Past due', money(data.pastDue));
+        html += '<div style="font-size:11px;color:var(--gray-400);padding-top:9px;">Verified with HomeWorks. Pending estimates may need review before follow-up.</div>';
         el.innerHTML = html;
     } catch (e) {
         el.innerHTML = '<div style="font-size:13px;color:var(--gray-500);">Unable to verify customer activity with HomeWorks. Please try again.</div>';

@@ -45,7 +45,8 @@
   // Grouped navigation: 8 sections, calmer surface, fewer top-level destinations
   var NAV_GROUPS = [
     { label: 'Overview', items: [
-      { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' }
+      { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' },
+      { href: 'operations.html', icon: 'reports', label: 'Operations Assistant', perm: 'settings' }
     ]},
     { label: 'Sales', items: [
       { href: 'quotes.html', icon: 'quotes', label: 'Leads & Quotes', perm: 'quotes' },

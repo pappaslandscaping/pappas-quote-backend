@@ -158,4 +158,4 @@ async function loadSnowReadiness(context, season) {
       'Snow-titled estimates only; review other accepted estimates before declaring the roster complete.',
   };
 }
-module.exports = { snowReadiness, loadReview, loadSnowReadiness };
+module.exports = { isSeason, snowReadiness, loadReview, loadSnowReadiness };

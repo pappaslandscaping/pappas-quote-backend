@@ -34,7 +34,7 @@ async function load(context, input) {
     },
     crews: () => records.listAll(context, {entity:'crews',filterType:'CrewFilter',where:{isDeleted:false},fields:'id name',pageSize:500}),
     routes: async () => {
-      const data = await records.call(context,'YardDeskOperationsRoutes','query YardDeskOperationsRoutes($since:LocalDate!,$until:LocalDate!){routeReport(where:{date:{gte:$since,lte:$until}}){crewId crew{name} _sum{totalMiles totalDriveSeconds}}}',{since:range.startDate,until:range.today});
+      const data = await records.call(context,'YardDeskOperationsRoutes','query YardDeskOperationsRoutes($since:Date!,$until:Date!){routeReport(where:{date:{gte:$since,lte:$until}}){crewId crew{name} _sum{totalMiles totalDriveSeconds}}}',{since:range.startDate,until:range.today});
       if (!Array.isArray(data.routeReport)) throw new Error('Route report unavailable.');
       return data.routeReport;
     },

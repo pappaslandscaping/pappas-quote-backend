@@ -64,7 +64,10 @@ function scheduling(data) {
     for (const date of planned.dates) {
       const occurrences = visits.filter(event=>event.startDate === date);
       // Explicit cancellations and skips are intentional occurrences, not missing work.
-      if (occurrences.length) continue;
+      if (occurrences.length) {
+        if(occurrences.every(event=>event.status==='WAITLISTED'))items.push(action('waitlisted_recurring',series.id+':'+date,'Recurring visit remains waitlisted','The occurrence exists but is not scheduled. Confirm the visit date before assigning work.',{seriesId:series.id,eventIds:occurrences.map(e=>e.id),date},{customerId:series.customerId,propertyId:series.propertyId,date,url:'/scheduling.html?date='+date}));
+        continue;
+      }
       const moved = visits.find(event=>event.status !== 'CANCELLED' && !planned.dates.includes(event.startDate) && Math.abs(Date.parse(event.startDate)-Date.parse(date)) <= 3*DAY);
       if (moved) continue;
       items.push(action('missing_visit',series.id + ':' + date,'Expected visit not found',series.title + ' was expected on ' + date + '. Check postponements before adding work.',{seriesId:series.id,date,frequency:series.frequency,interval:series.weeklyCount},{customerId:series.customerId,propertyId:series.propertyId,date,url:'/scheduling.html?date='+date,severity:date <= today?'high':'normal'}));
@@ -85,8 +88,8 @@ function scheduling(data) {
     items.push(action('duplicate_visit',rows.map(e=>e.id).sort().join('-'),'Possible duplicate visits',row.title + ': multiple visits appear for the same property and date. Check the service lines before removing anything.',{eventIds:rows.map(e=>e.id),date:row.startDate},{customerId:row.customerId,propertyId:row.propertyId,date:row.startDate,url:eventLink(row),severity:'high'}));
   }
   for (const event of active) {
-    if (event.status === 'OPEN' && event.startDate < today) items.push(action('past_open',event.id,'Past visit still open',event.title + ' on ' + event.startDate + ': confirm whether it was performed, moved, or skipped.',{eventId:event.id,status:event.status,isInvoiceable:event.isInvoiceable},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event)}));
-    if (event.status === 'OPEN' && event.startDate >= today && !event.crewId) items.push(action('unassigned',event.id,'Visit has no crew',event.title + ' needs an assignment.',{eventId:event.id,crewId:null},{customerId:event.customerId,date:event.startDate,url:eventLink(event)}));
+    if (event.status === 'OPEN' && (event.endDate||event.startDate) < today) items.push(action('past_open',event.id,'Past visit still open',event.title + ' on ' + event.startDate + ': confirm whether it was performed, moved, or skipped.',{eventId:event.id,status:event.status,isInvoiceable:event.isInvoiceable},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event)}));
+    if (event.status === 'OPEN' && (event.endDate||event.startDate) >= today && !event.crewId) items.push(action('unassigned',event.id,'Visit has no crew',event.title + ' needs an assignment.',{eventId:event.id,crewId:null},{customerId:event.customerId,date:event.startDate,url:eventLink(event)}));
   }
   // Message intent is a review cue only. It does not prove a skip, cancellation, or its target date.
   for (const sms of data.sms || []) {
@@ -150,7 +153,7 @@ function crewReport(data) {
   return {available:true,rows:[...groups.values()].map(row=>({...row,coverage:row.completed?row.timed/row.completed:0,varianceHours:row.comparableBudget?row.comparableActual-row.comparableBudget:null,actualHours:row.timed?row.actual:null,serviceValue:row.serviceValueCents/100,route:data.routes?.find(route=>route.crewId===row.crewId)?._sum || null})),overruns,repeatedOverruns:[...properties.values()].filter(rows=>rows.length>1),routeAvailable:Array.isArray(data.routes),note:'Recorded completed labor hours only; running timers are excluded. Service value is not collected revenue or profit. Comparisons use only visits with both a budget and recorded time.'};
 }
 function briefing(data, sections) {
-  const visits=(data.events||[]).filter(e=>e.startDate===data.range.today&&['OPEN','CLOSED','SKIPPED'].includes(e.status));
+  const visits=(data.events||[]).filter(e=>e.startDate<=data.range.today&&(e.endDate||e.startDate)>=data.range.today&&['OPEN','CLOSED','SKIPPED'].includes(e.status));
   const crews=new Map((data.crews||[]).map(c=>[c.id,c.name]));
   const todayCrews=[...new Set(visits.map(e=>e.crewId))].map(id=>({crewId:id,name:crews.get(id)||'Unassigned',visits:visits.filter(e=>e.crewId===id).length}));
   const actions=Object.values(sections).flatMap(section=>section.items||[]);

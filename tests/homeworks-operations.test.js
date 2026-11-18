@@ -35,6 +35,15 @@ test('unsupported monthly ordinal patterns remain explicit manual reviews',()=>{
   const result=checks.scheduling(data({recurring:[{...series,frequency:'MONTHLY',monthlyOption:'ON_WEEKDAY_OF_MONTH'}]}));
   expect(result.items.map(a=>a.kind)).toEqual(['schedule_pattern']);
 });
+test('a waitlisted recurring occurrence is flagged as unscheduled rather than silently counted as planned',()=>{
+  const result=checks.scheduling(data({recurring:[series],events:[{id:1,recurringEventId:1,startDate:'2026-11-23',status:'WAITLISTED'}]}));
+  expect(result.items.some(a=>a.kind==='waitlisted_recurring')).toBe(true);
+});
+test('ongoing multi-day visits count today and are not falsely overdue',()=>{
+  const d=data({events:[{id:1,title:'Cleanup',crewId:2,status:'OPEN',startDate:'2026-11-17',endDate:'2026-11-20'}]});
+  expect(checks.briefing(d,{}).visits).toBe(1);
+  expect(checks.scheduling(d).items.some(a=>a.kind==='past_open')).toBe(false);
+});
 test('monthly field visits keep their chosen day and interval',()=>{
   expect(checks.expectedDates({...series,startDate:'2026-09-12',endDate:'2026-12-31',frequency:'MONTHLY',monthlyOption:'ON_DAY_OF_MONTH',monthCount1:1,monthDay:12},'2026-11-01','2026-12-15').dates).toEqual(['2026-11-12','2026-12-12']);
 });

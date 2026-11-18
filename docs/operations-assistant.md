@@ -19,6 +19,8 @@ The default visit window is 28 days before/after today in America/New_York, conf
 
 A review shares in-flight reads and caches source data for five minutes. Refresh bypasses completed cache entries. Each source has independent availability; failure is never silently treated as successful empty data. Top-level and nested collection limits fail visibly. Source findings are recomputed; saved review state only applies while its evidence fingerprint matches, and expired snoozes reopen.
 
+The backend warms the read-only review once after startup and logs counts and source availability, without customer names or message content. This checks the real API and office overlay tables without creating operational records or blocking the health endpoint.
+
 A separate daily `Pappas Office Briefing` ChatGPT automation starts November 19, 2026, around 8 a.m. America/New_York. It reads current Homeworks data and produces an owner briefing here. YardDesk itself refreshes on opening the assistant or pressing Refresh records; this release does not add another automatic sender or competing background billing process.
 
 ## Storage and endpoints

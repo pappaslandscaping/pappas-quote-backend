@@ -2,7 +2,7 @@
 const express=require('express');
 const operations=require('../services/homeworks/operations');
 const checks=require('../services/homeworks/operations-checks');
-function createOperationsRoutes({pool,authenticateToken,serverError,generateJson,context:injectedContext,provider=operations}) {
+function createOperationsRoutes({pool,authenticateToken,serverError,generateJson,context:injectedContext,provider=operations,warmup=false}) {
   const router=express.Router(),context=injectedContext||{pool};
   const ownerOnly=(req,res,next)=>req.user?.isAdmin&&!req.user?.isEmployee?next():res.status(403).json({success:false,error:'Owner access is required.'});
   const protect=[authenticateToken,ownerOnly];
@@ -24,6 +24,16 @@ function createOperationsRoutes({pool,authenticateToken,serverError,generateJson
   }));
   router.get('/api/homeworks/operations/drafts',...protect,wrap(async(req,res)=>res.json({success:true,drafts:await provider.storage.listDrafts(pool),localOnly:true})));
   router.post('/api/homeworks/operations/route-preview',...protect,wrap(async(req,res)=>res.json(await provider.workflows.previewRoute(context,req.body))));
+  if(warmup) {
+    const timer=setTimeout(async()=>{
+      try {
+        const report=await provider.report(context);
+        const unavailable=Object.entries(report.availability).filter(([,source])=>!source.available).map(([name])=>name);
+        console.info('[OperationsAssistant] Read-only data check '+JSON.stringify({asOf:report.asOf,customers:report.choices.customers.length,properties:report.choices.properties.length,todayVisits:report.briefing.visits,findings:report.actions.length,reviewStorageAvailable:report.reviewStorageAvailable,unavailable}));
+      }catch(error){console.error('[OperationsAssistant] Data check unavailable: '+error.message);}
+    },6000);
+    timer.unref?.();
+  }
   return router;
 }
 module.exports=createOperationsRoutes;

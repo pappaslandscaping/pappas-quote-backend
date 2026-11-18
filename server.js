@@ -3095,7 +3095,7 @@ const homeWorksRoutes = require('./routes/homeworks')({
 });
 app.use(homeWorksRoutes);
 app.use(require('./routes/homeworks-operations')({
-  pool, authenticateToken, serverError, generateJson: generateWritingJsonWithTextFallback,
+  pool, authenticateToken, serverError, generateJson: generateWritingJsonWithTextFallback, warmup: true,
 }));
 
 // HomeWorks-backed mobile surfaces for TwilioConnect.

@@ -28,17 +28,18 @@ function call(context, operationName, query, variables) {
 // A capped or repeated page is an error, never a successful empty/partial account.
 async function listAll(
   context,
-  { entity, filterType, where = {}, fields, orderBy = '[{ id: asc }]', pageSize = 250, maxRows = 50000 },
+  { entity, filterType, where = {}, fields, orderBy = '[{ id: asc }]', pageSize = 250, maxRows = 50000, paginationType = 'SafeInt' },
 ) {
   if (!/^[A-Za-z]+$/.test(entity) || !/^[A-Za-z]+Filter$/.test(filterType))
     throw new Error('Invalid Homeworks collection.');
+  if (!['SafeInt', 'Int'].includes(paginationType)) throw new Error('Invalid Homeworks pagination type.');
   const rows = [],
     seen = new Set();
   for (let skip = 0; skip < maxRows; skip += pageSize) {
     const data = await call(
       context,
       'YardDeskRecords',
-      `query YardDeskRecords($where: ${filterType}, $take: SafeInt!, $skip: SafeInt!) {
+      `query YardDeskRecords($where: ${filterType}, $take: ${paginationType}!, $skip: ${paginationType}!) {
       ${entity}(where: $where, take: $take, skip: $skip, orderBy: ${orderBy}) { ${fields} }
     }`,
       { where, take: pageSize, skip },

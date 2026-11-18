@@ -122,3 +122,11 @@ test('the source loader isolates a failing source and never issues mutations',as
   const result=await source.load({queryImpl,pool:{query:jest.fn(async()=>({rows:[]}))}},{today:'2026-11-18'});
   expect(result.availability.events.available).toBe(false);expect(result.availability.customers.available).toBe(true);expect(queryImpl.mock.calls.every(([r])=>!r.query.includes('mutation '))).toBe(true);
 });
+test('recurring-series pagination uses the root API Int arguments while ordinary collections retain SafeInt',async()=>{
+  const queryImpl=jest.fn(async()=>({recurringEvents:[]}));
+  await records.listAll({queryImpl},{entity:'recurringEvents',filterType:'RecurringEventFilter',fields:'id',paginationType:'Int'});
+  expect(queryImpl.mock.calls[0][0].query).toContain('$take: Int!, $skip: Int!');
+  await expect(records.listAll({queryImpl},{entity:'recurringEvents',filterType:'RecurringEventFilter',fields:'id',paginationType:'String'})).rejects.toThrow('pagination type');
+  const regular=jest.fn(async()=>({customers:[]}));await records.listAll({queryImpl:regular},{entity:'customers',filterType:'CustomerFilter',fields:'id'});
+  expect(regular.mock.calls[0][0].query).toContain('$take: SafeInt!, $skip: SafeInt!');
+});

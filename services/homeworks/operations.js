@@ -16,8 +16,9 @@ function assemble(raw) {
   const scheduling=checks.scheduling(data),billing=checks.billing(data),followups=checks.followups(data),snow=workflows.snowBoard(data),crew=checks.crewReport(data);
   const customers=new Map((data.customers||[]).map(c=>[c.id,c])),properties=new Map((data.properties||[]).map(p=>[p.id,p]));
   const sections={scheduling,billing,followups,snow,crew};
-  const allActions=Object.values(sections).flatMap(s=>s.items||[]).map(item=>({...item,customerName:customers.get(item.customerId)?.fullName||'Customer unavailable',propertyName:properties.get(item.propertyId)?.name||'',reviewState:'open'}));
-  allActions.sort((a,b)=>(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||String(a.date||'9999').localeCompare(String(b.date||'9999'))||a.id.localeCompare(b.id));
+  const allActions=Object.values(sections).flatMap(s=>s.items||[]).map(item=>({...item,audience:item.audience||'office',customerName:customers.get(item.customerId)?.fullName||'Customer unavailable',propertyName:properties.get(item.propertyId)?.name||'',reviewState:'open'}));
+  const rank={office:0,later:1,history:2,setup:3},distance=item=>item.date?Math.abs(Date.parse(item.date)-Date.parse(data.range.today)):Number.MAX_SAFE_INTEGER;
+  allActions.sort((a,b)=>rank[a.audience]-rank[b.audience]||(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||distance(a)-distance(b)||a.id.localeCompare(b.id));
   const today=checks.briefing(data,sections);
   const services=new Map();
   for(const e of data.estimates||[])for(const line of e.lineItems||[])if(line.isIncluded)services.set(line.itemId?'item:'+line.itemId:'name:'+line.name,{itemId:line.itemId,name:line.name});
@@ -39,8 +40,11 @@ async function report(context,input={},force=false) {
     result.actions=await storage.reviews(context.pool,result.actions,result.range.today);
     result.reviewStorageAvailable=true;
   }catch(error){result.reviewStorageAvailable=false;result.reviewStorageError='Office review state is unavailable; source findings are still shown.';}
-  result.openActionCount=result.actions.filter(a=>a.reviewState==='open').length;
-  result.briefing.topActions=result.actions.filter(a=>a.reviewState==='open'&&a.severity==='high').slice(0,8);
+  result.openActionCounts=Object.fromEntries(['office','later','history','setup'].map(audience=>[audience,result.actions.filter(a=>a.reviewState==='open'&&a.audience===audience).length]));
+  result.openActionCount=result.openActionCounts.office;
+  result.briefing.topActions=result.actions.filter(a=>a.reviewState==='open'&&a.audience==='office'&&a.severity==='high').slice(0,8);
+  result.briefing.highPriority=result.actions.filter(a=>a.reviewState==='open'&&a.audience==='office'&&a.severity==='high').length;
+  result.briefing.actionCount=result.openActionCount;
   return result;
 }
 async function reviewAction(context,input,user) {

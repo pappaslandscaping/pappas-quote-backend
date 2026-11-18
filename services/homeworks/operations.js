@@ -2,6 +2,7 @@
 const source=require('./operations-source'), checks=require('./operations-checks'), workflows=require('./operations-workflows'), storage=require('./operations-store');
 const caches=new WeakMap();
 const CACHE_MS=5*60*1000;
+const cases=require('./operations-cases'),customer=require('./operations-customer');
 function combinedMessages(data) {
   if(!data.sms)return null;
   const seen=new Map();
@@ -45,7 +46,22 @@ async function report(context,input={},force=false) {
   result.briefing.topActions=result.actions.filter(a=>a.reviewState==='open'&&a.audience==='office'&&a.severity==='high').slice(0,8);
   result.briefing.highPriority=result.actions.filter(a=>a.reviewState==='open'&&a.audience==='office'&&a.severity==='high').length;
   result.briefing.actionCount=result.openActionCount;
+  result.workspace=cases.buildCases(result.actions,result.range.today);
   return result;
+}
+async function reviewCase(context,input,user) {
+  const customerId=require('./records').id(input.customerId);
+  if(!Array.isArray(input.items)||!input.items.length||input.items.length>50||new Set(input.items.map(i=>i.id)).size!==input.items.length)throw new Error('Select between 1 and 50 distinct checks.');
+  const current=await report(context,input.range||{},true);
+  const items=input.items.map(selected=>{
+    const item=current.actions.find(a=>a.id===selected.id&&a.customerId===customerId);
+    if(!item||item.fingerprint!==selected.fingerprint)throw new Error('A selected check changed. Refresh and review the current evidence.');
+    return item;
+  });
+  return storage.saveReviewBatch(context.pool,items,input,user);
+}
+async function visitDecision(context,input) {
+  try{return await customer.applyVisitDecision(context,input);}finally{caches.delete(context.pool);}
 }
 async function reviewAction(context,input,user) {
   const current=await report(context,input.range||{},true),item=current.actions.find(a=>a.id===input.id);
@@ -58,4 +74,4 @@ async function prepareRenewal(context,input,user) {
   if(candidate.blockers.length)throw new Error(candidate.blockers.join(' '));
   return {...await storage.saveDraft(context.pool,{id:'renewal:'+candidate.id,kind:'renewal',customerId:candidate.customerId,fingerprint:candidate.sourceFingerprint,payload:candidate.payload},user),draft:candidate.payload};
 }
-module.exports={assemble,dataset,report,reviewAction,prepareRenewal,storage,workflows};
+module.exports={assemble,dataset,report,reviewAction,reviewCase,customerWorkspace:customer.customerWorkspace,visitDecision,prepareRenewal,storage,workflows};

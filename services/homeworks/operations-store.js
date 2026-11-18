@@ -14,7 +14,7 @@ async function reviews(pool,items,today) {
   return items.map(item=>{
     const row=state.get(item.id),matches=row?.fingerprint===item.fingerprint;
     const until=row?.snoozed_until instanceof Date?row.snoozed_until.toISOString().slice(0,10):String(row?.snoozed_until||'').slice(0,10);
-    return {...item,reviewState:matches?(row.state==='snoozed'&&until<today?'open':row.state):'open',reviewNote:matches?row.note:null,reviewedAt:matches?row.updated_at:null};
+    return {...item,reviewState:matches?(row.state==='snoozed'&&until<=today?'open':row.state):'open',reviewNote:matches?row.note:null,reviewedAt:matches?row.updated_at:null};
   });
 }
 async function saveReview(pool,item,input,user) {
@@ -31,8 +31,22 @@ async function saveDraft(pool,{id,kind,customerId,fingerprint,payload},user) {
   await pool.query('INSERT INTO homeworks_operations_drafts(id,kind,customer_id,source_fingerprint,payload,created_by) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(id) DO UPDATE SET source_fingerprint=EXCLUDED.source_fingerprint,payload=EXCLUDED.payload,updated_at=NOW()',[id,kind,customerId,fingerprint,JSON.stringify(payload),String(user||'owner')]);
   return {success:true,id,saved:true,localOnly:true,sent:false};
 }
+async function saveReviewBatch(pool,items,input,user) {
+  const {validDate,shift}=require('./operations-source'),today=require('./records').dateKey();
+  if(!['open','reviewed','snoozed'].includes(input.state))throw new Error('Choose a review decision.');
+  if(input.state==='snoozed'&&(!validDate(input.until)||input.until<=today||input.until>shift(today,90)))throw new Error('Choose a return date within the next 90 days.');
+  if(!String(input.note||'').trim())throw new Error('Choose a reason for this review decision.');
+  await ensure(pool);
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for(const item of items)await client.query('INSERT INTO homeworks_operations_reviews(action_id,fingerprint,state,note,snoozed_until,reviewed_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(action_id) DO UPDATE SET fingerprint=EXCLUDED.fingerprint,state=EXCLUDED.state,note=EXCLUDED.note,snoozed_until=EXCLUDED.snoozed_until,reviewed_by=EXCLUDED.reviewed_by,updated_at=NOW()',[item.id,item.fingerprint,input.state,String(input.note).slice(0,1500),input.state==='snoozed'?input.until:null,String(user||'owner')]);
+    await client.query('COMMIT');
+    return {success:true,localOnly:true,state:input.state,count:items.length};
+  }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+}
 async function listDrafts(pool) {
   await ensure(pool);
   return (await pool.query('SELECT id,kind,customer_id,source_fingerprint,payload,created_at,updated_at FROM homeworks_operations_drafts ORDER BY updated_at DESC LIMIT 200')).rows;
 }
-module.exports={ensure,reviews,saveReview,saveDraft,listDrafts};
+module.exports={ensure,reviews,saveReview,saveReviewBatch,saveDraft,listDrafts};

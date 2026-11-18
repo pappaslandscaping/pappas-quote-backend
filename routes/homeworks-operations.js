@@ -11,6 +11,9 @@ function createOperationsRoutes({pool,authenticateToken,serverError,generateJson
   router.get('/api/homeworks/operations',...protect,wrap(async(req,res)=>res.json(await provider.report(context,windowFor(req)))));
   router.post('/api/homeworks/operations/refresh',...protect,wrap(async(req,res)=>res.json(await provider.report(context,{startDate:req.body.startDate,endDate:req.body.endDate},true))));
   router.post('/api/homeworks/operations/review',...protect,wrap(async(req,res)=>res.json(await provider.reviewAction(context,req.body,req.user.id||req.user.email))));
+  router.get('/api/homeworks/operations/customer/:customerId',...protect,wrap(async(req,res)=>res.json(await provider.customerWorkspace(context,{customerId:req.params.customerId}))));
+  router.post('/api/homeworks/operations/review-case',...protect,wrap(async(req,res)=>res.json(await provider.reviewCase(context,req.body,req.user.id||req.user.email))));
+  router.post('/api/homeworks/operations/visit-decision',...protect,wrap(async(req,res)=>res.json(await provider.visitDecision(context,req.body))));
   router.get('/api/homeworks/operations/pricing',...protect,wrap(async(req,res)=>res.json(provider.workflows.pricing(await provider.dataset(context),req.query))));
   router.get('/api/homeworks/operations/renewals',...protect,wrap(async(req,res)=>res.json(provider.workflows.renewalCandidates(await provider.dataset(context),req.query))));
   router.post('/api/homeworks/operations/renewal-draft',...protect,wrap(async(req,res)=>res.json(await provider.prepareRenewal(context,req.body,req.user.id||req.user.email))));

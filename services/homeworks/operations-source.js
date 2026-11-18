@@ -16,7 +16,7 @@ function period(input = {}) {
 }
 const EVENT_FIELDS = 'id type title status startDate endDate customerId propertyId crewId recurringEventId estimateId isInvoiceable invoiceId budgetedHours subtotal skippedReason timeEntryTotals{pastTimeEntries pastTimeEntrySeconds runningTimers} lineItems{id name itemId price quantity}';
 const ESTIMATE_FIELDS = 'id number customerId title date status subtotal total acceptedAt updatedAt lineItems{id name description price quantity subtotal propertyId itemId isIncluded eventStatus taxPercent1 taxPercent2}';
-const RECURRING_FIELDS = 'id title type customerId propertyId crewId startDate endDate isInfinite frequency weeklyCount weekday1 weekday2 weekday3 weekday4 weekday5 weekday6 weekday7 dailyOption dailyDaysCount monthlyOption monthDay monthCount1 offSeason{id startMonth startDay endMonth endDay}';
+const RECURRING_FIELDS = 'id title type customerId propertyId crewId startDate endDate isInfinite frequency weeklyCount weekday1 weekday2 weekday3 weekday4 weekday5 weekday6 weekday7 dailyOption dailyDaysCount monthlyOption monthDay monthCount1 lineItems{itemId name} offSeason{id startMonth startDay endMonth endDay}';
 async function load(context, input) {
   const range = period(input);
   const jobs = {

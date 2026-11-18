@@ -6,6 +6,24 @@ const normalized = value => String(value || '').trim().toLowerCase().replace(/\s
 const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const sourceLink = (kind,id) => 'https://secure.copilotcrm.com/' + ({estimate:'finances/estimates/view/',invoice:'finances/invoices/view/',customer:'customers/view/'}[kind] || '') + Number(id);
 const eventLink = event => '/scheduling.html?date=' + encodeURIComponent(event.startDate);
+function scheduleAudience(date,today) {
+  return date < shift(today,-7) ? 'history' : date > shift(today,14) ? 'later' : 'office';
+}
+function samePropertyCustomer(series,event) {
+  return !!series.customerId && !!series.propertyId && series.customerId===event.customerId && series.propertyId===event.propertyId;
+}
+function sameService(series,event) {
+  const expected=(series.lineItems||[]).map(l=>l.itemId).filter(Boolean);
+  const actual=new Set((event.lineItems||[]).map(l=>l.itemId).filter(Boolean));
+  if(expected.length&&actual.size)return expected.every(id=>actual.has(id));
+  return !!normalized(series.title)&&normalized(series.title)===normalized(event.title);
+}
+function relatedService(series,event) {
+  if(sameService(series,event))return true;
+  // A weekly and biweekly mowing rule can describe the same service under
+  // different catalog IDs. This is only a setup-review cue, not visit proof.
+  return /\bmowing\b/i.test(series.title)&&/\bmowing\b/i.test(event.title);
+}
 function action(kind, key, title, detail, evidence, extra = {}) {
   const item = {id:kind + ':' + key,kind,title,detail,evidence,severity:'normal',...extra};
   item.fingerprint = hash({title,detail,evidence});
@@ -54,26 +72,48 @@ function scheduling(data) {
   if (!data.events || !data.recurring) return {available:false,items:[],note:'Visits and recurring schedules are required.'};
   const items = [], {startDate,endDate,today} = data.range;
   const active = data.events.filter(event=>event.status !== 'CANCELLED');
+  const customers=new Map((data.customers||[]).map(customer=>[customer.id,customer]));
+  const matchedOutsideSeries=[];
   for (const series of data.recurring) {
     const planned = expectedDates(series,startDate,endDate);
     const visits = data.events.filter(event=>event.recurringEventId === series.id);
     if (!planned.supported) {
-      items.push(action('schedule_pattern',series.id,'Review recurring pattern',series.title + ': this recurrence requires a manual calendar check.',{seriesId:series.id,frequency:series.frequency},{customerId:series.customerId}));
+      items.push(action('schedule_pattern',series.id,'Review recurring pattern',series.title + ': this recurrence requires a manual calendar check.',{seriesId:series.id,frequency:series.frequency},{customerId:series.customerId,audience:'setup'}));
       continue;
     }
+    if(!planned.dates.length)continue;
+    const owner=customers.get(series.customerId);
+    if(!owner||owner.status!=='ACTIVE') {
+      items.push(action('recurring_setup',series.id,'Confirm recurring service status','Confirm the customer and continuing service before treating this rule as expected work.',{seriesId:series.id,customerStatus:owner?.status||'unavailable',suggestedDates:planned.dates},{customerId:series.customerId,propertyId:series.propertyId,audience:'setup'}));
+      continue;
+    }
+    const alternatives=active.filter(event=>samePropertyCustomer(series,event)&&relatedService(series,event));
+    if(!visits.length) {
+      const alternateSeries=[...new Set(alternatives.map(event=>event.recurringEventId).filter(Boolean))];
+      items.push(action('recurring_setup',series.id,alternatives.length?'Review overlapping recurring schedules':'Confirm this recurring schedule is still used',alternatives.length?series.title+': service visits exist under a different schedule or as separate visits. Confirm which recurring rule should continue.':series.title+': Homeworks has this recurring rule, but no attached visits were found in the review period. Confirm continuing service before adding work.',{seriesId:series.id,ruleStart:series.startDate,alternateSeriesIds:alternateSeries,recordedEventIds:alternatives.map(event=>event.id),suggestedDates:planned.dates},{customerId:series.customerId,propertyId:series.propertyId,audience:series.startDate>=shift(today,-7)?'office':'setup'}));
+      continue;
+    }
+    const used=new Set(),missing=[];
     for (const date of planned.dates) {
       const occurrences = visits.filter(event=>event.startDate === date);
       // Explicit cancellations and skips are intentional occurrences, not missing work.
       if (occurrences.length) {
-        if(occurrences.every(event=>event.status==='WAITLISTED'))items.push(action('waitlisted_recurring',series.id+':'+date,'Recurring visit remains waitlisted','The occurrence exists but is not scheduled. Confirm the visit date before assigning work.',{seriesId:series.id,eventIds:occurrences.map(e=>e.id),date},{customerId:series.customerId,propertyId:series.propertyId,date,url:'/scheduling.html?date='+date}));
+        occurrences.forEach(event=>used.add(event.id));
+        if(occurrences.every(event=>event.status==='WAITLISTED'))items.push(action('waitlisted_recurring',series.id+':'+date,'Recurring visit remains waitlisted','The occurrence exists but is not scheduled. Confirm the visit date before assigning work.',{seriesId:series.id,eventIds:occurrences.map(e=>e.id),date},{customerId:series.customerId,propertyId:series.propertyId,date,url:'/scheduling.html?date='+date,audience:scheduleAudience(date,today)}));
         continue;
       }
-      const moved = visits.find(event=>event.status !== 'CANCELLED' && !planned.dates.includes(event.startDate) && Math.abs(Date.parse(event.startDate)-Date.parse(date)) <= 3*DAY);
-      if (moved) continue;
-      items.push(action('missing_visit',series.id + ':' + date,'Expected visit not found',series.title + ' was expected on ' + date + '. Check postponements before adding work.',{seriesId:series.id,date,frequency:series.frequency,interval:series.weeklyCount},{customerId:series.customerId,propertyId:series.propertyId,date,url:'/scheduling.html?date='+date,severity:date <= today?'high':'normal'}));
+      const equivalent=active.find(event=>!used.has(event.id)&&['OPEN','CLOSED','SKIPPED'].includes(event.status)&&event.startDate===date&&samePropertyCustomer(series,event)&&sameService(series,event));
+      if(equivalent){used.add(equivalent.id);matchedOutsideSeries.push({seriesId:series.id,date,eventId:equivalent.id,status:equivalent.status});continue;}
+      const moved = [...visits,...active.filter(event=>samePropertyCustomer(series,event)&&sameService(series,event))].find(event=>!used.has(event.id)&&['OPEN','CLOSED','SKIPPED'].includes(event.status)&&!planned.dates.includes(event.startDate)&&Math.abs(Date.parse(event.startDate)-Date.parse(date))<=3*DAY);
+      if (moved) {used.add(moved.id);continue;}
+      missing.push(date);
+    }
+    for(const audience of ['office','history','later']) {
+      const dates=missing.filter(date=>scheduleAudience(date,today)===audience);if(!dates.length)continue;
+      items.push(action('missing_visit',series.id+':'+audience,audience==='history'?'Older schedule dates need review':'Check possible visit gaps',series.title+': no matching visit was found for '+dates.join(', ')+'. Confirm schedule changes or cancellations before adding work.',{seriesId:series.id,dates,frequency:series.frequency,interval:series.weeklyCount},{customerId:series.customerId,propertyId:series.propertyId,date:dates[0],url:'/scheduling.html?date='+dates[0],audience}));
     }
     for (const event of visits.filter(event=>['OPEN','WAITLISTED'].includes(event.status))) {
-      if (series.crewId && event.crewId !== series.crewId) items.push(action('crew_mismatch',event.id,'Crew differs from recurring schedule',event.title + ' has a different crew assignment. Confirm whether this was intentional.',{eventId:event.id,expectedCrewId:series.crewId,actualCrewId:event.crewId},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event)}));
+      if (series.crewId && event.crewId !== series.crewId) items.push(action('crew_mismatch',event.id,'Crew differs from recurring schedule',event.title + ' has a different crew assignment. Confirm whether this was intentional.',{eventId:event.id,expectedCrewId:series.crewId,actualCrewId:event.crewId},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event),audience:scheduleAudience(event.startDate,today)}));
     }
   }
   const groups = new Map();
@@ -85,11 +125,11 @@ function scheduling(data) {
   }
   for (const rows of groups.values()) if (rows.length > 1) {
     const row = rows[0];
-    items.push(action('duplicate_visit',rows.map(e=>e.id).sort().join('-'),'Possible duplicate visits',row.title + ': multiple visits appear for the same property and date. Check the service lines before removing anything.',{eventIds:rows.map(e=>e.id),date:row.startDate},{customerId:row.customerId,propertyId:row.propertyId,date:row.startDate,url:eventLink(row),severity:'high'}));
+    items.push(action('duplicate_visit',rows.map(e=>e.id).sort().join('-'),'Possible duplicate visits',row.title + ': multiple visits appear for the same property and date. Check the service lines before removing anything.',{eventIds:rows.map(e=>e.id),date:row.startDate},{customerId:row.customerId,propertyId:row.propertyId,date:row.startDate,url:eventLink(row),severity:'high',audience:scheduleAudience(row.startDate,today)}));
   }
   for (const event of active) {
-    if (event.status === 'OPEN' && (event.endDate||event.startDate) < today) items.push(action('past_open',event.id,'Past visit still open',event.title + ' on ' + event.startDate + ': confirm whether it was performed, moved, or skipped.',{eventId:event.id,status:event.status,isInvoiceable:event.isInvoiceable},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event)}));
-    if (event.status === 'OPEN' && (event.endDate||event.startDate) >= today && !event.crewId) items.push(action('unassigned',event.id,'Visit has no crew',event.title + ' needs an assignment.',{eventId:event.id,crewId:null},{customerId:event.customerId,date:event.startDate,url:eventLink(event)}));
+    if (event.status === 'OPEN' && (event.endDate||event.startDate) < today) items.push(action('past_open',event.id,'Past visit still open',event.title + ' on ' + event.startDate + ': confirm whether it was performed, moved, or skipped.',{eventId:event.id,status:event.status,isInvoiceable:event.isInvoiceable},{customerId:event.customerId,propertyId:event.propertyId,date:event.startDate,url:eventLink(event),audience:scheduleAudience(event.startDate,today)}));
+    if (event.status === 'OPEN' && (event.endDate||event.startDate) >= today && !event.crewId) items.push(action('unassigned',event.id,'Visit has no crew',event.title + ' needs an assignment.',{eventId:event.id,crewId:null},{customerId:event.customerId,date:event.startDate,url:eventLink(event),audience:scheduleAudience(event.startDate,today),severity:event.startDate===today?'high':'normal'}));
   }
   // Message intent is a review cue only. It does not prove a skip, cancellation, or its target date.
   for (const sms of data.sms || []) {
@@ -97,7 +137,7 @@ function scheduling(data) {
     const future = active.filter(event=>event.customerId===sms.customerId && event.status==='OPEN' && event.startDate>=today);
     if (future.length) items.push(action('skip_request',sms.id,'Check service request against future visits','A recent message may request a skip or cancellation. Read the conversation and confirm which dates it applies to.',{messageId:sms.id,text:sms.text,sentAt:sms.sentAt,eventIds:future.map(e=>e.id)},{customerId:sms.customerId,severity:'high'}));
   }
-  return {available:true,items,scope:{startDate,endDate},note:'Findings are review candidates. Skipped/cancelled occurrences and assigned off-seasons are respected; unsupported patterns are listed separately.'};
+  return {available:true,items,matchedOutsideSeries,scope:{startDate,endDate},note:'These are review candidates, not confirmed missed visits. Matching checks the customer, property, service, and date across schedules. Older rules and unsupported patterns are separated as setup checks.'};
 }
 function billing(data) {
   if (!data.invoices || !data.events) return {available:false,items:[]};
@@ -156,7 +196,7 @@ function briefing(data, sections) {
   const visits=(data.events||[]).filter(e=>e.startDate<=data.range.today&&(e.endDate||e.startDate)>=data.range.today&&['OPEN','CLOSED','SKIPPED'].includes(e.status));
   const crews=new Map((data.crews||[]).map(c=>[c.id,c.name]));
   const todayCrews=[...new Set(visits.map(e=>e.crewId))].map(id=>({crewId:id,name:crews.get(id)||'Unassigned',visits:visits.filter(e=>e.crewId===id).length}));
-  const actions=Object.values(sections).flatMap(section=>section.items||[]);
+  const actions=Object.values(sections).flatMap(section=>section.items||[]).filter(item=>(item.audience||'office')==='office');
   return {available:!!data.events,date:data.range.today,visits:data.events?visits.length:null,crews:todayCrews,completed:visits.filter(e=>e.status==='CLOSED').length,skipped:visits.filter(e=>e.status==='SKIPPED').length,highPriority:actions.filter(a=>a.severity==='high').length,actionCount:actions.length,topActions:actions.filter(a=>a.severity==='high').slice(0,8),note:'Review-only briefing. Opening it never changes visits, invoices, or customer messages.'};
 }
 module.exports={normalized,hash,action,sourceLink,inOffSeason,expectedDates,scheduling,billing,followups,crewReport,briefing};

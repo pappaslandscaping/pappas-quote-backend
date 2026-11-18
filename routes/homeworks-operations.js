@@ -29,7 +29,7 @@ function createOperationsRoutes({pool,authenticateToken,serverError,generateJson
       try {
         const report=await provider.report(context);
         const unavailable=Object.entries(report.availability).filter(([,source])=>!source.available).map(([name])=>name);
-        console.info('[OperationsAssistant] Read-only data check '+JSON.stringify({asOf:report.asOf,customers:report.choices.customers.length,properties:report.choices.properties.length,todayVisits:report.briefing.visits,findings:report.actions.length,reviewStorageAvailable:report.reviewStorageAvailable,unavailable}));
+        console.info('[OperationsAssistant] Read-only data check '+JSON.stringify({asOf:report.asOf,customers:report.choices.customers.length,properties:report.choices.properties.length,todayVisits:report.briefing.visits,findings:report.actions.length,currentChecks:report.openActionCount,categories:report.openActionCounts,matchedSeparateVisits:report.sections.scheduling.matchedOutsideSeries?.length||0,reviewStorageAvailable:report.reviewStorageAvailable,unavailable}));
       }catch(error){console.error('[OperationsAssistant] Data check unavailable: '+error.message);}
     },6000);
     timer.unref?.();

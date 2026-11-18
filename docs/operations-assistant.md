@@ -21,6 +21,14 @@ A review shares in-flight reads and caches source data for five minutes. Refresh
 
 The backend warms the read-only review once after startup and logs counts and source availability, without customer names or message content. This checks the real API and office overlay tables without creating operational records or blocking the health endpoint.
 
+### Reading the office queue
+
+The number shown is a count of review suggestions, not confirmed errors or missed services. Current office checks are the default. Scheduling checks for dates older than seven days, dates more than fourteen days ahead, and recurring setup questions have separate category filters. Billing and customer-response checks remain in the current office view according to their own source scopes.
+
+Visit matching first respects an explicit recurring-series link, then checks other source visits using exact customer/property IDs, service catalog IDs (or an exact title when catalog IDs are unavailable), and the date. This credits separately entered completed work without treating another property, another service, a cancelled separate visit, or a waitlisted record as completion evidence. Nearby rescheduling remains bounded to three days and each occurrence is used once per series.
+
+Old rules without attached visits become one service-status/setup review, rather than a missed-service alert for every projected date. Possible weekly/biweekly overlap is a setup question and never a reason to add or cancel visits automatically. Remaining potential gaps are grouped by recurring rule and category and are not labeled priority mistakes. Changing the checker does not modify Homeworks visits, invoices, or recurring rules.
+
 A separate daily `Pappas Office Briefing` ChatGPT automation starts November 19, 2026, around 8 a.m. America/New_York. It reads current Homeworks data and produces an owner briefing here. YardDesk itself refreshes on opening the assistant or pressing Refresh records; this release does not add another automatic sender or competing background billing process.
 
 ## Storage and endpoints

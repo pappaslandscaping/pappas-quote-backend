@@ -26,6 +26,7 @@ const {
   extractAddressLead,
 } = require('../lib/service-area-auto-reply');
 const { syncCommunicationToHomeWorks } = require('../services/homeworks/call-notes');
+const { findLocalMessageCustomer } = require('../lib/local-message-customer');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -1771,23 +1772,14 @@ router.post('/api/sms/webhook', async (req, res) => {
         return null;
       });
     }
-    if (!matchedCustomer) {
-      const customerResult = await pool.query(`
-        SELECT
-          id,
-          COALESCE(
-            NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
-            NULLIF(TRIM(COALESCE(name, '')), '')
-          ) AS name
-        FROM customers
-        WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
-           OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
-        LIMIT 1
-      `, [`%${cleanedPhone}`]);
-      matchedCustomer = customerResult.rows[0] || null;
-    }
+    // Homeworks IDs are not foreign keys in the local messages table.
+    // Keep the Homeworks match for business context, but attach only a
+    // verified local customer ID to the stored text.
+    const localMessageCustomer = await findLocalMessageCustomer(pool, From);
+    if (!matchedCustomer) matchedCustomer = localMessageCustomer;
 
     let customerId = matchedCustomer?.id || null;
+    let messageCustomerId = localMessageCustomer?.id || null;
     let customerName = matchedCustomer?.name || 'Unknown';
 
     if (!customerId) {
@@ -1797,6 +1789,7 @@ router.post('/api/sms/webhook', async (req, res) => {
       });
       if (addressCustomer) {
         customerId = addressCustomer.id;
+        messageCustomerId = addressCustomer.id; // findCustomerByAddressLead queries local customers.
         customerName = addressCustomer.name || customerName;
         console.log(`📍 Existing customer matched by address for inbound SMS (${From}): ${customerName}`);
       }
@@ -1808,7 +1801,7 @@ router.post('/api/sms/webhook', async (req, res) => {
       VALUES ($1, 'inbound', $2, $3, $4, $5, 'received', $6, false)
       ON CONFLICT (twilio_sid) DO NOTHING
       RETURNING id
-    `, [MessageSid, From, To, Body, mediaUrls, customerId]);
+    `, [MessageSid, From, To, Body, mediaUrls, messageCustomerId]);
 
     if (inboundMessageResult.rows[0]?.id && MessageSid && typeof getCopilotToken === 'function') {
       setImmediate(() => {
@@ -1853,7 +1846,7 @@ router.post('/api/sms/webhook', async (req, res) => {
             INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
             VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, $6, true)
             ON CONFLICT (twilio_sid) DO NOTHING
-          `, [twilioMessage.sid, To || TWILIO_PHONE_NUMBER, From, replyBody, twilioMessage.status || 'sent', customerId]);
+          `, [twilioMessage.sid, To || TWILIO_PHONE_NUMBER, From, replyBody, twilioMessage.status || 'sent', messageCustomerId]);
 
           console.log(`📍 Auto-replied out-of-area SMS to ${From} for ZIP ${outOfAreaZip}`);
         } catch (autoReplyError) {

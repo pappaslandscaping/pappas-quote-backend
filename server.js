@@ -80,6 +80,7 @@ const {
 } = require('./lib/service-area-auto-reply');
 const { guardAppAiReply } = require('./lib/app-ai-reply-guard');
 const { normalizeTwilioCallDirection, isMissedInboundCall } = require('./lib/twilio-call-classification');
+const { findLocalMessageCustomer } = require('./lib/local-message-customer');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -4362,63 +4363,23 @@ const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
 const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.6';
 
 async function lookupAppCustomerByPhone(phoneNumber) {
- const records=require('./services/homeworks/records');
- const row=await records.uniqueCustomer({pool},{phone:phoneNumber});
- return {id:row.id,homeworks_customer_id:row.id,name:row.fullName,email:row.email,phone:row.phone,mobile:row.cell,source:records.SOURCE};
-}
-
-let appContactBackfillRunning = false;
-async function backfillTwilioConnectContacts() {
-  if (appContactBackfillRunning) return;
-  appContactBackfillRunning = true;
+  const records = require('./services/homeworks/records');
   try {
-    const unresolved = await pool.query(`
-      SELECT normalized_phone
-      FROM (
-        SELECT
-          RIGHT(REGEXP_REPLACE(
-          CASE WHEN direction = 'inbound' THEN from_number ELSE to_number END,
-          '[^0-9]', '', 'g'
-          ), 10) AS normalized_phone,
-          MAX(created_at) AS last_message_at
-        FROM messages
-        GROUP BY 1
-      ) phones
-      WHERE LENGTH(normalized_phone) = 10
-        AND NOT EXISTS (
-          SELECT 1 FROM customers c
-          WHERE RIGHT(REGEXP_REPLACE(COALESCE(c.mobile, ''), '[^0-9]', '', 'g'), 10) = phones.normalized_phone
-             OR RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '', 'g'), 10) = phones.normalized_phone
-        )
-      ORDER BY last_message_at DESC
-      LIMIT 250
-    `);
-
-    let matched = 0;
-    for (const row of unresolved.rows) {
-      const customer = await lookupAppCustomerByPhone(row.normalized_phone);
-      if (customer?.id) {
-        matched += 1;
-        await pool.query(`
-          UPDATE messages SET customer_id = $2
-          WHERE customer_id IS NULL
-            AND (
-              RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
-              OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
-            )
-        `, [row.normalized_phone, customer.id]);
-      }
-    }
-    console.log(`[TwilioConnect] Contact backfill checked ${unresolved.rows.length} numbers and linked ${matched}.`);
+    const row = await records.uniqueCustomer({ pool }, { phone: phoneNumber });
+    return row ? { id: row.id, homeworks_customer_id: row.id, name: row.fullName, email: row.email, phone: row.phone, mobile: row.cell, source: records.SOURCE } : null;
   } catch (error) {
-    console.warn('[TwilioConnect] Contact backfill failed:', error.message);
-  } finally {
-    appContactBackfillRunning = false;
+    // Unknown or shared phone numbers are valid callers/text senders.
+    // Never require a unique Homeworks match just to display communications.
+    if (error.message === 'No verified Homeworks customer matches.'
+      || error.message.startsWith('More than one Homeworks customer matches.')) return null;
+    throw error;
   }
 }
 
-setTimeout(() => backfillTwilioConnectContacts(), 15000).unref?.();
-setInterval(() => backfillTwilioConnectContacts(), 6 * 60 * 60 * 1000).unref?.();
+// Homeworks phone matches are maintained separately from local message links.
+// Do not backfill messages.customer_id using Homeworks customer IDs: that would
+// violate the local customers foreign key and prevent new SMS from being saved.
+
 
 // Login for TwilioConnect app
 app.post('/api/app/login', async (req, res) => {
@@ -5393,11 +5354,21 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
       AND read = false
     `, [normalizedPhone]);
 
-    const matchedCustomer = await lookupAppCustomerByPhone(normalizedPhone);
+    // Message history is available even when the sender is not a Homeworks customer.
+    // Read cached matches only; never block the thread on a remote customer lookup.
+    const cachedCustomer = await pool.query(`
+      SELECT MIN(homeworks_customer_id) AS id, MIN(customer_name) AS name
+      FROM homeworks_phone_matches
+      WHERE normalized_phone = $1
+      HAVING COUNT(DISTINCT homeworks_customer_id) = 1
+    `, [normalizedPhone]).catch((error) => {
+      console.warn('Optional conversation customer name unavailable:', error.message);
+      return { rows: [] };
+    });
 
     res.json({
       messages: result.rows,
-      customer: matchedCustomer || null
+      customer: cachedCustomer.rows[0] || null
     });
   } catch (error) {
     console.error('Get thread error:', error);
@@ -6006,8 +5977,10 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
 
     const twilioMessage = await twilioAppMessagingClient.messages.create(messageOptions);
 
-    const matchedCustomer = await lookupAppCustomerByPhone(formattedTo).catch((error) => {
-      console.warn('Outbound SMS customer resolution failed:', error.message);
+    // The messages.customer_id FK references local customers, not Homeworks IDs.
+    // Sending to a new number must still create a conversation.
+    const localMessageCustomer = await findLocalMessageCustomer(pool, formattedTo).catch((error) => {
+      console.warn('Outbound SMS local customer lookup failed; saving unlinked:', error.message);
       return null;
     });
 
@@ -6022,7 +5995,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
       messageBody,
       mediaUrls || [],
       twilioMessage.status,
-      matchedCustomer?.id || null
+      localMessageCustomer?.id || null
     ]);
 
     let homeWorksSync = { success: false, status: 'not_attempted' };

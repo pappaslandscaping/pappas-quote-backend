@@ -4362,6 +4362,13 @@ const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
 });
 const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.6';
 
+const { normalizePhone: normalizeCommunicationPhone, cachedCustomerMatches, loadVoicemailMetadata } = require('./lib/communications-read');
+
+async function lookupCachedAppCustomer(phoneNumber) {
+  const matches = await cachedCustomerMatches(pool, [phoneNumber]);
+  return matches.get(normalizeCommunicationPhone(phoneNumber)) || null;
+}
+
 async function lookupAppCustomerByPhone(phoneNumber) {
   const records = require('./services/homeworks/records');
   try {
@@ -4404,7 +4411,7 @@ app.post('/api/app/calls/outbound', authenticateToken, async (req, res) => {
   const { to, fromNumber } = req.body;
   const userPhone = req.user.phone;
   try {
-    const matchedCustomer = await lookupAppCustomerByPhone(to);
+    const matchedCustomer = await lookupCachedAppCustomer(to);
     const contactName = matchedCustomer?.name || null;
 
     // Determine which Twilio number to call from
@@ -4623,7 +4630,7 @@ app.all('/api/app/voice/recording-complete', async (req, res) => {
 
   let contactName = null;
   try {
-    const matchedCustomer = await lookupAppCustomerByPhone(from);
+    const matchedCustomer = await lookupCachedAppCustomer(from);
     contactName = matchedCustomer?.name || null;
   } catch (e) {}
 
@@ -4720,12 +4727,13 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
   try {
     // Fetch extra to account for client: calls that get filtered out
     const calls = await twilioClient.calls.list({ limit: Math.min(limit * 3, 200) });
+    const matches = await cachedCustomerMatches(pool, calls.flatMap(call => [call.from, call.to]));
     const enrichedCalls = (await Promise.all(calls.map(async (call) => {
       const direction = normalizeTwilioCallDirection(call.direction);
       const phoneNumber = direction === 'inbound' ? call.from : direction === 'outbound' ? call.to : null;
       // Skip calls to/from client: identities (IVR app forwarding legs)
       if (!phoneNumber || String(phoneNumber).startsWith('client:') || String(call.from || '').startsWith('client:') || String(call.to || '').startsWith('client:')) return null;
-      const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
+      const matchedCustomer = matches.get(normalizeCommunicationPhone(phoneNumber));
       const contactName = matchedCustomer?.name || null;
       const twilioNumber = direction === 'inbound' ? call.to : call.from;
       return { id: call.sid, phoneNumber, twilioNumber, direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
@@ -4752,11 +4760,12 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
 app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
   try {
     const calls = await twilioClient.calls.list({ limit: 100 });
+    const matches = await cachedCustomerMatches(pool, calls.flatMap(call => [call.from, call.to]));
     const enrichedCalls = await Promise.all(calls.map(async (call) => {
       const direction = normalizeTwilioCallDirection(call.direction);
       const phoneNumber = direction === 'inbound' ? call.from : direction === 'outbound' ? call.to : null;
       if (!phoneNumber || String(phoneNumber).startsWith('client:')) return null;
-      const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
+      const matchedCustomer = matches.get(normalizeCommunicationPhone(phoneNumber));
       const contactName = matchedCustomer?.name || null;
 
       // Include from/to numbers for filtering by Twilio line
@@ -4828,6 +4837,8 @@ app.post('/api/app/calls/status-callback', async (req, res) => {
       `, [CallSid, normalizedDirection, From, To, finalStatus || CallStatus || 'unknown', Number.parseInt(CallDuration, 10) || 0]);
     }
 
+    res.sendStatus(200);
+
     if (syncSourceId && finalCallStatuses.has(finalStatus) && remotePhone && !String(remotePhone).startsWith('client:')) {
       await syncCommunicationToHomeWorks({
         pool,
@@ -4848,8 +4859,8 @@ app.post('/api/app/calls/status-callback', async (req, res) => {
     }
   } catch (syncError) {
     console.error('HomeWorks call Call Note sync error:', syncError.message);
+    if (!res.headersSent) res.sendStatus(503);
   }
-  res.sendStatus(200);
 });
 
 // Get customers
@@ -10732,18 +10743,18 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
     } else {
       url = `${WEBHOOK_BASE}/api/calls?status=voicemail&limit=${voicemailLimit}`;
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error('Webhook fetch failed');
     const data = await response.json();
-    const intakeStartedAt = await getVoicemailIntakeStartedAt(pool);
-    const voicemails = await Promise.all((data.calls || []).map(async (c) => {
-      const matchedCustomer = c.customer_name ? null : await lookupAppCustomerByPhone(c.from_number || '');
+    if (!Array.isArray(data.calls)) throw new Error('Voicemail feed was incomplete');
+    const metadata = await loadVoicemailMetadata(pool, data.calls.map(voicemailSourceId), data.calls.map(c => c.from_number));
+    const { intakeStartedAt } = metadata;
+    const voicemails = data.calls.map((c) => {
+      const matchedCustomer = metadata.matches.get(normalizeCommunicationPhone(c.from_number));
       const audioUrl = getRecordingProxyUrl(c.recording_url);
       const sourceId = voicemailSourceId(c);
-      const [homeWorksSync, intake] = await Promise.all([
-        getVoicemailSyncStatus(pool, sourceId),
-        getVoicemailIntakeStatus(pool, sourceId),
-      ]);
+      const homeWorksSync = metadata.sync.get(sourceId);
+      const intake = metadata.intake.get(sourceId);
       const voicemailTime = new Date(c.created_at);
       const awaitingIntake = intakeStartedAt && Number.isFinite(voicemailTime.getTime()) && voicemailTime >= new Date(intakeStartedAt);
       return {
@@ -10757,12 +10768,12 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
         listened: c.read || false,
         status: c.status || 'voicemail',
         customerId: homeWorksSync?.customerId || matchedCustomer?.id || c.customer_id || null,
-        homeWorksSyncStatus: homeWorksSync?.status || 'not_saved',
+        homeWorksSyncStatus: homeWorksSync?.status || (metadata.syncAvailable ? 'not_saved' : 'unknown'),
         homeWorksSyncError: homeWorksSync?.error || null,
-        intakeStatus: intake?.status || (awaitingIntake ? 'capture_pending' : 'not_queued'),
+        intakeStatus: intake?.status || (metadata.intakeAvailable ? (awaitingIntake ? 'capture_pending' : 'not_queued') : 'unknown'),
         intakeError: intake?.error || null,
       };
-    }));
+    });
     const filteredVoicemails = searchTerm
       ? voicemails.filter((vm) => (
           String(vm.contactName || '').toLowerCase().includes(searchTerm)
